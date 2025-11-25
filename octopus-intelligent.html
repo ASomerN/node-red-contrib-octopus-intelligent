@@ -1,0 +1,63 @@
+<script type="text/javascript">
+    RED.nodes.registerType('octopus-intelligent', {
+        category: 'Octopus',
+        color: '#22d3b6',
+        defaults: {
+            name: { value: "Octopus Intelligent" },
+            accountNumber: { value: "", required: true },
+            broker: { type: "mqtt-broker", required: false }, // Optional MQTT
+            refreshInterval: { value: 5, validate: RED.validators.number() },
+            enableMqtt: { value: true }
+        },
+        credentials: {
+            apiKey: { type: "password" }
+        },
+        inputs: 1,
+        outputs: 1,
+        icon: "font-awesome/fa-bolt",
+        label: function() {
+            return this.name || "Octopus Intelligent";
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="octopus-intelligent">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
+        <label for="node-input-accountNumber"><i class="fa fa-id-card"></i> Account No</label>
+        <input type="text" id="node-input-accountNumber" placeholder="A-12345678">
+    </div>
+    <div class="form-row">
+        <label for="node-input-apiKey"><i class="fa fa-key"></i> API Key</label>
+        <input type="password" id="node-input-apiKey" placeholder="sk_live_...">
+    </div>
+
+    <hr>
+
+    <div class="form-row">
+        <label for="node-input-refreshInterval"><i class="fa fa-clock-o"></i> Refresh (Min)</label>
+        <input type="number" id="node-input-refreshInterval" placeholder="5">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-enableMqtt"><i class="fa fa-rss"></i> HA Discovery</label>
+        <input type="checkbox" id="node-input-enableMqtt" style="display: inline-block; width: auto; vertical-align: top;">
+        <label for="node-input-enableMqtt" style="width: 70%;">Enable Home Assistant MQTT</label>
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-broker"><i class="fa fa-globe"></i> MQTT Broker</label>
+        <input type="text" id="node-input-broker">
+    </div>
+</script>
+
+<script type="text/html" data-help-name="octopus-intelligent">
+    <p>Fetches Intelligent Octopus slots and settings.</p>
+    <h3>Outputs</h3>
+    <p>Outputs a payload containing <code>next_charge</code>, <code>settings</code>, and raw data.</p>
+    <h3>Home Assistant</h3>
+    <p>If an MQTT broker is configured, this node will automatically create sensors in Home Assistant.</p>
+</script>

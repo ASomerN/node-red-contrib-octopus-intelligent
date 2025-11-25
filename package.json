@@ -1,0 +1,21 @@
+{
+  "name": "node-red-contrib-octopus-intelligent",
+  "version": "1.0.0",
+  "description": "Octopus Intelligent integration with Home Assistant Auto-Discovery",
+  "keywords": [
+    "node-red",
+    "octopus",
+    "energy",
+    "home-assistant",
+    "mqtt",
+    "intelligent"
+  ],
+  "node-red": {
+    "nodes": {
+      "octopus-intelligent": "octopus-intelligent.js"
+    }
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}
