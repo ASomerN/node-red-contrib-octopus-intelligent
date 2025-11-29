@@ -2,14 +2,23 @@
   "name": "node-red-contrib-octopus-intelligent",
   "version": "1.0.0",
   "description": "Octopus Intelligent integration with Home Assistant Auto-Discovery",
+  "main": "octopus-intelligent.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
   "keywords": [
     "node-red",
     "octopus",
     "energy",
     "home-assistant",
     "mqtt",
-    "intelligent"
+    "intelligent",
+    "octopus-energy",
+    "ev-charging",
+    "smart-charging"
   ],
+  "author": "Your Name",
+  "license": "ISC",
   "node-red": {
     "nodes": {
       "octopus-intelligent": "octopus-intelligent.js"
@@ -17,5 +26,13 @@
   },
   "dependencies": {
     "axios": "^1.6.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/node-red-contrib-octopus-intelligent.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/node-red-contrib-octopus-intelligent/issues"
+  },
+  "homepage": "https://github.com/yourusername/node-red-contrib-octopus-intelligent#readme"
 }
