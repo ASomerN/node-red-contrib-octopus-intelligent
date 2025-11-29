@@ -296,7 +296,7 @@ Found this useful? Support continued development:
 Star the repository to show your support!
 
 ### 💖 Sponsor
-[Become a sponsor on GitHub](https://github.com/sponsors/YOUR-USERNAME)
+[Become a sponsor on GitHub](https://github.com/sponsors/ASomerN)
 
 Your sponsorship helps with:
 - Bug fixes and maintenance
@@ -308,7 +308,7 @@ Your sponsorship helps with:
 
 ## 📝 License
 
-MIT License - Copyright (c) 2025 [Your Name]
+MIT License - Copyright (c) 2025 Andrew Somerharju Neale
 
 See [LICENSE](LICENSE) file for full details.
 
@@ -325,8 +325,8 @@ Use at your own risk. The Octopus Energy name and logo are trademarks of Octopus
 ## 🔗 Links
 
 - **npm**: https://www.npmjs.com/package/node-red-contrib-octopus-intelligent
-- **GitHub**: https://github.com/YOUR-USERNAME/node-red-contrib-octopus-intelligent
-- **Issues**: https://github.com/YOUR-USERNAME/node-red-contrib-octopus-intelligent/issues
+- **GitHub**: https://github.com/ASomerN/node-red-contrib-octopus-intelligent
+- **Issues**: https://github.com/ASomerN/node-red-contrib-octopus-intelligent/issues
 - **Octopus Intelligent**: https://octopus.energy/intelligent/
 - **API Docs**: https://developer.octopus.energy/docs/api/
 
