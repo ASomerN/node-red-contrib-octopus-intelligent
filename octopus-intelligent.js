@@ -35,7 +35,16 @@ module.exports = function (RED) {
             { id: "total_energy", name: "Total Planned Energy", class: "energy", unit: "kWh", val: "total_energy" },
             { id: "next_kwh", name: "Next Slot Energy", class: "energy", unit: "kWh", val: "next_kwh" },
             { id: "source", name: "Charge Source", icon: "mdi:help-circle", val: "next_source" },
-            // Note: We removed the "Confirmed" sensors because the Controls below now act as the display
+            // Individual slot times
+            { id: "slot1_start", name: "Slot 1 Start", class: "timestamp", icon: "mdi:timer-outline", val: "slot1_start" },
+            { id: "slot1_end", name: "Slot 1 End", class: "timestamp", icon: "mdi:timer-outline", val: "slot1_end" },
+            { id: "slot2_start", name: "Slot 2 Start", class: "timestamp", icon: "mdi:timer-outline", val: "slot2_start" },
+            { id: "slot2_end", name: "Slot 2 End", class: "timestamp", icon: "mdi:timer-outline", val: "slot2_end" },
+            { id: "slot3_start", name: "Slot 3 Start", class: "timestamp", icon: "mdi:timer-outline", val: "slot3_start" },
+            { id: "slot3_end", name: "Slot 3 End", class: "timestamp", icon: "mdi:timer-outline", val: "slot3_end" },
+            // Overall window
+            { id: "window_start", name: "Overall Window Start", class: "timestamp", icon: "mdi:timer-play", val: "window_start" },
+            { id: "window_end", name: "Overall Window End", class: "timestamp", icon: "mdi:timer-stop", val: "window_end" }
         ];
 
         // 4. Helper: Announce Controls (Write-Enabled)
@@ -115,6 +124,14 @@ module.exports = function (RED) {
                     query: `mutation obtainToken($input: ObtainJSONWebTokenInput!) { obtainKrakenToken(input: $input) { token } }`,
                     variables: { input: { APIKey: apiKey } }
                 });
+
+                if (authResponse.data.errors) {
+                    throw new Error(`Auth failed: ${JSON.stringify(authResponse.data.errors)}`);
+                }
+                if (!authResponse.data.data || !authResponse.data.data.obtainKrakenToken) {
+                    throw new Error(`Auth response missing token data`);
+                }
+
                 const token = authResponse.data.data.obtainKrakenToken.token;
 
                 // B. Send Mutation
@@ -133,10 +150,14 @@ module.exports = function (RED) {
                     }
                 };
 
-                await axios.post("https://api.octopus.energy/v1/graphql/", {
+                const mutationResponse = await axios.post("https://api.octopus.energy/v1/graphql/", {
                     query: mutation,
                     variables: variables
-                }, { headers: { Authorization: `Bearer ${token}` } });
+                }, { headers: { Authorization: token } });
+
+                if (mutationResponse.data.errors) {
+                    throw new Error(`Mutation failed: ${JSON.stringify(mutationResponse.data.errors)}`);
+                }
 
                 // C. Trigger Immediate Refresh
                 node.status({ fill: "green", shape: "dot", text: "Success! Refreshing..." });
@@ -144,6 +165,9 @@ module.exports = function (RED) {
 
             } catch (err) {
                 node.error("Failed to set preferences: " + err.message);
+                if (err.response) {
+                    node.error(`Response: ${JSON.stringify(err.response.data)}`);
+                }
                 node.status({ fill: "red", shape: "ring", text: "Update Failed" });
             }
         }
@@ -154,16 +178,67 @@ module.exports = function (RED) {
         let currentTime = "08:00";
 
         async function fetchData() {
-            if (!apiKey || !account) return;
+            // Debug object to track API calls
+            const debugInfo = {
+                timestamp: new Date().toISOString(),
+                step: null,
+                success: false,
+                error: null,
+                apiCalls: []
+            };
+
+            if (!apiKey || !account) {
+                debugInfo.error = "Missing configuration: apiKey or account number not provided";
+                debugInfo.step = "validation";
+                node.status({ fill: "red", shape: "ring", text: "Config Missing" });
+                node.send({
+                    payload: buildDefaultPayload(),
+                    debug: debugInfo
+                });
+                return;
+            }
+
             try {
-                // ... (Auth Logic same as before) ...
-                const authResponse = await axios.post("https://api.octopus.energy/v1/graphql/", {
+                // STEP 1: Get Token
+                debugInfo.step = "authentication";
+                node.status({ fill: "yellow", shape: "ring", text: "Authenticating..." });
+
+                const authRequest = {
+                    url: "https://api.octopus.energy/v1/graphql/",
                     query: `mutation obtainToken($input: ObtainJSONWebTokenInput!) { obtainKrakenToken(input: $input) { token } }`,
                     variables: { input: { APIKey: apiKey } }
-                });
-                const token = authResponse.data.data.obtainKrakenToken.token;
+                };
 
-                // Master Query
+                const authResponse = await axios.post(authRequest.url, {
+                    query: authRequest.query,
+                    variables: authRequest.variables
+                });
+
+                debugInfo.apiCalls.push({
+                    step: 1,
+                    name: "authentication",
+                    url: authRequest.url,
+                    statusCode: authResponse.status,
+                    hasErrors: !!(authResponse.data.errors),
+                    errors: authResponse.data.errors || null
+                });
+
+                // Validate auth response
+                if (authResponse.data.errors) {
+                    throw new Error(`Auth failed: ${JSON.stringify(authResponse.data.errors)}`);
+                }
+                if (!authResponse.data.data || !authResponse.data.data.obtainKrakenToken) {
+                    throw new Error(`Auth response missing token data. Response: ${JSON.stringify(authResponse.data)}`);
+                }
+
+                const token = authResponse.data.data.obtainKrakenToken.token;
+                debugInfo.apiCalls[0].tokenObtained = !!token;
+                debugInfo.apiCalls[0].tokenPrefix = token ? token.substring(0, 20) + "..." : null;
+
+                // STEP 2: Fetch Data
+                debugInfo.step = "fetching_data";
+                node.status({ fill: "yellow", shape: "ring", text: "Fetching data..." });
+
                 const masterQuery = `
                 query getData($account: String!) {
                     plannedDispatches(accountNumber: $account) { startDt endDt deltaKwh meta { source } }
@@ -173,34 +248,134 @@ module.exports = function (RED) {
                 const dataResponse = await axios.post("https://api.octopus.energy/v1/graphql/", {
                     query: masterQuery,
                     variables: { account: account }
-                }, { headers: { Authorization: `Bearer ${token}` } });
+                }, { headers: { Authorization: token } });
 
-                // Extract
+                debugInfo.apiCalls.push({
+                    step: 2,
+                    name: "data_query",
+                    url: "https://api.octopus.energy/v1/graphql/",
+                    accountNumber: account,
+                    authHeaderFormat: "Raw token (no Bearer/JWT prefix)",
+                    statusCode: dataResponse.status,
+                    hasErrors: !!(dataResponse.data.errors),
+                    errors: dataResponse.data.errors || null,
+                    hasData: !!(dataResponse.data.data)
+                });
+
+                // Validate data response
+                if (dataResponse.data.errors) {
+                    throw new Error(`Data query failed: ${JSON.stringify(dataResponse.data.errors)}`);
+                }
+                if (!dataResponse.data.data) {
+                    throw new Error(`Data response missing data field. Response: ${JSON.stringify(dataResponse.data)}`);
+                }
+
+                // STEP 3: Extract and Process
+                debugInfo.step = "processing";
                 const data = dataResponse.data.data || {};
                 const slots = data.plannedDispatches || [];
                 const prefs = data.vehicleChargingPreferences || {};
-                
+
+                debugInfo.apiCalls[1].slotsFound = slots.length;
+                debugInfo.apiCalls[1].preferencesFound = !!(prefs.weekdayTargetSoc);
+
                 // Update Local State
                 currentLimit = prefs.weekdayTargetSoc || currentLimit;
                 currentTime = prefs.weekdayTargetTime || currentTime;
 
+                // Process slots
+                const now = new Date();
+                const futureSlots = slots.filter(s => new Date(s.startDt) > now);
+                const nextSlot = futureSlots[0] || null;
+
+                const totalEnergy = slots.reduce((sum, s) => sum + (s.deltaKwh || 0), 0);
+
                 // Build Payload
                 const statusPayload = {
-                    // ... (Slot logic same as before) ...
+                    next_start: nextSlot ? nextSlot.startDt : null,
+                    total_energy: parseFloat(totalEnergy.toFixed(2)),
+                    next_kwh: nextSlot ? nextSlot.deltaKwh.toFixed(2) : "0",
+                    next_source: nextSlot && nextSlot.meta ? nextSlot.meta.source : "unknown",
                     confirmed_limit: currentLimit,
-                    confirmed_time: currentTime
+                    confirmed_time: currentTime,
+                    // Individual slots (first 3)
+                    slot1_start: futureSlots[0] ? futureSlots[0].startDt : null,
+                    slot1_end: futureSlots[0] ? futureSlots[0].endDt : null,
+                    slot2_start: futureSlots[1] ? futureSlots[1].startDt : null,
+                    slot2_end: futureSlots[1] ? futureSlots[1].endDt : null,
+                    slot3_start: futureSlots[2] ? futureSlots[2].startDt : null,
+                    slot3_end: futureSlots[2] ? futureSlots[2].endDt : null,
+                    // Overall window (first start to last end)
+                    window_start: futureSlots.length > 0 ? futureSlots[0].startDt : null,
+                    window_end: futureSlots.length > 0 ? futureSlots[futureSlots.length - 1].endDt : null
                 };
-                
+
+                // Success!
+                debugInfo.success = true;
+                debugInfo.step = "complete";
+
                 // Publish
-                node.send({ payload: statusPayload });
+                node.send({
+                    payload: statusPayload,
+                    debug: debugInfo
+                });
+
                 if (enableMqtt && node.broker) {
                     node.broker.client.publish(stateTopic, JSON.stringify(statusPayload), { retain: true });
                 }
                 node.status({ fill: "green", shape: "dot", text: `Limit: ${currentLimit}% | Time: ${currentTime}` });
 
             } catch (error) {
-                node.error(error);
+                debugInfo.success = false;
+                debugInfo.error = {
+                    message: error.message,
+                    stack: error.stack,
+                    response: error.response ? {
+                        status: error.response.status,
+                        statusText: error.response.statusText,
+                        data: error.response.data
+                    } : null
+                };
+
+                // Log to Node-RED
+                node.error(`Octopus API Error at ${debugInfo.step}: ${error.message}`);
+                if (error.response) {
+                    node.error(`Response: ${JSON.stringify(error.response.data)}`);
+                }
+
+                // Update status
+                node.status({
+                    fill: "red",
+                    shape: "ring",
+                    text: `Error: ${debugInfo.step}`
+                });
+
+                // Send default payload with debug info
+                node.send({
+                    payload: buildDefaultPayload(),
+                    debug: debugInfo
+                });
             }
+        }
+
+        // Helper: Build default payload when errors occur
+        function buildDefaultPayload() {
+            return {
+                next_start: null,
+                total_energy: 0,
+                next_kwh: "0",
+                next_source: "unknown",
+                confirmed_limit: currentLimit,
+                confirmed_time: currentTime,
+                slot1_start: null,
+                slot1_end: null,
+                slot2_start: null,
+                slot2_end: null,
+                slot3_start: null,
+                slot3_end: null,
+                window_start: null,
+                window_end: null
+            };
         }
 
         // 7. Event Listeners
