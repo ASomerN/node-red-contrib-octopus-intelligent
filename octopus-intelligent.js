@@ -136,7 +136,20 @@ module.exports = function (RED) {
             };
             node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_confirmed_time/config`, JSON.stringify(confirmedTimeSensor), { retain: true });
 
-            // E. Announce Read-Only Sensors
+            // F. Charging Now Binary Sensor (main sensor for automations)
+            const chargingNowBinarySensor = {
+                name: "Octopus Charging Now",
+                unique_id: `${uniqueIdPrefix}_charging_now`,
+                state_topic: `${stateTopic}/charging_now`,
+                device_class: "battery_charging",
+                payload_on: "ON",
+                payload_off: "OFF",
+                icon: "mdi:ev-station",
+                device: device
+            };
+            node.broker.client.publish(`${mqttPrefix}/binary_sensor/${uniqueIdPrefix}_charging_now/config`, JSON.stringify(chargingNowBinarySensor), { retain: true });
+
+            // G. Announce Read-Only Sensors
             sensors.forEach(sensor => {
                 const payload = {
                     name: `Octopus ${sensor.name}`,
@@ -173,6 +186,13 @@ module.exports = function (RED) {
         let pendingTime = "08:00";
         let confirmedLimit = 80;
         let confirmedTime = "08:00";
+
+        // Charging Now feature - timer-based state management
+        let chargingNow = false;
+        let preValidationTimer = null;  // Fires 30s before slot start
+        let slotStartTimer = null;       // Fires at exact slot start
+        let slotEndTimer = null;         // Fires at exact slot end
+        let cachedSlots = [];            // Fresh slot data from pre-validation
 
         async function setPreferences(newLimit, newTime) {
             // Validation
@@ -433,6 +453,11 @@ module.exports = function (RED) {
                 debugInfo.apiCalls[1].activeAndFutureSlots = activeAndFutureSlots.length;
                 debugInfo.processingTime = now.toISOString();
 
+                // Setup charging timers (only in non-validation mode)
+                if (!validationMode) {
+                    setupChargingTimers(activeAndFutureSlots);
+                }
+
                 // Build Payload
                 const statusPayload = {
                     next_start: nextSlot ? nextSlot.startDt : null,
@@ -445,6 +470,8 @@ module.exports = function (RED) {
                     // Pending values (user's current selections)
                     pending_limit: pendingLimit,
                     pending_time: pendingTime,
+                    // Charging Now state
+                    charging_now: chargingNow,
                     // Individual slots (first 3 active/future) - formatted timestamps
                     slot1_start: activeAndFutureSlots[0] ? activeAndFutureSlots[0].startDt : null,
                     slot1_end: activeAndFutureSlots[0] ? activeAndFutureSlots[0].endDt : null,
@@ -550,6 +577,7 @@ module.exports = function (RED) {
                 confirmed_time: confirmedTime,
                 pending_limit: pendingLimit,
                 pending_time: pendingTime,
+                charging_now: chargingNow,
                 slot1_start: null,
                 slot1_end: null,
                 slot2_start: null,
@@ -569,6 +597,187 @@ module.exports = function (RED) {
                 window_start_raw: null,
                 window_end_raw: null
             };
+        }
+
+        // 6a. Charging Now - Timer Management Functions
+
+        // Clear all charging timers
+        function clearChargingTimers() {
+            if (preValidationTimer) {
+                clearTimeout(preValidationTimer);
+                preValidationTimer = null;
+            }
+            if (slotStartTimer) {
+                clearTimeout(slotStartTimer);
+                slotStartTimer = null;
+            }
+            if (slotEndTimer) {
+                clearTimeout(slotEndTimer);
+                slotEndTimer = null;
+            }
+        }
+
+        // Publish charging state to MQTT
+        function publishChargingState(state) {
+            chargingNow = state;
+            if (enableMqtt && node.broker) {
+                const payload = state ? "ON" : "OFF";
+                node.broker.client.publish(`${stateTopic}/charging_now`, payload, { retain: true });
+            }
+        }
+
+        // Setup pre-validation timer (30s before slot starts)
+        function setupPreValidationTimer(nextSlot) {
+            const now = new Date();
+            const slotStart = new Date(nextSlot.startDt);
+            const preValidationTime = slotStart.getTime() - 30000; // 30s before
+            const msUntilPreValidation = preValidationTime - now.getTime();
+
+            if (msUntilPreValidation > 0 && msUntilPreValidation < 24 * 60 * 60 * 1000) { // Within 24 hours
+                preValidationTimer = setTimeout(async () => {
+                    node.warn("Pre-validating slot data (30s before start)");
+                    try {
+                        // Fetch fresh data from API
+                        const authResponse = await axios.post("https://api.octopus.energy/v1/graphql/", {
+                            query: `mutation obtainToken($input: ObtainJSONWebTokenInput!) { obtainKrakenToken(input: $input) { token } }`,
+                            variables: { input: { APIKey: apiKey } }
+                        });
+
+                        if (!authResponse.data.data || !authResponse.data.data.obtainKrakenToken) {
+                            throw new Error("Pre-validation auth failed");
+                        }
+
+                        const token = authResponse.data.data.obtainKrakenToken.token;
+
+                        const dataResponse = await axios.post("https://api.octopus.energy/v1/graphql/", {
+                            query: `query getData($account: String!) { plannedDispatches(accountNumber: $account) { startDt endDt deltaKwh meta { source } } }`,
+                            variables: { account: account }
+                        }, { headers: { Authorization: token } });
+
+                        if (dataResponse.data.data && dataResponse.data.data.plannedDispatches) {
+                            cachedSlots = dataResponse.data.data.plannedDispatches;
+
+                            // Check if slot still exists (within 1 minute tolerance)
+                            const stillExists = cachedSlots.find(s =>
+                                Math.abs(new Date(s.startDt).getTime() - slotStart.getTime()) < 60000
+                            );
+
+                            if (stillExists) {
+                                node.warn(`Slot confirmed at ${stillExists.startDt}`);
+                                setupSlotStartTimer(stillExists);
+                            } else {
+                                node.warn("Slot was cancelled or modified - not setting start timer");
+                            }
+                        }
+                    } catch (error) {
+                        node.warn(`Pre-validation failed: ${error.message}, using cached slot`);
+                        // Fallback: use original slot data
+                        setupSlotStartTimer(nextSlot);
+                    }
+                }, msUntilPreValidation);
+
+                const minutesUntil = Math.round(msUntilPreValidation / 60000);
+                node.log(`Pre-validation timer set for ${minutesUntil} min before slot start`);
+            }
+        }
+
+        // Setup slot start timer (exact start time)
+        function setupSlotStartTimer(slot) {
+            const now = new Date();
+            const slotStart = new Date(slot.startDt);
+            const msUntilStart = slotStart.getTime() - now.getTime();
+
+            if (msUntilStart > 0 && msUntilStart < 24 * 60 * 60 * 1000) { // Within 24 hours
+                slotStartTimer = setTimeout(() => {
+                    publishChargingState(true);
+                    node.warn(`Charging slot started at ${slot.startDt}`);
+                    setupSlotEndTimer(slot);
+                }, msUntilStart);
+
+                const secondsUntil = Math.round(msUntilStart / 1000);
+                node.log(`Slot start timer set for ${secondsUntil}s (${slot.startDt})`);
+            } else if (msUntilStart <= 0) {
+                // Slot already started, check if it's still active
+                const slotEnd = new Date(slot.endDt);
+                if (slotEnd > now) {
+                    publishChargingState(true);
+                    setupSlotEndTimer(slot);
+                }
+            }
+        }
+
+        // Setup slot end timer (exact end time)
+        function setupSlotEndTimer(slot) {
+            const now = new Date();
+            const slotEnd = new Date(slot.endDt);
+            const msUntilEnd = slotEnd.getTime() - now.getTime();
+
+            if (msUntilEnd > 0 && msUntilEnd < 24 * 60 * 60 * 1000) { // Within 24 hours
+                slotEndTimer = setTimeout(() => {
+                    node.warn(`Charging slot ended at ${slot.endDt}`);
+
+                    // Check if another slot starts immediately (within cached data)
+                    const now = new Date();
+                    const immediateNextSlot = cachedSlots.find(s => {
+                        const start = new Date(s.startDt);
+                        const end = new Date(s.endDt);
+                        return start <= now && end > now;
+                    });
+
+                    if (immediateNextSlot) {
+                        node.warn("Next slot starting immediately");
+                        publishChargingState(true);
+                        setupSlotEndTimer(immediateNextSlot);
+                    } else {
+                        publishChargingState(false);
+                    }
+                }, msUntilEnd);
+
+                const minutesUntil = Math.round(msUntilEnd / 60000);
+                node.log(`Slot end timer set for ${minutesUntil} min (${slot.endDt})`);
+            }
+        }
+
+        // Main timer setup - called on each poll
+        function setupChargingTimers(slots) {
+            // Clear existing timers
+            clearChargingTimers();
+
+            // Cache slots for later use
+            cachedSlots = slots;
+
+            const now = new Date();
+
+            // Check if currently in a charging slot
+            const activeSlot = slots.find(s => {
+                const start = new Date(s.startDt);
+                const end = new Date(s.endDt);
+                return start <= now && end > now;
+            });
+
+            if (activeSlot) {
+                // Currently charging
+                const newState = true;
+                if (chargingNow !== newState) {
+                    publishChargingState(newState);
+                }
+                setupSlotEndTimer(activeSlot);
+                node.log("Currently charging - end timer set");
+            } else {
+                // Not currently charging
+                const newState = false;
+                if (chargingNow !== newState) {
+                    publishChargingState(newState);
+                }
+
+                // Find next future slot
+                const nextSlot = slots.find(s => new Date(s.startDt) > now);
+
+                if (nextSlot) {
+                    setupPreValidationTimer(nextSlot);
+                    node.log(`Next slot at ${nextSlot.startDt}`);
+                }
+            }
         }
 
         // 7. Event Listeners
@@ -638,6 +847,8 @@ module.exports = function (RED) {
             // Clear any pending retry timeouts
             retryTimeouts.forEach(timeout => clearTimeout(timeout));
             retryTimeouts = [];
+            // Clear charging timers
+            clearChargingTimers();
             if (node.broker) node.broker.unsubscribe(cmdTopicLimit, cmdTopicTime, cmdTopicSubmit);
         });
     }
