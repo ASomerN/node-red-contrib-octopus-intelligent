@@ -148,6 +148,12 @@ module.exports = function (RED) {
                 if (sensor.class) payload.device_class = sensor.class;
                 if (sensor.unit) payload.unit_of_measurement = sensor.unit;
                 if (sensor.icon) payload.icon = sensor.icon;
+
+                // Mark raw sensors as diagnostic (moves to Diagnostics section)
+                if (sensor.id.includes('_raw')) {
+                    payload.entity_category = "diagnostic";
+                }
+
                 node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_${sensor.id}/config`, JSON.stringify(payload), { retain: true });
             });
 
