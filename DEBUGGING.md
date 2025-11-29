@@ -41,13 +41,23 @@ Every message now includes a `debug` object alongside the `payload`:
 ```
 
 ### 2. **Fixed Authorization Header**
-Changed from `Authorization: token` to `Authorization: Bearer ${token}` (industry standard)
+Uses raw token without "Bearer" or "JWT" prefix (Octopus Energy Kraken API requirement)
 
-### 3. **Better Error Handling**
+### 3. **Exponential Backoff Validation**
+When changing charge targets (limit or ready time), the node uses smart retry logic:
+- Waits 15 seconds, then validates changes
+- If not confirmed, waits 30 seconds and tries again
+- Then 60 seconds, then 120 seconds
+- After all retries, lets normal interval take over
+- **Prevents sensors becoming "unavailable"** during preference updates
+- Cancels pending retries if new changes are made
+
+### 4. **Better Error Handling**
 - Validates API responses at each step
 - Catches GraphQL errors (not just HTTP errors)
 - Shows which step failed
 - Includes full error details in debug output
+- Suppresses error spam during validation retries
 
 ## Common Issues & Solutions
 
@@ -148,10 +158,15 @@ Changed from `Authorization: token` to `Authorization: Bearer ${token}` (industr
 
 ## Node Status Indicators
 
+- **Blue dot "Updating Settings..."** - Sending preference change to API
+- **Blue ring "Verifying changes..."** - Waiting to validate changes
+- **Blue ring "Retry X/4..."** - Checking if changes took effect (exponential backoff)
 - **Yellow ring "Authenticating..."** - Getting token
 - **Yellow ring "Fetching data..."** - Querying API
-- **Green dot "Limit: X% | Time: XX:XX"** - Success
+- **Yellow dot "Waiting for normal sync..."** - Retries exhausted, normal interval will handle
+- **Green dot "Limit: X% | Time: XX:XX"** - Success (changes confirmed)
 - **Red ring "Error: [step]"** - Failed at specific step
+- **Red ring "Update Failed"** - Preference change failed
 - **Red ring "Config Missing"** - Missing API key or account
 
 ## Next Steps

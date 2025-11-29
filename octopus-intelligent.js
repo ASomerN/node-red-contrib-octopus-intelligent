@@ -16,10 +16,11 @@ module.exports = function (RED) {
         const mqttPrefix = `homeassistant`;
         const uniqueIdPrefix = `nodered_${account}`;
         const stateTopic = `nodered_octopus/${account}/status`;
-        
+
         // Command Topics (For listening)
         const cmdTopicLimit = `nodered_octopus/${account}/set_limit`;
         const cmdTopicTime = `nodered_octopus/${account}/set_time`;
+        const cmdTopicSubmit = `nodered_octopus/${account}/submit_changes`;
 
         // 2. Constants & Validation
         const TIME_OPTIONS = [
@@ -51,13 +52,13 @@ module.exports = function (RED) {
         function announceControls() {
             if (!enableMqtt || !node.broker) return;
 
-            // A. The Slider (Number)
+            // A. The Slider (Number) - now shows pending value
             const limitConfig = {
                 name: "Octopus Target Charge",
                 unique_id: `${uniqueIdPrefix}_target_limit`,
                 state_topic: stateTopic,
                 command_topic: cmdTopicLimit,
-                value_template: "{{ value_json.confirmed_limit }}",
+                value_template: "{{ value_json.pending_limit }}",
                 min: 50, max: 100, step: 5,
                 unit_of_measurement: "%",
                 icon: "mdi:battery-charging-high",
@@ -65,20 +66,32 @@ module.exports = function (RED) {
             };
             node.broker.client.publish(`${mqttPrefix}/number/${uniqueIdPrefix}_limit/config`, JSON.stringify(limitConfig), { retain: true });
 
-            // B. The Dropdown (Select)
+            // B. The Dropdown (Select) - now shows pending value
             const timeConfig = {
                 name: "Octopus Ready Time",
                 unique_id: `${uniqueIdPrefix}_target_time`,
                 state_topic: stateTopic,
                 command_topic: cmdTopicTime,
-                value_template: "{{ value_json.confirmed_time }}",
+                value_template: "{{ value_json.pending_time }}",
                 options: TIME_OPTIONS,
                 icon: "mdi:clock-time-four-outline",
                 device: { identifiers: [`nodered_octopus_${account}`] }
             };
             node.broker.client.publish(`${mqttPrefix}/select/${uniqueIdPrefix}_time/config`, JSON.stringify(timeConfig), { retain: true });
 
-            // C. Announce Read-Only Sensors (Same as before)
+            // C. Submit Button
+            const buttonConfig = {
+                name: "Octopus Apply Changes",
+                unique_id: `${uniqueIdPrefix}_submit_button`,
+                command_topic: cmdTopicSubmit,
+                payload_press: "SUBMIT",
+                icon: "mdi:check-circle",
+                device_class: "update",
+                device: { identifiers: [`nodered_octopus_${account}`] }
+            };
+            node.broker.client.publish(`${mqttPrefix}/button/${uniqueIdPrefix}_submit/config`, JSON.stringify(buttonConfig), { retain: true });
+
+            // D. Announce Read-Only Sensors (Same as before)
             sensors.forEach(sensor => {
                 const payload = {
                     name: `Octopus ${sensor.name}`,
@@ -92,13 +105,46 @@ module.exports = function (RED) {
                 if (sensor.icon) payload.icon = sensor.icon;
                 node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_${sensor.id}/config`, JSON.stringify(payload), { retain: true });
             });
-            
+
+            // E. Add sensors for confirmed values (read-only display)
+            const confirmedLimitSensor = {
+                name: "Octopus Confirmed Charge Limit",
+                unique_id: `${uniqueIdPrefix}_confirmed_limit`,
+                state_topic: stateTopic,
+                value_template: "{{ value_json.confirmed_limit }}",
+                unit_of_measurement: "%",
+                icon: "mdi:battery-check",
+                device: { identifiers: [`nodered_octopus_${account}`] }
+            };
+            node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_confirmed_limit/config`, JSON.stringify(confirmedLimitSensor), { retain: true });
+
+            const confirmedTimeSensor = {
+                name: "Octopus Confirmed Ready Time",
+                unique_id: `${uniqueIdPrefix}_confirmed_time`,
+                state_topic: stateTopic,
+                value_template: "{{ value_json.confirmed_time }}",
+                icon: "mdi:clock-check",
+                device: { identifiers: [`nodered_octopus_${account}`] }
+            };
+            node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_confirmed_time/config`, JSON.stringify(confirmedTimeSensor), { retain: true });
+
             // Subscribe to Commands
             node.broker.client.subscribe(cmdTopicLimit);
             node.broker.client.subscribe(cmdTopicTime);
+            node.broker.client.subscribe(cmdTopicSubmit);
         }
 
         // 5. Helper: Set Preferences (The Mutation)
+        let retryTimeouts = []; // Track pending retry timeouts
+        let expectedLimit = null;
+        let expectedTime = null;
+
+        // Pending vs Confirmed state
+        let pendingLimit = 80;
+        let pendingTime = "08:00";
+        let confirmedLimit = 80;
+        let confirmedTime = "08:00";
+
         async function setPreferences(newLimit, newTime) {
             // Validation
             let limit = parseInt(newLimit);
@@ -115,6 +161,10 @@ module.exports = function (RED) {
                 node.warn(`Invalid time '${time}' requested. Defaulting to 08:00`);
                 time = "08:00";
             }
+
+            // Cancel any pending retry attempts from previous changes
+            retryTimeouts.forEach(timeout => clearTimeout(timeout));
+            retryTimeouts = [];
 
             try {
                 node.status({ fill: "blue", shape: "dot", text: "Updating Settings..." });
@@ -159,9 +209,14 @@ module.exports = function (RED) {
                     throw new Error(`Mutation failed: ${JSON.stringify(mutationResponse.data.errors)}`);
                 }
 
-                // C. Trigger Immediate Refresh
-                node.status({ fill: "green", shape: "dot", text: "Success! Refreshing..." });
-                setTimeout(fetchData, 2000); // Wait 2s for API to update then read back
+                // C. Start exponential backoff validation
+                expectedLimit = limit;
+                expectedTime = time;
+                node.status({ fill: "blue", shape: "ring", text: "Verifying changes..." });
+
+                // Schedule retries with exponential backoff: 15s, 30s, 60s, 120s
+                const retryIntervals = [15000, 30000, 60000, 120000];
+                scheduleRetries(retryIntervals, 0);
 
             } catch (err) {
                 node.error("Failed to set preferences: " + err.message);
@@ -169,22 +224,64 @@ module.exports = function (RED) {
                     node.error(`Response: ${JSON.stringify(err.response.data)}`);
                 }
                 node.status({ fill: "red", shape: "ring", text: "Update Failed" });
+                expectedLimit = null;
+                expectedTime = null;
+            }
+        }
+
+        function scheduleRetries(intervals, index) {
+            if (index >= intervals.length) {
+                // All retries exhausted, let normal interval take over
+                node.status({ fill: "yellow", shape: "dot", text: "Waiting for normal sync..." });
+                expectedLimit = null;
+                expectedTime = null;
+                return;
+            }
+
+            const timeout = setTimeout(async () => {
+                await fetchDataWithValidation(intervals, index);
+            }, intervals[index]);
+
+            retryTimeouts.push(timeout);
+        }
+
+        async function fetchDataWithValidation(intervals, currentIndex) {
+            try {
+                const result = await fetchData(true); // Pass flag to indicate validation mode
+
+                // Check if the data matches our expected values
+                if (result && result.validated) {
+                    // Success! Changes confirmed
+                    node.status({ fill: "green", shape: "dot", text: `Confirmed: ${result.confirmedLimit}% @ ${result.confirmedTime}` });
+                    expectedLimit = null;
+                    expectedTime = null;
+                    // Clear remaining timeouts
+                    retryTimeouts.forEach(timeout => clearTimeout(timeout));
+                    retryTimeouts = [];
+                } else {
+                    // Not yet updated, schedule next retry
+                    const attempt = currentIndex + 1;
+                    const totalAttempts = intervals.length;
+                    node.status({ fill: "blue", shape: "ring", text: `Retry ${attempt}/${totalAttempts}...` });
+                    scheduleRetries(intervals, currentIndex + 1);
+                }
+            } catch (error) {
+                // Error during fetch, schedule next retry
+                node.warn(`Retry ${currentIndex + 1} failed: ${error.message}`);
+                scheduleRetries(intervals, currentIndex + 1);
             }
         }
 
         // 6. Logic: Fetch Data (Read)
-        // Note: We need to store current state globally so we can update just one field at a time
-        let currentLimit = 80;
-        let currentTime = "08:00";
-
-        async function fetchData() {
+        async function fetchData(validationMode = false) {
             // Debug object to track API calls
             const debugInfo = {
                 timestamp: new Date().toISOString(),
                 step: null,
                 success: false,
                 error: null,
-                apiCalls: []
+                apiCalls: [],
+                validationMode: validationMode
             };
 
             if (!apiKey || !account) {
@@ -195,7 +292,7 @@ module.exports = function (RED) {
                     payload: buildDefaultPayload(),
                     debug: debugInfo
                 });
-                return;
+                return { validated: false };
             }
 
             try {
@@ -278,17 +375,34 @@ module.exports = function (RED) {
 
                 debugInfo.apiCalls[1].slotsFound = slots.length;
                 debugInfo.apiCalls[1].preferencesFound = !!(prefs.weekdayTargetSoc);
+                debugInfo.apiCalls[1].slotDetails = slots.map(s => ({
+                    start: s.startDt,
+                    end: s.endDt,
+                    kwh: s.deltaKwh,
+                    source: s.meta?.source
+                }));
 
-                // Update Local State
-                currentLimit = prefs.weekdayTargetSoc || currentLimit;
-                currentTime = prefs.weekdayTargetTime || currentTime;
+                // Update Confirmed State (from API)
+                confirmedLimit = prefs.weekdayTargetSoc || confirmedLimit;
+                confirmedTime = prefs.weekdayTargetTime || confirmedTime;
+
+                // On successful fetch, sync pending to confirmed if not in validation mode
+                if (!validationMode) {
+                    pendingLimit = confirmedLimit;
+                    pendingTime = confirmedTime;
+                }
 
                 // Process slots
                 const now = new Date();
-                const futureSlots = slots.filter(s => new Date(s.startDt) > now);
-                const nextSlot = futureSlots[0] || null;
+                // Include active slots (endDt in future) and future slots
+                const activeAndFutureSlots = slots.filter(s => new Date(s.endDt) > now);
+                const nextSlot = activeAndFutureSlots[0] || null;
 
-                const totalEnergy = slots.reduce((sum, s) => sum + (s.deltaKwh || 0), 0);
+                // Total energy for all active/future slots
+                const totalEnergy = activeAndFutureSlots.reduce((sum, s) => sum + (s.deltaKwh || 0), 0);
+
+                debugInfo.apiCalls[1].activeAndFutureSlots = activeAndFutureSlots.length;
+                debugInfo.processingTime = now.toISOString();
 
                 // Build Payload
                 const statusPayload = {
@@ -296,25 +410,41 @@ module.exports = function (RED) {
                     total_energy: parseFloat(totalEnergy.toFixed(2)),
                     next_kwh: nextSlot ? nextSlot.deltaKwh.toFixed(2) : "0",
                     next_source: nextSlot && nextSlot.meta ? nextSlot.meta.source : "unknown",
-                    confirmed_limit: currentLimit,
-                    confirmed_time: currentTime,
-                    // Individual slots (first 3)
-                    slot1_start: futureSlots[0] ? futureSlots[0].startDt : null,
-                    slot1_end: futureSlots[0] ? futureSlots[0].endDt : null,
-                    slot2_start: futureSlots[1] ? futureSlots[1].startDt : null,
-                    slot2_end: futureSlots[1] ? futureSlots[1].endDt : null,
-                    slot3_start: futureSlots[2] ? futureSlots[2].startDt : null,
-                    slot3_end: futureSlots[2] ? futureSlots[2].endDt : null,
+                    // Confirmed values (from API)
+                    confirmed_limit: confirmedLimit,
+                    confirmed_time: confirmedTime,
+                    // Pending values (user's current selections)
+                    pending_limit: pendingLimit,
+                    pending_time: pendingTime,
+                    // Individual slots (first 3 active/future)
+                    slot1_start: activeAndFutureSlots[0] ? activeAndFutureSlots[0].startDt : null,
+                    slot1_end: activeAndFutureSlots[0] ? activeAndFutureSlots[0].endDt : null,
+                    slot2_start: activeAndFutureSlots[1] ? activeAndFutureSlots[1].startDt : null,
+                    slot2_end: activeAndFutureSlots[1] ? activeAndFutureSlots[1].endDt : null,
+                    slot3_start: activeAndFutureSlots[2] ? activeAndFutureSlots[2].startDt : null,
+                    slot3_end: activeAndFutureSlots[2] ? activeAndFutureSlots[2].endDt : null,
                     // Overall window (first start to last end)
-                    window_start: futureSlots.length > 0 ? futureSlots[0].startDt : null,
-                    window_end: futureSlots.length > 0 ? futureSlots[futureSlots.length - 1].endDt : null
+                    window_start: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[0].startDt : null,
+                    window_end: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt : null
                 };
 
                 // Success!
                 debugInfo.success = true;
                 debugInfo.step = "complete";
 
-                // Publish
+                // Check if we're validating a preference change
+                let isValidated = false;
+                if (validationMode && expectedLimit !== null && expectedTime !== null) {
+                    // Check if the returned values match what we set
+                    isValidated = (confirmedLimit === expectedLimit && confirmedTime === expectedTime);
+                    debugInfo.expectedLimit = expectedLimit;
+                    debugInfo.expectedTime = expectedTime;
+                    debugInfo.receivedLimit = confirmedLimit;
+                    debugInfo.receivedTime = confirmedTime;
+                    debugInfo.validated = isValidated;
+                }
+
+                // ALWAYS publish data to prevent sensors becoming unavailable
                 node.send({
                     payload: statusPayload,
                     debug: debugInfo
@@ -323,7 +453,14 @@ module.exports = function (RED) {
                 if (enableMqtt && node.broker) {
                     node.broker.client.publish(stateTopic, JSON.stringify(statusPayload), { retain: true });
                 }
-                node.status({ fill: "green", shape: "dot", text: `Limit: ${currentLimit}% | Time: ${currentTime}` });
+
+                // Update status (validation mode will override this in fetchDataWithValidation)
+                if (!validationMode) {
+                    node.status({ fill: "green", shape: "dot", text: `Confirmed: ${confirmedLimit}% @ ${confirmedTime}` });
+                }
+
+                // Return validation result
+                return { validated: isValidated || !validationMode, confirmedLimit, confirmedTime };
 
             } catch (error) {
                 debugInfo.success = false;
@@ -337,24 +474,29 @@ module.exports = function (RED) {
                     } : null
                 };
 
-                // Log to Node-RED
-                node.error(`Octopus API Error at ${debugInfo.step}: ${error.message}`);
-                if (error.response) {
-                    node.error(`Response: ${JSON.stringify(error.response.data)}`);
+                // Log to Node-RED (only if not in validation mode to avoid spam)
+                if (!validationMode) {
+                    node.error(`Octopus API Error at ${debugInfo.step}: ${error.message}`);
+                    if (error.response) {
+                        node.error(`Response: ${JSON.stringify(error.response.data)}`);
+                    }
+
+                    // Update status
+                    node.status({
+                        fill: "red",
+                        shape: "ring",
+                        text: `Error: ${debugInfo.step}`
+                    });
+
+                    // Send default payload with debug info
+                    node.send({
+                        payload: buildDefaultPayload(),
+                        debug: debugInfo
+                    });
                 }
 
-                // Update status
-                node.status({
-                    fill: "red",
-                    shape: "ring",
-                    text: `Error: ${debugInfo.step}`
-                });
-
-                // Send default payload with debug info
-                node.send({
-                    payload: buildDefaultPayload(),
-                    debug: debugInfo
-                });
+                // Return failure for validation
+                return { validated: false };
             }
         }
 
@@ -365,8 +507,10 @@ module.exports = function (RED) {
                 total_energy: 0,
                 next_kwh: "0",
                 next_source: "unknown",
-                confirmed_limit: currentLimit,
-                confirmed_time: currentTime,
+                confirmed_limit: confirmedLimit,
+                confirmed_time: confirmedTime,
+                pending_limit: pendingLimit,
+                pending_time: pendingTime,
                 slot1_start: null,
                 slot1_end: null,
                 slot2_start: null,
@@ -380,14 +524,27 @@ module.exports = function (RED) {
 
         // 7. Event Listeners
         
+        // Helper: Publish current state (both pending and confirmed)
+        function publishCurrentState() {
+            if (enableMqtt && node.broker) {
+                const quickState = {
+                    pending_limit: pendingLimit,
+                    pending_time: pendingTime,
+                    confirmed_limit: confirmedLimit,
+                    confirmed_time: confirmedTime
+                };
+                node.broker.client.publish(stateTopic, JSON.stringify(quickState), { retain: false });
+            }
+        }
+
         // A. Handle Node-RED Input Messages
         node.on('input', function (msg) {
             // Check for control commands
             if (msg.payload && typeof msg.payload === 'object') {
                 if (msg.payload.set_limit || msg.payload.set_time) {
                     // Use new values if present, otherwise keep existing
-                    const targetLimit = msg.payload.set_limit || currentLimit;
-                    const targetTime = msg.payload.set_time || currentTime;
+                    const targetLimit = msg.payload.set_limit || confirmedLimit;
+                    const targetTime = msg.payload.set_time || confirmedTime;
                     setPreferences(targetLimit, targetTime);
                     return; // Don't run standard fetch if setting
                 }
@@ -399,13 +556,26 @@ module.exports = function (RED) {
         // B. Handle MQTT Commands (Home Assistant)
         if (enableMqtt && node.broker) {
             node.broker.register(this);
+
+            // Slider changed - update pending value only
             node.broker.subscribe(cmdTopicLimit, 0, (topic, payload) => {
                 const val = parseInt(payload.toString());
-                setPreferences(val, currentTime); // Use NEW limit, OLD time
+                pendingLimit = val;
+                publishCurrentState(); // Update display immediately
+                node.status({ fill: "yellow", shape: "dot", text: `Pending: ${pendingLimit}% @ ${pendingTime}` });
             });
+
+            // Dropdown changed - update pending value only
             node.broker.subscribe(cmdTopicTime, 0, (topic, payload) => {
                 const val = payload.toString();
-                setPreferences(currentLimit, val); // Use OLD limit, NEW time
+                pendingTime = val;
+                publishCurrentState(); // Update display immediately
+                node.status({ fill: "yellow", shape: "dot", text: `Pending: ${pendingLimit}% @ ${pendingTime}` });
+            });
+
+            // Button pressed - submit changes to API
+            node.broker.subscribe(cmdTopicSubmit, 0, (topic, payload) => {
+                setPreferences(pendingLimit, pendingTime);
             });
             
             setTimeout(announceControls, 2000);
@@ -416,7 +586,10 @@ module.exports = function (RED) {
         setTimeout(fetchData, 1000);
         node.on('close', () => {
             clearInterval(intervalId);
-            if (node.broker) node.broker.unsubscribe(cmdTopicLimit, cmdTopicTime);
+            // Clear any pending retry timeouts
+            retryTimeouts.forEach(timeout => clearTimeout(timeout));
+            retryTimeouts = [];
+            if (node.broker) node.broker.unsubscribe(cmdTopicLimit, cmdTopicTime, cmdTopicSubmit);
         });
     }
 
