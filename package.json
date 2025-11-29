@@ -17,7 +17,7 @@
     "ev-charging",
     "smart-charging"
   ],
-  "author": "Your Name",
+  "author": "Andrew Somerharju Neale",
   "license": "MIT",
   "node-red": {
     "nodes": {
@@ -29,10 +29,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/node-red-contrib-octopus-intelligent.git"
+    "url": "https://github.com/ASomerN/node-red-contrib-octopus-intelligent.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/node-red-contrib-octopus-intelligent/issues"
+    "url": "https://github.com/ASomerN/node-red-contrib-octopus-intelligent/issues"
   },
-  "homepage": "https://github.com/yourusername/node-red-contrib-octopus-intelligent#readme"
+  "homepage": "https://github.com/ASomerN/node-red-contrib-octopus-intelligent/blob/master/README.md"
 }

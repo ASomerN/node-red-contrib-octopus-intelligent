@@ -9,6 +9,43 @@ Monitor your EV charging slots, control charge limits, and manage ready times di
 
 ---
 
+## 🤝 Support This Project
+
+Found this useful? Support continued development:
+
+<table>
+<tr>
+<td width="33%" align="center">
+
+### ⭐ GitHub Star
+Star the repository to show your support!
+
+[⭐ Star on GitHub](https://github.com/ASomerN/node-red-contrib-octopus-intelligent)
+
+</td>
+<td width="33%" align="center">
+
+### 💖 Sponsor
+Support ongoing development and maintenance
+
+[Become a Sponsor](https://github.com/sponsors/ASomerN)
+
+</td>
+<td width="33%" align="center">
+
+### ☕ Buy Me a Coffee
+If this project has helped you!
+
+[![Donate with PayPal](https://www.paypalobjects.com/en_GB/i/btn/btn_donate_LG.gif)](https://www.paypal.com/donate?hosted_button_id=A2B8ZFEJBE2S6)
+
+</td>
+</tr>
+</table>
+
+**Your support helps with:** Bug fixes and maintenance • New feature development • Documentation improvements • Community support
+
+---
+
 ## ✨ Features
 
 ### 🎮 Smart Controls
@@ -285,29 +322,6 @@ Every message includes `msg.debug`:
   ]
 }
 ```
-
----
-
-## 🤝 Support This Project
-
-Found this useful? Support continued development:
-
-### ⭐ GitHub
-Star the repository to show your support!
-
-### 💖 Sponsor
-[Become a sponsor on GitHub](https://github.com/sponsors/ASomerN)
-
-### ☕ Buy Me a Coffee
-If this project has helped you, consider buying me a coffee!
-
-[![Donate with PayPal](https://www.paypalobjects.com/en_GB/i/btn/btn_donate_LG.gif)](https://www.paypal.com/donate?hosted_button_id=A2B8ZFEJBE2S6)
-
-Your support helps with:
-- Bug fixes and maintenance
-- New feature development
-- Documentation improvements
-- Community support
 
 ---
 

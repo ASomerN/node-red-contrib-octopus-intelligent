@@ -518,6 +518,9 @@ module.exports = function (RED) {
 
                 if (enableMqtt && node.broker) {
                     node.broker.client.publish(stateTopic, JSON.stringify(statusPayload), { retain: true });
+                    // Also publish charging_now state to binary sensor topic
+                    const chargingPayload = chargingNow ? "ON" : "OFF";
+                    node.broker.client.publish(`${stateTopic}/charging_now`, chargingPayload, { retain: true });
                 }
 
                 // Update status (validation mode will override this in fetchDataWithValidation)
