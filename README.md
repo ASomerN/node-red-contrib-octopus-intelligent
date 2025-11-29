@@ -298,7 +298,12 @@ Star the repository to show your support!
 ### 💖 Sponsor
 [Become a sponsor on GitHub](https://github.com/sponsors/ASomerN)
 
-Your sponsorship helps with:
+### ☕ Buy Me a Coffee
+If this project has helped you, consider buying me a coffee!
+
+[![Donate with PayPal](https://www.paypalobjects.com/en_GB/i/btn/btn_donate_LG.gif)](https://www.paypal.com/donate?hosted_button_id=A2B8ZFEJBE2S6)
+
+Your support helps with:
 - Bug fixes and maintenance
 - New feature development
 - Documentation improvements
