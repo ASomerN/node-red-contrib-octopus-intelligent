@@ -23,6 +23,7 @@ PUBLICATION_GUIDE.md
 # IDE
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
