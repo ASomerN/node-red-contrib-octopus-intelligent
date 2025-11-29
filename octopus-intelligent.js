@@ -32,29 +32,72 @@ module.exports = function (RED) {
 
         // 3. Sensor Definitions (Read-Only)
         const sensors = [
+            // Formatted timestamps (show "1 hour ago" in Home Assistant)
             { id: "next_charge", name: "Next Charge Time", class: "timestamp", icon: "mdi:timer", val: "next_start" },
             { id: "total_energy", name: "Total Planned Energy", class: "energy", unit: "kWh", val: "total_energy" },
             { id: "next_kwh", name: "Next Slot Energy", class: "energy", unit: "kWh", val: "next_kwh" },
             { id: "source", name: "Charge Source", icon: "mdi:help-circle", val: "next_source" },
-            // Individual slot times
+            // Individual slot times (formatted)
             { id: "slot1_start", name: "Slot 1 Start", class: "timestamp", icon: "mdi:timer-outline", val: "slot1_start" },
             { id: "slot1_end", name: "Slot 1 End", class: "timestamp", icon: "mdi:timer-outline", val: "slot1_end" },
             { id: "slot2_start", name: "Slot 2 Start", class: "timestamp", icon: "mdi:timer-outline", val: "slot2_start" },
             { id: "slot2_end", name: "Slot 2 End", class: "timestamp", icon: "mdi:timer-outline", val: "slot2_end" },
             { id: "slot3_start", name: "Slot 3 Start", class: "timestamp", icon: "mdi:timer-outline", val: "slot3_start" },
             { id: "slot3_end", name: "Slot 3 End", class: "timestamp", icon: "mdi:timer-outline", val: "slot3_end" },
-            // Overall window
+            // Overall window (formatted)
             { id: "window_start", name: "Overall Window Start", class: "timestamp", icon: "mdi:timer-play", val: "window_start" },
-            { id: "window_end", name: "Overall Window End", class: "timestamp", icon: "mdi:timer-stop", val: "window_end" }
+            { id: "window_end", name: "Overall Window End", class: "timestamp", icon: "mdi:timer-stop", val: "window_end" },
+
+            // Raw timestamp strings (show exact API timestamp)
+            { id: "next_charge_raw", name: "Next Charge Time (Raw)", icon: "mdi:timer", val: "next_start_raw" },
+            { id: "slot1_start_raw", name: "Slot 1 Start (Raw)", icon: "mdi:timer-outline", val: "slot1_start_raw" },
+            { id: "slot1_end_raw", name: "Slot 1 End (Raw)", icon: "mdi:timer-outline", val: "slot1_end_raw" },
+            { id: "slot2_start_raw", name: "Slot 2 Start (Raw)", icon: "mdi:timer-outline", val: "slot2_start_raw" },
+            { id: "slot2_end_raw", name: "Slot 2 End (Raw)", icon: "mdi:timer-outline", val: "slot2_end_raw" },
+            { id: "slot3_start_raw", name: "Slot 3 Start (Raw)", icon: "mdi:timer-outline", val: "slot3_start_raw" },
+            { id: "slot3_end_raw", name: "Slot 3 End (Raw)", icon: "mdi:timer-outline", val: "slot3_end_raw" },
+            { id: "window_start_raw", name: "Overall Window Start (Raw)", icon: "mdi:timer-play", val: "window_start_raw" },
+            { id: "window_end_raw", name: "Overall Window End (Raw)", icon: "mdi:timer-stop", val: "window_end_raw" }
         ];
 
         // 4. Helper: Announce Controls (Write-Enabled)
         function announceControls() {
             if (!enableMqtt || !node.broker) return;
 
+            // Device definitions for grouping
+            const deviceControls = {
+                identifiers: [`nodered_octopus_controls_${account}`],
+                name: "Octopus Intelligent Controls",
+                manufacturer: "Octopus Energy",
+                model: "Intelligent Octopus Go",
+                sw_version: "1.0.0",
+                suggested_area: "Energy",
+                configuration_url: "https://octopus.energy/intelligent/"
+            };
+
+            const deviceCharging = {
+                identifiers: [`nodered_octopus_charging_${account}`],
+                name: "Octopus Intelligent Charging",
+                manufacturer: "Octopus Energy",
+                model: "Intelligent Octopus Go",
+                sw_version: "1.0.0",
+                suggested_area: "Energy",
+                configuration_url: "https://octopus.energy/intelligent/"
+            };
+
+            const deviceRaw = {
+                identifiers: [`nodered_octopus_raw_${account}`],
+                name: "Octopus Intelligent (Raw)",
+                manufacturer: "Octopus Energy",
+                model: "Intelligent Octopus Go",
+                sw_version: "1.0.0",
+                suggested_area: "Energy",
+                configuration_url: "https://octopus.energy/intelligent/"
+            };
+
             // A. The Slider (Number) - now shows pending value
             const limitConfig = {
-                name: "Octopus Target Charge",
+                name: "Target Charge",
                 unique_id: `${uniqueIdPrefix}_target_limit`,
                 state_topic: stateTopic,
                 command_topic: cmdTopicLimit,
@@ -62,71 +105,72 @@ module.exports = function (RED) {
                 min: 50, max: 100, step: 5,
                 unit_of_measurement: "%",
                 icon: "mdi:battery-charging-high",
-                device: { identifiers: [`nodered_octopus_${account}`], name: "Node-RED Octopus Intelligent", manufacturer: "Octopus Energy" }
+                device: deviceControls
             };
             node.broker.client.publish(`${mqttPrefix}/number/${uniqueIdPrefix}_limit/config`, JSON.stringify(limitConfig), { retain: true });
 
             // B. The Dropdown (Select) - now shows pending value
             const timeConfig = {
-                name: "Octopus Ready Time",
+                name: "Ready Time",
                 unique_id: `${uniqueIdPrefix}_target_time`,
                 state_topic: stateTopic,
                 command_topic: cmdTopicTime,
                 value_template: "{{ value_json.pending_time }}",
                 options: TIME_OPTIONS,
                 icon: "mdi:clock-time-four-outline",
-                device: { identifiers: [`nodered_octopus_${account}`] }
+                device: deviceControls
             };
             node.broker.client.publish(`${mqttPrefix}/select/${uniqueIdPrefix}_time/config`, JSON.stringify(timeConfig), { retain: true });
 
             // C. Submit Button
             const buttonConfig = {
-                name: "Octopus Apply Changes",
+                name: "Apply Changes",
                 unique_id: `${uniqueIdPrefix}_submit_button`,
                 command_topic: cmdTopicSubmit,
                 payload_press: "SUBMIT",
                 icon: "mdi:check-circle",
                 device_class: "update",
-                device: { identifiers: [`nodered_octopus_${account}`] }
+                device: deviceControls
             };
             node.broker.client.publish(`${mqttPrefix}/button/${uniqueIdPrefix}_submit/config`, JSON.stringify(buttonConfig), { retain: true });
 
-            // D. Announce Read-Only Sensors (Same as before)
+            // D. Add sensors for confirmed values (read-only display) - in Controls device
+            const confirmedLimitSensor = {
+                name: "Confirmed Charge Limit",
+                unique_id: `${uniqueIdPrefix}_confirmed_limit`,
+                state_topic: stateTopic,
+                value_template: "{{ value_json.confirmed_limit }}",
+                unit_of_measurement: "%",
+                icon: "mdi:battery-check",
+                device: deviceControls
+            };
+            node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_confirmed_limit/config`, JSON.stringify(confirmedLimitSensor), { retain: true });
+
+            const confirmedTimeSensor = {
+                name: "Confirmed Ready Time",
+                unique_id: `${uniqueIdPrefix}_confirmed_time`,
+                state_topic: stateTopic,
+                value_template: "{{ value_json.confirmed_time }}",
+                icon: "mdi:clock-check",
+                device: deviceControls
+            };
+            node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_confirmed_time/config`, JSON.stringify(confirmedTimeSensor), { retain: true });
+
+            // E. Announce Read-Only Sensors - split between Charging and Raw devices
             sensors.forEach(sensor => {
                 const payload = {
-                    name: `Octopus ${sensor.name}`,
+                    name: sensor.name,
                     unique_id: `${uniqueIdPrefix}_${sensor.id}`,
                     state_topic: stateTopic,
                     value_template: `{{ value_json.${sensor.val} }}`,
-                    device: { identifiers: [`nodered_octopus_${account}`] }
+                    // Group by raw vs formatted
+                    device: sensor.id.includes('_raw') ? deviceRaw : deviceCharging
                 };
                 if (sensor.class) payload.device_class = sensor.class;
                 if (sensor.unit) payload.unit_of_measurement = sensor.unit;
                 if (sensor.icon) payload.icon = sensor.icon;
                 node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_${sensor.id}/config`, JSON.stringify(payload), { retain: true });
             });
-
-            // E. Add sensors for confirmed values (read-only display)
-            const confirmedLimitSensor = {
-                name: "Octopus Confirmed Charge Limit",
-                unique_id: `${uniqueIdPrefix}_confirmed_limit`,
-                state_topic: stateTopic,
-                value_template: "{{ value_json.confirmed_limit }}",
-                unit_of_measurement: "%",
-                icon: "mdi:battery-check",
-                device: { identifiers: [`nodered_octopus_${account}`] }
-            };
-            node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_confirmed_limit/config`, JSON.stringify(confirmedLimitSensor), { retain: true });
-
-            const confirmedTimeSensor = {
-                name: "Octopus Confirmed Ready Time",
-                unique_id: `${uniqueIdPrefix}_confirmed_time`,
-                state_topic: stateTopic,
-                value_template: "{{ value_json.confirmed_time }}",
-                icon: "mdi:clock-check",
-                device: { identifiers: [`nodered_octopus_${account}`] }
-            };
-            node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_confirmed_time/config`, JSON.stringify(confirmedTimeSensor), { retain: true });
 
             // Subscribe to Commands
             node.broker.client.subscribe(cmdTopicLimit);
@@ -416,16 +460,26 @@ module.exports = function (RED) {
                     // Pending values (user's current selections)
                     pending_limit: pendingLimit,
                     pending_time: pendingTime,
-                    // Individual slots (first 3 active/future)
+                    // Individual slots (first 3 active/future) - formatted timestamps
                     slot1_start: activeAndFutureSlots[0] ? activeAndFutureSlots[0].startDt : null,
                     slot1_end: activeAndFutureSlots[0] ? activeAndFutureSlots[0].endDt : null,
                     slot2_start: activeAndFutureSlots[1] ? activeAndFutureSlots[1].startDt : null,
                     slot2_end: activeAndFutureSlots[1] ? activeAndFutureSlots[1].endDt : null,
                     slot3_start: activeAndFutureSlots[2] ? activeAndFutureSlots[2].startDt : null,
                     slot3_end: activeAndFutureSlots[2] ? activeAndFutureSlots[2].endDt : null,
-                    // Overall window (first start to last end)
+                    // Overall window (first start to last end) - formatted timestamps
                     window_start: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[0].startDt : null,
-                    window_end: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt : null
+                    window_end: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt : null,
+                    // Raw timestamp strings (exact API output)
+                    next_start_raw: nextSlot ? nextSlot.startDt : null,
+                    slot1_start_raw: activeAndFutureSlots[0] ? activeAndFutureSlots[0].startDt : null,
+                    slot1_end_raw: activeAndFutureSlots[0] ? activeAndFutureSlots[0].endDt : null,
+                    slot2_start_raw: activeAndFutureSlots[1] ? activeAndFutureSlots[1].startDt : null,
+                    slot2_end_raw: activeAndFutureSlots[1] ? activeAndFutureSlots[1].endDt : null,
+                    slot3_start_raw: activeAndFutureSlots[2] ? activeAndFutureSlots[2].startDt : null,
+                    slot3_end_raw: activeAndFutureSlots[2] ? activeAndFutureSlots[2].endDt : null,
+                    window_start_raw: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[0].startDt : null,
+                    window_end_raw: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt : null
                 };
 
                 // Success!
@@ -518,7 +572,17 @@ module.exports = function (RED) {
                 slot3_start: null,
                 slot3_end: null,
                 window_start: null,
-                window_end: null
+                window_end: null,
+                // Raw timestamp strings
+                next_start_raw: null,
+                slot1_start_raw: null,
+                slot1_end_raw: null,
+                slot2_start_raw: null,
+                slot2_end_raw: null,
+                slot3_start_raw: null,
+                slot3_end_raw: null,
+                window_start_raw: null,
+                window_end_raw: null
             };
         }
 
