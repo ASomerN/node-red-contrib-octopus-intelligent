@@ -1,2 +1,13 @@
 node_modules/
 .claude/
+
+# Local tracking/planning documents (not needed in repo)
+unit_test.md
+bugs.md
+todo.md
+INSTALL.md
+PUBLICATION_GUIDE.md
+QUICKSTART.md
+
+# Build artifacts
+*.tgz

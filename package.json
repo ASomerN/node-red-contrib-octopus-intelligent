@@ -1,19 +1,19 @@
 {
   "name": "node-red-contrib-octopus-intelligent",
   "version": "1.0.0",
-  "description": "Octopus Intelligent integration with Home Assistant Auto-Discovery",
+  "description": "Node-RED integration for Octopus Energy Intelligent Octopus Go with Home Assistant MQTT discovery",
   "main": "octopus-intelligent.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "keywords": [
     "node-red",
-    "octopus",
-    "energy",
+    "octopus-energy",
+    "intelligent-octopus",
     "home-assistant",
     "mqtt",
-    "intelligent",
-    "octopus-energy",
     "ev-charging",
     "smart-charging"
   ],
@@ -26,6 +26,10 @@
   },
   "dependencies": {
     "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.0"
   },
   "repository": {
     "type": "git",
