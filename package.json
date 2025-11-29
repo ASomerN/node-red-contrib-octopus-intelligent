@@ -18,7 +18,7 @@
     "smart-charging"
   ],
   "author": "Your Name",
-  "license": "ISC",
+  "license": "MIT",
   "node-red": {
     "nodes": {
       "octopus-intelligent": "octopus-intelligent.js"

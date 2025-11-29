@@ -18,6 +18,7 @@ yarn.lock
 INSTALL.md
 QUICKSTART.md
 DEBUGGING.md
+PUBLICATION_GUIDE.md
 
 # IDE
 .vscode/
