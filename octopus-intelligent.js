@@ -64,30 +64,10 @@ module.exports = function (RED) {
         function announceControls() {
             if (!enableMqtt || !node.broker) return;
 
-            // Device definitions for grouping
-            const deviceControls = {
-                identifiers: [`nodered_octopus_controls_${account}`],
-                name: "Octopus Intelligent Controls",
-                manufacturer: "Octopus Energy",
-                model: "Intelligent Octopus Go",
-                sw_version: "1.0.0",
-                suggested_area: "Energy",
-                configuration_url: "https://octopus.energy/intelligent/"
-            };
-
-            const deviceCharging = {
-                identifiers: [`nodered_octopus_charging_${account}`],
-                name: "Octopus Intelligent Charging",
-                manufacturer: "Octopus Energy",
-                model: "Intelligent Octopus Go",
-                sw_version: "1.0.0",
-                suggested_area: "Energy",
-                configuration_url: "https://octopus.energy/intelligent/"
-            };
-
-            const deviceRaw = {
-                identifiers: [`nodered_octopus_raw_${account}`],
-                name: "Octopus Intelligent (Raw)",
+            // Single device definition with branding
+            const device = {
+                identifiers: [`nodered_octopus_${account}`],
+                name: "Octopus Intelligent",
                 manufacturer: "Octopus Energy",
                 model: "Intelligent Octopus Go",
                 sw_version: "1.0.0",
@@ -97,7 +77,7 @@ module.exports = function (RED) {
 
             // A. The Slider (Number) - now shows pending value
             const limitConfig = {
-                name: "Target Charge",
+                name: "Octopus Target Charge",
                 unique_id: `${uniqueIdPrefix}_target_limit`,
                 state_topic: stateTopic,
                 command_topic: cmdTopicLimit,
@@ -105,66 +85,65 @@ module.exports = function (RED) {
                 min: 50, max: 100, step: 5,
                 unit_of_measurement: "%",
                 icon: "mdi:battery-charging-high",
-                device: deviceControls
+                device: device
             };
             node.broker.client.publish(`${mqttPrefix}/number/${uniqueIdPrefix}_limit/config`, JSON.stringify(limitConfig), { retain: true });
 
             // B. The Dropdown (Select) - now shows pending value
             const timeConfig = {
-                name: "Ready Time",
+                name: "Octopus Ready Time",
                 unique_id: `${uniqueIdPrefix}_target_time`,
                 state_topic: stateTopic,
                 command_topic: cmdTopicTime,
                 value_template: "{{ value_json.pending_time }}",
                 options: TIME_OPTIONS,
                 icon: "mdi:clock-time-four-outline",
-                device: deviceControls
+                device: device
             };
             node.broker.client.publish(`${mqttPrefix}/select/${uniqueIdPrefix}_time/config`, JSON.stringify(timeConfig), { retain: true });
 
             // C. Submit Button
             const buttonConfig = {
-                name: "Apply Changes",
+                name: "Octopus Apply Changes",
                 unique_id: `${uniqueIdPrefix}_submit_button`,
                 command_topic: cmdTopicSubmit,
                 payload_press: "SUBMIT",
                 icon: "mdi:check-circle",
                 device_class: "update",
-                device: deviceControls
+                device: device
             };
             node.broker.client.publish(`${mqttPrefix}/button/${uniqueIdPrefix}_submit/config`, JSON.stringify(buttonConfig), { retain: true });
 
-            // D. Add sensors for confirmed values (read-only display) - in Controls device
+            // D. Add sensors for confirmed values (read-only display)
             const confirmedLimitSensor = {
-                name: "Confirmed Charge Limit",
+                name: "Octopus Confirmed Charge Limit",
                 unique_id: `${uniqueIdPrefix}_confirmed_limit`,
                 state_topic: stateTopic,
                 value_template: "{{ value_json.confirmed_limit }}",
                 unit_of_measurement: "%",
                 icon: "mdi:battery-check",
-                device: deviceControls
+                device: device
             };
             node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_confirmed_limit/config`, JSON.stringify(confirmedLimitSensor), { retain: true });
 
             const confirmedTimeSensor = {
-                name: "Confirmed Ready Time",
+                name: "Octopus Confirmed Ready Time",
                 unique_id: `${uniqueIdPrefix}_confirmed_time`,
                 state_topic: stateTopic,
                 value_template: "{{ value_json.confirmed_time }}",
                 icon: "mdi:clock-check",
-                device: deviceControls
+                device: device
             };
             node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_confirmed_time/config`, JSON.stringify(confirmedTimeSensor), { retain: true });
 
-            // E. Announce Read-Only Sensors - split between Charging and Raw devices
+            // E. Announce Read-Only Sensors
             sensors.forEach(sensor => {
                 const payload = {
-                    name: sensor.name,
+                    name: `Octopus ${sensor.name}`,
                     unique_id: `${uniqueIdPrefix}_${sensor.id}`,
                     state_topic: stateTopic,
                     value_template: `{{ value_json.${sensor.val} }}`,
-                    // Group by raw vs formatted
-                    device: sensor.id.includes('_raw') ? deviceRaw : deviceCharging
+                    device: device
                 };
                 if (sensor.class) payload.device_class = sensor.class;
                 if (sensor.unit) payload.unit_of_measurement = sensor.unit;
