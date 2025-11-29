@@ -19,6 +19,12 @@ INSTALL.md
 QUICKSTART.md
 DEBUGGING.md
 PUBLICATION_GUIDE.md
+NPM_PUBLICATION_CHECKLIST.md
+
+# Local tracking documents
+bugs.md
+todo.md
+unit_test.md
 
 # IDE
 .vscode/
@@ -32,7 +38,10 @@ PUBLICATION_GUIDE.md
 # Testing
 test/
 tests/
+__tests__/
 *.test.js
+jest.config.js
+test-mocks.js
 coverage/
 
 # CI/CD
