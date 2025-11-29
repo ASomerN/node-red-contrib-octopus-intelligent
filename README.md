@@ -42,7 +42,7 @@ If this project has helped you!
 </tr>
 </table>
 
-**Your support helps with:** Bug fixes and maintenance • New feature development • Documentation improvements • Community support
+**Your support helps with:** Bug fixes and maintenance • New feature development • Documentation improvements • Community support • Feeding my children
 
 ---
 
@@ -285,7 +285,7 @@ This prevents API spam when making multiple adjustments.
 
 ### Authentication Flow
 
-1. **Get JWT Token** - Exchange API key for token
+1. **Get Token** - Exchange API key for token
 2. **Fetch Data** - Query planned dispatches & preferences
 3. **Process** - Filter active/future slots, calculate totals
 4. **Publish** - Send to Node-RED + MQTT
