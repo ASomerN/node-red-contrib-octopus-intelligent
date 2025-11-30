@@ -85,20 +85,15 @@ If this project has helped you!
 
 This example flow demonstrates three key usage patterns:
 
-1. **Basic Monitoring** (top flow)
-   - Inject node triggers every 5 minutes
+1. **Basic Monitoring** 
+   - The Octopus Intelligent Node automaticaly refreshes every 5 minutes
    - Octopus Intelligent node fetches latest charging data
    - Debug node displays all charging slots and settings
 
-2. **Setting Preferences** (middle flow)
-   - Inject node with JSON payload: `{"set_limit": 85, "set_time": "07:30"}`
-   - Sends charge limit and ready time to the node
+2. **Setting Preferences** 
+   - Inject node with JSON payload: `{"set_limit": 85, "set_time": "07:30"}` ommit a key:value if you don't want to change it
+   - Sends charge limit +/ ready time to the node
    - Debug shows confirmed values from API
-
-3. **Preset Buttons** (bottom flow)
-   - Multiple inject nodes with different presets (Weekday, Weekend, Eco mode)
-   - Quick one-click charging profiles
-   - Perfect for automations or dashboard buttons
 
 **How to use:** Import any of these flows, configure your Account Number and API Key in the Octopus Intelligent node, and deploy!
 
@@ -134,7 +129,7 @@ After enabling MQTT in the Node-RED node, Home Assistant automatically creates:
 - **Overall Window Start/End** - First slot start to last slot end
 - **Charging Now** - Binary sensor (ON/OFF) showing if actively charging
 
-#### Diagnostics (Expandable Section)
+#### Diagnostics (Includes the same information but in a raw output)
 - Raw timestamp sensors with exact API responses
 - Useful for debugging and advanced automations
 
