@@ -370,17 +370,18 @@ Use at your own risk. The Octopus Energy name and logo are trademarks of Octopus
 
 ## 📜 Changelog
 
-### v1.0.0 (2025-11-29)
+See [CHANGELOG.md](CHANGELOG.md) for detailed version history and release notes.
 
-- ✅ Octopus Energy GraphQL API integration
-- ✅ Home Assistant MQTT auto-discovery
-- ✅ Submit button for preference changes
-- ✅ Raw timestamp sensors in diagnostics
-- ✅ Active charging slot detection
-- ✅ Exponential backoff validation
-- ✅ Comprehensive debug output
-- ✅ Entity category organization
-- ✅ Octopus Energy branding
+### Latest Release: v1.0.1 (2025-11-30)
+- Added Node.js and Node-RED version requirements
+- Added comprehensive example flows and visual documentation
+- Flow Library scorecard improvements
+
+### Previous Release: v1.0.0 (2025-11-30)
+- Initial public release with full Octopus Energy API integration
+- Home Assistant MQTT auto-discovery
+- Real-time charging slot detection
+- Exponential backoff validation
 
 ---
 
