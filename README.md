@@ -76,6 +76,23 @@ If this project has helped you!
 
 ---
 
+## 📸 Screenshots
+
+### Node-RED Flows
+
+![Node-RED Flow Examples](images/examples/basic-monitoring-flow.png)
+*Multiple example flows: basic monitoring, setting preferences, and preset buttons*
+
+![MQTT Integration Flow](images/examples/mqtt-integration-flow.png)
+*Complete MQTT integration with Home Assistant*
+
+### Home Assistant Integration
+
+![Home Assistant Device](images/examples/homeassistant-device.png)
+*Octopus Intelligent device with all controls and sensors automatically configured*
+
+---
+
 ## 📋 Requirements
 
 - **Node-RED** v2.0+

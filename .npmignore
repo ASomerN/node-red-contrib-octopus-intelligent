@@ -21,6 +21,9 @@ DEBUGGING.md
 PUBLICATION_GUIDE.md
 NPM_PUBLICATION_CHECKLIST.md
 
+# Documentation assets (referenced via GitHub URLs)
+images/
+
 # Local tracking documents
 bugs.md
 todo.md
