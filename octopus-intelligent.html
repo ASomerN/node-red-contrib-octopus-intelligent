@@ -55,9 +55,60 @@
 </script>
 
 <script type="text/html" data-help-name="octopus-intelligent">
-    <p>Fetches Intelligent Octopus slots and settings.</p>
-    <h3>Outputs</h3>
-    <p>Outputs a payload containing <code>next_charge</code>, <code>settings</code>, and raw data.</p>
-    <h3>Home Assistant</h3>
-    <p>If an MQTT broker is configured, this node will automatically create sensors in Home Assistant.</p>
+    <p>This node integrates with the <strong>Octopus Energy Intelligent Octopus Go</strong> API to retrieve planned charging slots and preferences.</p>
+    <p>Configure your Account Number and API Key, then deploy the flow. The node will fetch data at regular intervals and output charging information.</p>
+    <p>Enable MQTT to automatically configure Home Assistant entities via auto-discovery.</p>
+
+    <h3>Examples</h3>
+
+    <h4>1. Basic Monitoring</h4>
+    <p>Monitor your charging slots every 5 minutes:</p>
+    <pre>[{"id":"1","type":"inject","name":"Every 5 min","props":[{"p":"payload"}],"repeat":"300","crontab":"","once":true,"topic":"","payload":"","payloadType":"date","x":130,"y":80,"wires":[["2"]]},{"id":"2","type":"octopus-intelligent","name":"Octopus Intelligent","account":"A-XXXXXXXX","apiKey":"sk_live_...","refreshInterval":"5","enableMqtt":false,"x":340,"y":80,"wires":[["3"]]},{"id":"3","type":"debug","name":"Debug Output","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"true","targetType":"full","x":570,"y":80,"wires":[]}]</pre>
+
+    <h4>2. Set Preferences from Flow</h4>
+    <p>Control charge limit and ready time programmatically:</p>
+    <pre>[{"id":"1","type":"inject","name":"Set 85% by 07:30","props":[{"p":"payload"}],"repeat":"","crontab":"","once":false,"topic":"","payload":"{\"set_limit\":85,\"set_time\":\"07:30\"}","payloadType":"json","x":150,"y":140,"wires":[["2"]]},{"id":"2","type":"octopus-intelligent","name":"Octopus Intelligent","account":"A-XXXXXXXX","apiKey":"sk_live_...","refreshInterval":"5","enableMqtt":true,"mqttBroker":"mqtt-broker","x":380,"y":140,"wires":[["3"]]},{"id":"3","type":"debug","name":"Confirmation","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"payload","targetType":"msg","x":610,"y":140,"wires":[]}]</pre>
+
+    <h4>3. Home Assistant MQTT Integration</h4>
+    <p>Automatically create Home Assistant entities via MQTT discovery:</p>
+    <pre>[{"id":"1","type":"inject","name":"Every 5 min","props":[{"p":"payload"}],"repeat":"300","crontab":"","once":true,"topic":"","payload":"","payloadType":"date","x":130,"y":200,"wires":[["2"]]},{"id":"2","type":"octopus-intelligent","name":"Octopus Intelligent","account":"A-XXXXXXXX","apiKey":"sk_live_...","refreshInterval":"5","enableMqtt":true,"mqttBroker":"mqtt-broker","x":340,"y":200,"wires":[["3"]]},{"id":"3","type":"debug","name":"Debug Output","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"true","targetType":"full","x":570,"y":200,"wires":[]},{"id":"mqtt-broker","type":"mqtt-broker","name":"Home Assistant MQTT","broker":"localhost","port":"1883","clientid":"","autoConnect":true,"usetls":false,"protocolVersion":"4","keepalive":"60","cleansession":true,"autoUnsubscribe":true,"birthTopic":"","birthQos":"0","birthPayload":"","birthMsg":{},"closeTopic":"","closeQos":"0","closePayload":"","closeMsg":{},"willTopic":"","willQos":"0","willPayload":"","willMsg":{},"userProps":"","sessionExpiry":""}]</pre>
+
+    <h3>Output Format</h3>
+    <p>The node outputs a message with the following structure:</p>
+    <pre>{
+  "payload": {
+    "next_start": "2025-11-29T01:30:00Z",
+    "total_energy": 42.5,
+    "next_kwh": "15.20",
+    "next_source": "smart-charge",
+    "confirmed_limit": 80,
+    "confirmed_time": "07:00",
+    "charging_now": false,
+    "slot1_start": "2025-11-29T01:30:00Z",
+    "slot1_end": "2025-11-29T05:30:00Z"
+  },
+  "debug": {
+    "success": true,
+    "step": "complete",
+    "apiCalls": [...]
+  }
+}</pre>
+
+    <h3>Home Assistant Integration</h3>
+    <p>When MQTT is enabled, the node automatically creates:</p>
+    <ul>
+        <li><strong>Controls:</strong> Target charge slider, ready time selector, apply changes button</li>
+        <li><strong>Sensors:</strong> Next charge time, total energy, charging status, individual slots</li>
+        <li><strong>Binary Sensor:</strong> Charging now indicator (ON/OFF)</li>
+    </ul>
+    <p>All entities appear under a single "Octopus Intelligent" device in Home Assistant.</p>
+
+    <h3>Requirements</h3>
+    <ul>
+        <li>Octopus Energy account with Intelligent Octopus Go tariff</li>
+        <li>API key from <a href="https://octopus.energy/dashboard/new/accounts/personal-details/api-access" target="_blank">Octopus dashboard</a></li>
+        <li>MQTT broker (optional, for Home Assistant integration)</li>
+    </ul>
+
+    <p>See the <a href="https://github.com/ASomerN/node-red-contrib-octopus-intelligent/blob/master/README.md" target="_blank">full documentation</a> for details.</p>
 </script>
