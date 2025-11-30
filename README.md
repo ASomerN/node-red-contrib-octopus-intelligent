@@ -78,18 +78,67 @@ If this project has helped you!
 
 ## 📸 Screenshots
 
-### Node-RED Flows
+### Node-RED Flow Examples
 
+#### Basic Monitoring & Control
 ![Node-RED Flow Examples](images/examples/basic-monitoring-flow.png)
-*Multiple example flows: basic monitoring, setting preferences, and preset buttons*
 
+This example flow demonstrates three key usage patterns:
+
+1. **Basic Monitoring** (top flow)
+   - Inject node triggers every 5 minutes
+   - Octopus Intelligent node fetches latest charging data
+   - Debug node displays all charging slots and settings
+
+2. **Setting Preferences** (middle flow)
+   - Inject node with JSON payload: `{"set_limit": 85, "set_time": "07:30"}`
+   - Sends charge limit and ready time to the node
+   - Debug shows confirmed values from API
+
+3. **Preset Buttons** (bottom flow)
+   - Multiple inject nodes with different presets (Weekday, Weekend, Eco mode)
+   - Quick one-click charging profiles
+   - Perfect for automations or dashboard buttons
+
+**How to use:** Import any of these flows, configure your Account Number and API Key in the Octopus Intelligent node, and deploy!
+
+#### MQTT Integration with Home Assistant
 ![MQTT Integration Flow](images/examples/mqtt-integration-flow.png)
-*Complete MQTT integration with Home Assistant*
 
-### Home Assistant Integration
+This flow shows the complete MQTT setup:
+
+- **MQTT Broker Configuration**: Connected to Home Assistant (localhost:1883)
+- **Enable MQTT toggle**: Activated in node settings
+- **Auto-Discovery**: Node automatically creates all entities in Home Assistant on first run
+- **Real-time Updates**: Every 5 minutes, charging data is published to MQTT and updates HA sensors
+
+**What you get in Home Assistant:** All controls and sensors appear automatically - no manual YAML configuration needed!
+
+### Home Assistant Auto-Configured Entities
 
 ![Home Assistant Device](images/examples/homeassistant-device.png)
-*Octopus Intelligent device with all controls and sensors automatically configured*
+
+After enabling MQTT in the Node-RED node, Home Assistant automatically creates:
+
+#### Controls (Top Section)
+- **Target Charge** - Number slider (50-100%) to set desired battery level
+- **Ready Time** - Dropdown selector (04:00-11:00) for when car needs to be ready
+- **Apply Changes** - Button to submit new settings (prevents API spam while adjusting)
+
+#### Sensors (Main Section)
+- **Confirmed Charge Limit** - Current API-validated charge limit
+- **Confirmed Ready Time** - Current API-validated ready time
+- **Next Charge Time** - When your next charging slot starts (formatted for your timezone)
+- **Total Planned Energy** - Total kWh across all upcoming slots
+- **Slot 1, 2, 3 Start/End** - Individual charging slot times
+- **Overall Window Start/End** - First slot start to last slot end
+- **Charging Now** - Binary sensor (ON/OFF) showing if actively charging
+
+#### Diagnostics (Expandable Section)
+- Raw timestamp sensors with exact API responses
+- Useful for debugging and advanced automations
+
+**All entities are automatically organized under a single "Octopus Intelligent" device!**
 
 ---
 
