@@ -11,5 +11,8 @@ QUICKSTART.md
 NPM_PUBLICATION_CHECKLIST.md
 images/IMAGES_NEEDED.md
 
+# Personal use files (not part of package)
+NodeRed_Global_Setter.js
+
 # Build artifacts
 *.tgz

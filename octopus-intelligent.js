@@ -194,6 +194,9 @@ module.exports = function (RED) {
         let slotEndTimer = null;         // Fires at exact slot end
         let cachedSlots = [];            // Fresh slot data from pre-validation
 
+        // Last known full state - prevents sensors going unknown when controls change
+        let lastKnownState = buildDefaultPayload();
+
         async function setPreferences(newLimit, newTime) {
             // Validation
             let limit = parseInt(newLimit);
@@ -510,6 +513,9 @@ module.exports = function (RED) {
                     debugInfo.validated = isValidated;
                 }
 
+                // Store this as the last known full state
+                lastKnownState = statusPayload;
+
                 // ALWAYS publish data to prevent sensors becoming unavailable
                 node.send({
                     payload: statusPayload,
@@ -784,17 +790,20 @@ module.exports = function (RED) {
         }
 
         // 7. Event Listeners
-        
+
         // Helper: Publish current state (both pending and confirmed)
+        // This merges pending values into last known full state to prevent sensors going unknown
         function publishCurrentState() {
             if (enableMqtt && node.broker) {
-                const quickState = {
+                // Merge pending values into last known state
+                const fullState = {
+                    ...lastKnownState,
                     pending_limit: pendingLimit,
                     pending_time: pendingTime,
                     confirmed_limit: confirmedLimit,
                     confirmed_time: confirmedTime
                 };
-                node.broker.client.publish(stateTopic, JSON.stringify(quickState), { retain: false });
+                node.broker.client.publish(stateTopic, JSON.stringify(fullState), { retain: false });
             }
         }
 
