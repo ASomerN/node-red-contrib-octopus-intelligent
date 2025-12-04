@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2025-12-04
+
+### Added
+- **State reconciliation loop** for charging detection (every 10 seconds)
+  - Automatically detects charging state based on cached slot timestamps
+  - No API calls - uses local data only
+  - Handles imminent/immediate slots when car is plugged in
+  - Self-healing: corrects state if timers miss edge cases
+- **Flow Library scorecard compliance**
+  - Added `version` field to `node-red` section in package.json (>=2.0.0)
+  - Added `examples/` folder with 3 demonstration flows
+  - Satisfies Node-RED Flow Library requirements
+
+### Fixed
+- **Home Assistant sensors going "unknown"** when adjusting controls
+  - Sensors now maintain last known values while editing pending preferences
+  - Only update when fresh data arrives from API
+  - Added `lastKnownState` cache and state merging in `publishCurrentState()`
+- **Charging state not updating** for imminent/immediate slots
+  - Fixed edge case where slots starting <30s after poll were not detected
+  - Reconciliation loop catches these within 10 seconds
+  - Ensures accurate "Charging Now" sensor in Home Assistant
+
+### Changed
+- Improved charging state management with redundant detection methods
+- Enhanced MQTT state publishing to preserve sensor data during control updates
+
 ## [1.0.2] - 2025-11-30
 
 ### Changed

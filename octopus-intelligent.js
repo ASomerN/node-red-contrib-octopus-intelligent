@@ -193,6 +193,7 @@ module.exports = function (RED) {
         let slotStartTimer = null;       // Fires at exact slot start
         let slotEndTimer = null;         // Fires at exact slot end
         let cachedSlots = [];            // Fresh slot data from pre-validation
+        let stateCheckInterval = null;   // Reconciliation loop (every 10s)
 
         // Last known full state - prevents sensors going unknown when controls change
         let lastKnownState = buildDefaultPayload();
@@ -459,6 +460,10 @@ module.exports = function (RED) {
                 // Setup charging timers (only in non-validation mode)
                 if (!validationMode) {
                     setupChargingTimers(activeAndFutureSlots);
+                    // Start reconciliation loop on first successful data fetch
+                    if (!stateCheckInterval) {
+                        startStateReconciliation();
+                    }
                 }
 
                 // Build Payload
@@ -610,6 +615,41 @@ module.exports = function (RED) {
 
         // 6a. Charging Now - Timer Management Functions
 
+        // State reconciliation - checks every 10s if charging state matches reality
+        function reconcileChargingState() {
+            if (!cachedSlots || cachedSlots.length === 0) return;
+
+            const now = new Date();
+
+            // Check if we should be charging RIGHT NOW based on cached slots
+            const shouldBeCharging = cachedSlots.some(slot => {
+                const start = new Date(slot.startDt);
+                const end = new Date(slot.endDt);
+                return start <= now && end > now;
+            });
+
+            // Update state if it doesn't match reality
+            if (shouldBeCharging !== chargingNow) {
+                node.warn(`State reconciliation: Correcting chargingNow from ${chargingNow} to ${shouldBeCharging}`);
+                publishChargingState(shouldBeCharging);
+            }
+        }
+
+        // Start state reconciliation loop (every 10 seconds)
+        function startStateReconciliation() {
+            // Clear existing interval
+            if (stateCheckInterval) {
+                clearInterval(stateCheckInterval);
+            }
+
+            // Check state every 10 seconds
+            stateCheckInterval = setInterval(() => {
+                reconcileChargingState();
+            }, 10000);
+
+            node.log("State reconciliation loop started (every 10s)");
+        }
+
         // Clear all charging timers
         function clearChargingTimers() {
             if (preValidationTimer) {
@@ -623,6 +663,10 @@ module.exports = function (RED) {
             if (slotEndTimer) {
                 clearTimeout(slotEndTimer);
                 slotEndTimer = null;
+            }
+            if (stateCheckInterval) {
+                clearInterval(stateCheckInterval);
+                stateCheckInterval = null;
             }
         }
 
