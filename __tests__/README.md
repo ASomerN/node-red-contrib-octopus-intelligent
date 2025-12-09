@@ -6,10 +6,11 @@ This directory contains unit tests for the Octopus Intelligent Node-RED node.
 
 ```
 __tests__/
-├── bugs.test.js                 # Bug regression tests
-├── charging-timers.test.js      # Timer management tests
-├── data-processing.test.js      # Data processing and payload construction tests
-└── README.md                    # This file
+├── bugs.test.js                    # Bug regression tests
+├── charging-timers.test.js         # Timer management tests
+├── data-processing.test.js         # Data processing and payload construction tests
+├── charging-now-validation.test.js # Charging state validation mode tests
+└── README.md                       # This file
 ```
 
 ## Running Tests
@@ -106,6 +107,28 @@ Tests for API response processing and payload construction:
 - ✅ Preferences extraction
 - ✅ Bump charge source detection
 
+### Charging Now Validation Tests (`charging-now-validation.test.js`)
+
+Tests for charging state detection during validation mode (Issue #5):
+
+**setupChargingTimers() Direct Tests**
+- ✅ Active slot detection (chargingNow=true)
+- ✅ Future slot detection (chargingNow=false)
+- ✅ Slot boundary - start time (inclusive)
+- ✅ Slot boundary - end time (exclusive)
+
+**BEFORE FIX: Validation Mode Bug**
+- ✅ Demonstrates bug: validation mode skips setupChargingTimers()
+- ✅ Comparison: normal mode works correctly
+
+**AFTER FIX: Validation Mode Fixed**
+- ✅ Verifies fix: validation mode now updates charging state
+- ✅ Reconciliation loop NOT started in validation mode
+- ✅ Reconciliation loop IS started in normal mode (once)
+
+**User-Provided Real Data**
+- ⏭️ Placeholder for user's actual charging slot data
+
 ## Test Data
 
 Test mocks are defined in `/test-mocks.js`:
@@ -126,6 +149,8 @@ Helper functions for creating mocks:
 - `createMockAxios(responses)` - Mock axios HTTP client
 - `createMockBroker()` - Mock MQTT broker
 - `createMockNode()` - Mock Node-RED node
+- `generateMockDataWithActiveSlot()` - Generate data with currently active slot (NOW - 30min to NOW + 3.5hrs)
+- `generateMockDataWithFutureSlot()` - Generate data with future slot only (NOW + 2hrs to NOW + 6hrs)
 
 ## Coverage Goals
 

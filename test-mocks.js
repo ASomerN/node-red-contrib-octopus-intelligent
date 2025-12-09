@@ -84,6 +84,7 @@ const mockDataWithSlots = {
 /**
  * Data query with active slot (currently charging)
  * Scenario: One slot currently active, started 30 minutes ago
+ * NOTE: This is legacy mock data, see mockRealApiResponse_* below for real API structure
  */
 const mockDataWithActiveSlot = {
   status: 200,
@@ -107,6 +108,482 @@ const mockDataWithActiveSlot = {
       }
     }
   }
+};
+
+// ============================================================================
+// 6. REAL API RESPONSE TEST DATA (Based on User's Actual Data)
+// ============================================================================
+
+/**
+ * REAL API RESPONSE - 1 Slot: Currently Active
+ * Test Time: 2025-12-10T03:15:00Z (middle of slot)
+ * Slot: 03:00 - 03:30 (ACTIVE at test time)
+ * Expected charging_now: true
+ */
+const mockRealApiResponse_1Slot_Active = {
+  status: 200,
+  data: {
+    data: {
+      plannedDispatches: [
+        {
+          startDt: "2025-12-10 03:00:00+00:00",
+          endDt: "2025-12-10 03:30:00+00:00",
+          deltaKwh: -1,
+          meta: { source: "smart-charge" }
+        }
+      ],
+      vehicleChargingPreferences: {
+        weekdayTargetSoc: 80,
+        weekdayTargetTime: "08:00",
+        weekendTargetSoc: 80,
+        weekendTargetTime: "08:00"
+      }
+    }
+  },
+  testTime: "2025-12-10T03:15:00Z", // 15 minutes into the slot
+  expectedChargingNow: true
+};
+
+/**
+ * REAL API RESPONSE - 1 Slot: Not Active (Future)
+ * Test Time: 2025-12-10T02:00:00Z (before slot)
+ * Slot: 03:00 - 03:30 (NOT ACTIVE at test time)
+ * Expected charging_now: false
+ */
+const mockRealApiResponse_1Slot_Future = {
+  status: 200,
+  data: {
+    data: {
+      plannedDispatches: [
+        {
+          startDt: "2025-12-10 03:00:00+00:00",
+          endDt: "2025-12-10 03:30:00+00:00",
+          deltaKwh: -1,
+          meta: { source: "smart-charge" }
+        }
+      ],
+      vehicleChargingPreferences: {
+        weekdayTargetSoc: 80,
+        weekdayTargetTime: "08:00",
+        weekendTargetSoc: 80,
+        weekendTargetTime: "08:00"
+      }
+    }
+  },
+  testTime: "2025-12-10T02:00:00Z", // 1 hour before slot starts
+  expectedChargingNow: false
+};
+
+/**
+ * REAL API RESPONSE - 3 Slots: First Active
+ * Test Time: 2025-12-10T01:15:00Z
+ * Slot 1: 01:00 - 02:00 (ACTIVE)
+ * Slot 2: 03:00 - 04:00 (future)
+ * Slot 3: 05:00 - 06:00 (future)
+ * Expected charging_now: true
+ */
+const mockRealApiResponse_3Slots_FirstActive = {
+  status: 200,
+  data: {
+    data: {
+      plannedDispatches: [
+        {
+          startDt: "2025-12-10 01:00:00+00:00",
+          endDt: "2025-12-10 02:00:00+00:00",
+          deltaKwh: -5,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 03:00:00+00:00",
+          endDt: "2025-12-10 04:00:00+00:00",
+          deltaKwh: -5,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 05:00:00+00:00",
+          endDt: "2025-12-10 06:00:00+00:00",
+          deltaKwh: -5,
+          meta: { source: "smart-charge" }
+        }
+      ],
+      vehicleChargingPreferences: {
+        weekdayTargetSoc: 80,
+        weekdayTargetTime: "08:00",
+        weekendTargetSoc: 80,
+        weekendTargetTime: "08:00"
+      }
+    }
+  },
+  testTime: "2025-12-10T01:15:00Z", // 15 minutes into first slot
+  expectedChargingNow: true
+};
+
+/**
+ * REAL API RESPONSE - 3 Slots: Middle Active
+ * Test Time: 2025-12-10T03:30:00Z
+ * Slot 1: 01:00 - 02:00 (past)
+ * Slot 2: 03:00 - 04:00 (ACTIVE)
+ * Slot 3: 05:00 - 06:00 (future)
+ * Expected charging_now: true
+ */
+const mockRealApiResponse_3Slots_MiddleActive = {
+  status: 200,
+  data: {
+    data: {
+      plannedDispatches: [
+        {
+          startDt: "2025-12-10 01:00:00+00:00",
+          endDt: "2025-12-10 02:00:00+00:00",
+          deltaKwh: -5,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 03:00:00+00:00",
+          endDt: "2025-12-10 04:00:00+00:00",
+          deltaKwh: -5,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 05:00:00+00:00",
+          endDt: "2025-12-10 06:00:00+00:00",
+          deltaKwh: -5,
+          meta: { source: "smart-charge" }
+        }
+      ],
+      vehicleChargingPreferences: {
+        weekdayTargetSoc: 80,
+        weekdayTargetTime: "08:00",
+        weekendTargetSoc: 80,
+        weekendTargetTime: "08:00"
+      }
+    }
+  },
+  testTime: "2025-12-10T03:30:00Z", // 30 minutes into middle slot
+  expectedChargingNow: true
+};
+
+/**
+ * REAL API RESPONSE - 3 Slots: Last Active
+ * Test Time: 2025-12-10T05:45:00Z
+ * Slot 1: 01:00 - 02:00 (past)
+ * Slot 2: 03:00 - 04:00 (past)
+ * Slot 3: 05:00 - 06:00 (ACTIVE)
+ * Expected charging_now: true
+ */
+const mockRealApiResponse_3Slots_LastActive = {
+  status: 200,
+  data: {
+    data: {
+      plannedDispatches: [
+        {
+          startDt: "2025-12-10 01:00:00+00:00",
+          endDt: "2025-12-10 02:00:00+00:00",
+          deltaKwh: -5,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 03:00:00+00:00",
+          endDt: "2025-12-10 04:00:00+00:00",
+          deltaKwh: -5,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 05:00:00+00:00",
+          endDt: "2025-12-10 06:00:00+00:00",
+          deltaKwh: -5,
+          meta: { source: "smart-charge" }
+        }
+      ],
+      vehicleChargingPreferences: {
+        weekdayTargetSoc: 80,
+        weekdayTargetTime: "08:00",
+        weekendTargetSoc: 80,
+        weekendTargetTime: "08:00"
+      }
+    }
+  },
+  testTime: "2025-12-10T05:45:00Z", // 45 minutes into last slot
+  expectedChargingNow: true
+};
+
+/**
+ * REAL API RESPONSE - 3 Slots: None Active (Between Slots)
+ * Test Time: 2025-12-10T02:30:00Z
+ * Slot 1: 01:00 - 02:00 (past)
+ * Slot 2: 03:00 - 04:00 (future)
+ * Slot 3: 05:00 - 06:00 (future)
+ * Expected charging_now: false
+ */
+const mockRealApiResponse_3Slots_NoneActive = {
+  status: 200,
+  data: {
+    data: {
+      plannedDispatches: [
+        {
+          startDt: "2025-12-10 01:00:00+00:00",
+          endDt: "2025-12-10 02:00:00+00:00",
+          deltaKwh: -5,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 03:00:00+00:00",
+          endDt: "2025-12-10 04:00:00+00:00",
+          deltaKwh: -5,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 05:00:00+00:00",
+          endDt: "2025-12-10 06:00:00+00:00",
+          deltaKwh: -5,
+          meta: { source: "smart-charge" }
+        }
+      ],
+      vehicleChargingPreferences: {
+        weekdayTargetSoc: 80,
+        weekdayTargetTime: "08:00",
+        weekendTargetSoc: 80,
+        weekendTargetTime: "08:00"
+      }
+    }
+  },
+  testTime: "2025-12-10T02:30:00Z", // Between slot 1 and slot 2
+  expectedChargingNow: false
+};
+
+/**
+ * REAL API RESPONSE - 6 Slots: First Active
+ * Test Time: 2025-12-10T00:30:00Z
+ * Expected charging_now: true
+ */
+const mockRealApiResponse_6Slots_FirstActive = {
+  status: 200,
+  data: {
+    data: {
+      plannedDispatches: [
+        {
+          startDt: "2025-12-10 00:00:00+00:00",
+          endDt: "2025-12-10 01:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 02:00:00+00:00",
+          endDt: "2025-12-10 03:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 04:00:00+00:00",
+          endDt: "2025-12-10 05:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 06:00:00+00:00",
+          endDt: "2025-12-10 07:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 08:00:00+00:00",
+          endDt: "2025-12-10 09:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 10:00:00+00:00",
+          endDt: "2025-12-10 11:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "bump-charge" }
+        }
+      ],
+      vehicleChargingPreferences: {
+        weekdayTargetSoc: 90,
+        weekdayTargetTime: "07:00",
+        weekendTargetSoc: 90,
+        weekendTargetTime: "07:00"
+      }
+    }
+  },
+  testTime: "2025-12-10T00:30:00Z", // 30 minutes into first slot
+  expectedChargingNow: true
+};
+
+/**
+ * REAL API RESPONSE - 6 Slots: Third Active (Middle)
+ * Test Time: 2025-12-10T04:30:00Z
+ * Expected charging_now: true
+ */
+const mockRealApiResponse_6Slots_ThirdActive = {
+  status: 200,
+  data: {
+    data: {
+      plannedDispatches: [
+        {
+          startDt: "2025-12-10 00:00:00+00:00",
+          endDt: "2025-12-10 01:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 02:00:00+00:00",
+          endDt: "2025-12-10 03:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 04:00:00+00:00",
+          endDt: "2025-12-10 05:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 06:00:00+00:00",
+          endDt: "2025-12-10 07:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 08:00:00+00:00",
+          endDt: "2025-12-10 09:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 10:00:00+00:00",
+          endDt: "2025-12-10 11:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "bump-charge" }
+        }
+      ],
+      vehicleChargingPreferences: {
+        weekdayTargetSoc: 90,
+        weekdayTargetTime: "07:00",
+        weekendTargetSoc: 90,
+        weekendTargetTime: "07:00"
+      }
+    }
+  },
+  testTime: "2025-12-10T04:30:00Z", // 30 minutes into third slot
+  expectedChargingNow: true
+};
+
+/**
+ * REAL API RESPONSE - 6 Slots: Last Active
+ * Test Time: 2025-12-10T10:45:00Z
+ * Expected charging_now: true
+ */
+const mockRealApiResponse_6Slots_LastActive = {
+  status: 200,
+  data: {
+    data: {
+      plannedDispatches: [
+        {
+          startDt: "2025-12-10 00:00:00+00:00",
+          endDt: "2025-12-10 01:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 02:00:00+00:00",
+          endDt: "2025-12-10 03:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 04:00:00+00:00",
+          endDt: "2025-12-10 05:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 06:00:00+00:00",
+          endDt: "2025-12-10 07:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 08:00:00+00:00",
+          endDt: "2025-12-10 09:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 10:00:00+00:00",
+          endDt: "2025-12-10 11:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "bump-charge" }
+        }
+      ],
+      vehicleChargingPreferences: {
+        weekdayTargetSoc: 90,
+        weekdayTargetTime: "07:00",
+        weekendTargetSoc: 90,
+        weekendTargetTime: "07:00"
+      }
+    }
+  },
+  testTime: "2025-12-10T10:45:00Z", // 45 minutes into last slot
+  expectedChargingNow: true
+};
+
+/**
+ * REAL API RESPONSE - 6 Slots: None Active (Between Slots)
+ * Test Time: 2025-12-10T03:30:00Z
+ * Expected charging_now: false
+ */
+const mockRealApiResponse_6Slots_NoneActive = {
+  status: 200,
+  data: {
+    data: {
+      plannedDispatches: [
+        {
+          startDt: "2025-12-10 00:00:00+00:00",
+          endDt: "2025-12-10 01:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 02:00:00+00:00",
+          endDt: "2025-12-10 03:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 04:00:00+00:00",
+          endDt: "2025-12-10 05:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 06:00:00+00:00",
+          endDt: "2025-12-10 07:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 08:00:00+00:00",
+          endDt: "2025-12-10 09:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "smart-charge" }
+        },
+        {
+          startDt: "2025-12-10 10:00:00+00:00",
+          endDt: "2025-12-10 11:00:00+00:00",
+          deltaKwh: -3,
+          meta: { source: "bump-charge" }
+        }
+      ],
+      vehicleChargingPreferences: {
+        weekdayTargetSoc: 90,
+        weekdayTargetTime: "07:00",
+        weekendTargetSoc: 90,
+        weekendTargetTime: "07:00"
+      }
+    }
+  },
+  testTime: "2025-12-10T03:30:00Z", // Between slot 2 and slot 3
+  expectedChargingNow: false
 };
 
 /**
@@ -443,6 +920,73 @@ function createMockNode() {
   };
 }
 
+/**
+ * Generate mock data with an active slot (currently charging)
+ * Slot: NOW - 30 minutes to NOW + 3.5 hours
+ * This ensures the test always has an active slot regardless of when it runs
+ * @returns {Object} Mock API response with active slot
+ */
+function generateMockDataWithActiveSlot() {
+  const now = new Date();
+  const startTime = new Date(now.getTime() - 30 * 60 * 1000); // 30 min ago
+  const endTime = new Date(now.getTime() + 3.5 * 60 * 60 * 1000); // 3.5 hrs from now
+
+  return {
+    status: 200,
+    data: {
+      data: {
+        plannedDispatches: [
+          {
+            startDt: startTime.toISOString().replace('T', ' ').replace('Z', '+00:00'),
+            endDt: endTime.toISOString().replace('T', ' ').replace('Z', '+00:00'),
+            deltaKwh: -15.5,
+            meta: { source: "smart-charge" }
+          }
+        ],
+        vehicleChargingPreferences: {
+          weekdayTargetSoc: 80,
+          weekdayTargetTime: "08:00",
+          weekendTargetSoc: 80,
+          weekendTargetTime: "08:00"
+        }
+      }
+    }
+  };
+}
+
+/**
+ * Generate mock data with future slot only (not currently charging)
+ * Slot: NOW + 2 hours to NOW + 6 hours
+ * @returns {Object} Mock API response with future slot
+ */
+function generateMockDataWithFutureSlot() {
+  const now = new Date();
+  const startTime = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 hrs from now
+  const endTime = new Date(now.getTime() + 6 * 60 * 60 * 1000); // 6 hrs from now
+
+  return {
+    status: 200,
+    data: {
+      data: {
+        plannedDispatches: [
+          {
+            startDt: startTime.toISOString().replace('T', ' ').replace('Z', '+00:00'),
+            endDt: endTime.toISOString().replace('T', ' ').replace('Z', '+00:00'),
+            deltaKwh: -15.5,
+            meta: { source: "smart-charge" }
+          }
+        ],
+        vehicleChargingPreferences: {
+          weekdayTargetSoc: 80,
+          weekdayTargetTime: "08:00",
+          weekendTargetSoc: 80,
+          weekendTargetTime: "08:00"
+        }
+      }
+    }
+  };
+}
+
 // ============================================================================
 // EXPORTS
 // ============================================================================
@@ -458,6 +1002,18 @@ module.exports = {
   mockDataNoSlots,
   mockDataWithThreeSlots,
   mockDataWithPastSlots,
+
+  // Real API response test data (based on user's actual data)
+  mockRealApiResponse_1Slot_Active,
+  mockRealApiResponse_1Slot_Future,
+  mockRealApiResponse_3Slots_FirstActive,
+  mockRealApiResponse_3Slots_MiddleActive,
+  mockRealApiResponse_3Slots_LastActive,
+  mockRealApiResponse_3Slots_NoneActive,
+  mockRealApiResponse_6Slots_FirstActive,
+  mockRealApiResponse_6Slots_ThirdActive,
+  mockRealApiResponse_6Slots_LastActive,
+  mockRealApiResponse_6Slots_NoneActive,
 
   // Mutation responses
   mockMutationSuccess,
@@ -476,5 +1032,7 @@ module.exports = {
   // Helper functions
   createMockAxios,
   createMockBroker,
-  createMockNode
+  createMockNode,
+  generateMockDataWithActiveSlot,
+  generateMockDataWithFutureSlot
 };
