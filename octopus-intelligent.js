@@ -720,7 +720,7 @@ module.exports = function (RED) {
 
         // Polling metrics helpers
         function updateNextPollTime() {
-            nextPollTime = new Date(Date.now() + (refreshInterval * 60 * 1000)).toISOString();
+            nextPollTime = new Date(Date.now() + refreshRate).toISOString();
         }
 
         function recordPoll(complexity = null) {
