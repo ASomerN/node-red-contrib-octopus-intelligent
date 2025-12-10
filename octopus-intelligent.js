@@ -48,8 +48,12 @@ module.exports = function (RED) {
             { id: "window_start", name: "Overall Window Start", class: "timestamp", icon: "mdi:timer-play", val: "window_start" },
             { id: "window_end", name: "Overall Window End", class: "timestamp", icon: "mdi:timer-stop", val: "window_end" },
 
-            // Raw timestamp strings (show exact API timestamp)
+            // v1.0.4: Next poll timer
+            { id: "next_poll", name: "Next Poll Time", class: "timestamp", icon: "mdi:clock-outline", val: "next_poll" },
+
+            // Raw timestamp strings (show exact API timestamp) - marked as diagnostic
             { id: "next_charge_raw", name: "Next Charge Time (Raw)", icon: "mdi:timer", val: "next_start_raw" },
+            { id: "next_poll_raw", name: "Next Poll Time (Raw)", icon: "mdi:clock-outline", val: "next_poll_raw" },
             { id: "slot1_start_raw", name: "Slot 1 Start (Raw)", icon: "mdi:timer-outline", val: "slot1_start_raw" },
             { id: "slot1_end_raw", name: "Slot 1 End (Raw)", icon: "mdi:timer-outline", val: "slot1_end_raw" },
             { id: "slot2_start_raw", name: "Slot 2 Start (Raw)", icon: "mdi:timer-outline", val: "slot2_start_raw" },
