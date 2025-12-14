@@ -62,6 +62,9 @@ If this project has helped you!
 - **Charge Source** - Smart-charge vs bump-charge indicator
 
 ### 🔧 Advanced Features
+- **Manual Refresh Button** - Force API refresh from Home Assistant (30s cooldown)
+- **Next Poll Timer** - See when the next automatic refresh will occur
+- **API Usage Tracking** - Monitor requests and complexity in diagnostics
 - **Raw Timestamps** - Exact API responses in Diagnostics section
 - **Exponential Backoff** - Smart retry prevents sensor unavailability
 - **Comprehensive Debugging** - Full API call tracking in msg.debug
@@ -111,7 +114,7 @@ This flow shows the complete MQTT setup:
 
 ### Home Assistant Auto-Configured Entities
 
-![Home Assistant Device](images/examples/homeassistant-device.png)
+![Home Assistant Device](images/examples/homeassistant-device-v1.0.4.png)
 
 After enabling MQTT in the Node-RED node, Home Assistant automatically creates:
 
@@ -119,19 +122,25 @@ After enabling MQTT in the Node-RED node, Home Assistant automatically creates:
 - **Target Charge** - Number slider (50-100%) to set desired battery level
 - **Ready Time** - Dropdown selector (04:00-11:00) for when car needs to be ready
 - **Apply Changes** - Button to submit new settings (prevents API spam while adjusting)
+- **Refresh API** - Button to force manual refresh (30-second cooldown prevents spam)
 
 #### Sensors (Main Section)
 - **Confirmed Charge Limit** - Current API-validated charge limit
 - **Confirmed Ready Time** - Current API-validated ready time
 - **Next Charge Time** - When your next charging slot starts (formatted for your timezone)
+- **Next Poll Time** - When the next automatic refresh will occur
 - **Total Planned Energy** - Total kWh across all upcoming slots
 - **Slot 1, 2, 3 Start/End** - Individual charging slot times
 - **Overall Window Start/End** - First slot start to last slot end
 - **Charging Now** - Binary sensor (ON/OFF) showing if actively charging
 
-#### Diagnostics (Includes the same information but in a raw output)
-- Raw timestamp sensors with exact API responses
-- Useful for debugging and advanced automations
+#### Diagnostics (Raw timestamps and monitoring)
+- **Refresh Available At** - Countdown timestamp showing when manual refresh becomes available
+- **API Requests (Last Hour)** - Number of API calls in the last 60 minutes
+- **API Complexity (Last Hour)** - Total complexity used (max 50,000/hour)
+- **API Complexity Usage** - Percentage of hourly API limit used
+- **Raw timestamp sensors** - Exact API responses for all sensors
+- Useful for debugging, advanced automations, and monitoring API usage
 
 **All entities are automatically organized under a single "Octopus Intelligent" device!**
 
@@ -191,6 +200,7 @@ If MQTT enabled:
 number.octopus_target_charge       Battery charge limit (50-100%)
 select.octopus_ready_time          Ready by time (04:00-11:00)
 button.octopus_apply_changes       Submit changes to API
+button.octopus_refresh_api         Manual refresh (30s cooldown)
 ```
 
 ### Main Sensors
@@ -198,6 +208,7 @@ button.octopus_apply_changes       Submit changes to API
 sensor.octopus_confirmed_charge_limit     API-confirmed charge limit
 sensor.octopus_confirmed_ready_time       API-confirmed ready time
 sensor.octopus_next_charge_time          Next charging slot start
+sensor.octopus_next_poll_time            Next automatic refresh time
 sensor.octopus_total_planned_energy      Total kWh planned
 sensor.octopus_next_slot_energy          Energy in next slot
 sensor.octopus_charge_source             smart-charge/bump-charge
@@ -207,8 +218,18 @@ sensor.octopus_overall_window_start      First slot start
 sensor.octopus_overall_window_end        Last slot end
 ```
 
-### Diagnostics (Raw Timestamps)
+### Diagnostics (Raw Timestamps & Monitoring)
 ```
+# Refresh & Polling
+sensor.octopus_refresh_available_at      When manual refresh becomes available
+sensor.octopus_next_poll_time_raw        Raw next poll timestamp
+
+# API Usage Tracking
+sensor.octopus_api_requests_hour         API calls in last 60 minutes
+sensor.octopus_api_complexity_hour       Total complexity used
+sensor.octopus_api_complexity_usage      Percentage of 50,000/hour limit
+
+# Raw Timestamps
 sensor.octopus_next_charge_time_raw      Exact API timestamp
 sensor.octopus_slot_[1-3]_start_raw      Raw slot start times
 sensor.octopus_slot_[1-3]_end_raw        Raw slot end times
@@ -247,13 +268,35 @@ return msg;
     "next_source": "smart-charge",
     "confirmed_limit": 80,
     "confirmed_time": "07:00",
+    "pending_limit": 80,
+    "pending_time": "07:00",
+    "charging_now": false,
+    "next_poll": "2025-11-29T10:35:00Z",
+    "refresh_available_at": null,
+    "api_requests_hour": 12,
+    "api_complexity_hour": 3600,
+    "api_complexity_percent": 7.2,
     "slot1_start": "2025-11-29T01:30:00Z",
     "slot1_end": "2025-11-29T05:30:00Z"
   },
   "debug": {
     "success": true,
     "step": "complete",
-    "apiCalls": [...]
+    "apiCalls": [
+      {
+        "name": "data_query",
+        "responseHeaders": {...},
+        "extensions": null
+      }
+    ],
+    "api_usage": {
+      "requests_last_hour": 12,
+      "complexity_last_hour": 3600,
+      "complexity_percent_used": "7.2",
+      "api_limit_hourly": 50000,
+      "request_complexity": 300,
+      "complexity_source": "estimated"
+    }
   }
 }
 ```
@@ -416,16 +459,18 @@ Use at your own risk. The Octopus Energy name and logo are trademarks of Octopus
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history and release notes.
 
-### Latest Release: v1.0.1 (2025-11-30)
-- Added Node.js and Node-RED version requirements
-- Added comprehensive example flows and visual documentation
-- Flow Library scorecard improvements
+### Latest Release: v1.0.4 (2025-12-11)
+- **Manual Refresh Button** - Force API refresh via Home Assistant with 30s cooldown
+- **Next Poll Timer** - See when next automatic refresh occurs
+- **API Complexity Monitoring** - Track API usage against 50,000/hour limit
+- **Enhanced State Output** - Every poll outputs full state to Node-RED
+- **Rate Limiting** - MQTT button (30s cooldown), Node-RED input (no limit)
+- **Improved Debugging** - Response headers and extensions captured
 
-### Previous Release: v1.0.0 (2025-11-30)
-- Initial public release with full Octopus Energy API integration
-- Home Assistant MQTT auto-discovery
-- Real-time charging slot detection
-- Exponential backoff validation
+### Previous Release: v1.0.3 (2025-12-04)
+- State reconciliation loop for charging detection
+- Fixed Home Assistant sensors going "unknown"
+- Flow Library scorecard compliance
 
 ---
 

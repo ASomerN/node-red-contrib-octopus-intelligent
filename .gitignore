@@ -11,7 +11,18 @@ QUICKSTART.md
 NPM_PUBLICATION_CHECKLIST.md
 images/IMAGES_NEEDED.md
 RELEASE.md
+REMOTE_DEVELOPMENT.md
 v1.0.4-planning.md
+v1.1.0-planning.md
+charging-state-flow-analysis.md
+issue5-charging-now-fix.md
+why-reconciliation-didnt-work.md
+v1.0.4-test-plan.md
+v1.0.4-regression-test-plan.md
+v1.0.4-documentation-updates.md
+v1.0.4-documentation-complete.md
+RELEASE_CHECKLIST_v1.0.4.md
+__tests__/TEST-SUMMARY.md
 
 # Personal use files (not part of package)
 NodeRed_Global_Setter.js
