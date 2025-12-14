@@ -19,6 +19,17 @@
   ],
   "author": "Andrew Somerharju Neale",
   "license": "MIT",
+  "files": [
+    "octopus-intelligent.js",
+    "octopus-intelligent.html",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "examples/",
+    "images/",
+    "__tests__/",
+    "test-mocks.js"
+  ],
   "node-red": {
     "version": ">=2.0.0",
     "nodes": {
