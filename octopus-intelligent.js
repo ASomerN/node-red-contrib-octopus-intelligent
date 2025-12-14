@@ -21,6 +21,7 @@ module.exports = function (RED) {
         const cmdTopicLimit = `nodered_octopus/${account}/set_limit`;
         const cmdTopicTime = `nodered_octopus/${account}/set_time`;
         const cmdTopicSubmit = `nodered_octopus/${account}/submit_changes`;
+        const cmdTopicRefresh = `nodered_octopus/${account}/refresh`;
 
         // 2. Constants & Validation
         const TIME_OPTIONS = [
@@ -50,6 +51,14 @@ module.exports = function (RED) {
 
             // v1.0.4: Next poll timer
             { id: "next_poll", name: "Next Poll Time", class: "timestamp", icon: "mdi:clock-outline", val: "next_poll" },
+
+            // v1.0.4: Refresh available timestamp (diagnostic) - for Home Assistant countdown
+            { id: "refresh_available_at", name: "Refresh Available At", class: "timestamp", icon: "mdi:timer-sand", val: "refresh_available_at" },
+
+            // v1.0.4: API complexity tracking (diagnostic)
+            { id: "api_requests_hour", name: "API Requests (Last Hour)", icon: "mdi:api", val: "api_requests_hour" },
+            { id: "api_complexity_hour", name: "API Complexity (Last Hour)", icon: "mdi:chart-line", val: "api_complexity_hour" },
+            { id: "api_complexity_percent", name: "API Complexity Usage", icon: "mdi:percent", unit: "%", val: "api_complexity_percent" },
 
             // Raw timestamp strings (show exact API timestamp) - marked as diagnostic
             { id: "next_charge_raw", name: "Next Charge Time (Raw)", icon: "mdi:timer", val: "next_start_raw" },
@@ -118,7 +127,19 @@ module.exports = function (RED) {
             };
             node.broker.client.publish(`${mqttPrefix}/button/${uniqueIdPrefix}_submit/config`, JSON.stringify(buttonConfig), { retain: true });
 
-            // D. Add sensors for confirmed values (read-only display)
+            // D. Refresh Button
+            const refreshButtonConfig = {
+                name: "Octopus Refresh API",
+                unique_id: `${uniqueIdPrefix}_refresh_button`,
+                command_topic: cmdTopicRefresh,
+                payload_press: "REFRESH",
+                icon: "mdi:refresh",
+                device_class: "restart",
+                device: device
+            };
+            node.broker.client.publish(`${mqttPrefix}/button/${uniqueIdPrefix}_refresh/config`, JSON.stringify(refreshButtonConfig), { retain: true });
+
+            // E. Add sensors for confirmed values (read-only display)
             const confirmedLimitSensor = {
                 name: "Octopus Confirmed Charge Limit",
                 unique_id: `${uniqueIdPrefix}_confirmed_limit`,
@@ -140,7 +161,7 @@ module.exports = function (RED) {
             };
             node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_confirmed_time/config`, JSON.stringify(confirmedTimeSensor), { retain: true });
 
-            // F. Charging Now Binary Sensor (main sensor for automations)
+            // G. Charging Now Binary Sensor (main sensor for automations)
             const chargingNowBinarySensor = {
                 name: "Octopus Charging Now",
                 unique_id: `${uniqueIdPrefix}_charging_now`,
@@ -153,7 +174,7 @@ module.exports = function (RED) {
             };
             node.broker.client.publish(`${mqttPrefix}/binary_sensor/${uniqueIdPrefix}_charging_now/config`, JSON.stringify(chargingNowBinarySensor), { retain: true });
 
-            // G. Announce Read-Only Sensors
+            // H. Announce Read-Only Sensors
             sensors.forEach(sensor => {
                 const payload = {
                     name: `Octopus ${sensor.name}`,
@@ -166,8 +187,10 @@ module.exports = function (RED) {
                 if (sensor.unit) payload.unit_of_measurement = sensor.unit;
                 if (sensor.icon) payload.icon = sensor.icon;
 
-                // Mark raw sensors as diagnostic (moves to Diagnostics section)
-                if (sensor.id.includes('_raw')) {
+                // Mark raw sensors, refresh timestamp, and API metrics as diagnostic (moves to Diagnostics section)
+                if (sensor.id.includes('_raw') ||
+                    sensor.id === 'refresh_available_at' ||
+                    sensor.id.startsWith('api_')) {
                     payload.entity_category = "diagnostic";
                 }
 
@@ -178,6 +201,7 @@ module.exports = function (RED) {
             node.broker.client.subscribe(cmdTopicLimit);
             node.broker.client.subscribe(cmdTopicTime);
             node.broker.client.subscribe(cmdTopicSubmit);
+            node.broker.client.subscribe(cmdTopicRefresh);
         }
 
         // 5. Helper: Set Preferences (The Mutation)
@@ -200,14 +224,22 @@ module.exports = function (RED) {
         let stateCheckInterval = null;   // Reconciliation loop (every 10s)
         let lastSentChargingState = null;  // Track last sent state to avoid duplicates
 
-        // Manual refresh rate limiting
+        // Manual refresh rate limiting (only for MQTT button, not Node-RED input)
         let lastManualRefresh = 0;       // Timestamp of last manual refresh
         const MANUAL_REFRESH_COOLDOWN = 30000;  // 30 seconds in milliseconds
+        let cooldownExpiryTimer = null;  // Timer to clear cooldown state at expiry
 
         // Polling metrics
         let nextPollTime = null;         // ISO timestamp of next scheduled poll
         let pollIntervalHandle = null;   // Reference to setInterval handle
         let pollHistory = [];            // Array of {timestamp, complexity} for last 60 min
+
+        // API Complexity Tracking
+        // Octopus Energy API does not return actual complexity values in headers or extensions,
+        // so we use estimated complexity based on query types:
+        // - Regular poll (auth + data query): ~300
+        // - Mutation (auth + setPreferences): ~250
+        // - Pre-validation (auth + plannedDispatches only): ~200
 
         // Last known full state - prevents sensors going unknown when controls change
         let lastKnownState = buildDefaultPayload();
@@ -276,6 +308,10 @@ module.exports = function (RED) {
                     throw new Error(`Mutation failed: ${JSON.stringify(mutationResponse.data.errors)}`);
                 }
 
+                // Record mutation API usage (auth + mutation = ~250 complexity)
+                const ESTIMATED_MUTATION_COMPLEXITY = 250;
+                recordPoll(ESTIMATED_MUTATION_COMPLEXITY);
+
                 // C. Start exponential backoff validation
                 expectedLimit = limit;
                 expectedTime = time;
@@ -341,9 +377,11 @@ module.exports = function (RED) {
 
         // 6. Logic: Fetch Data (Read)
         async function fetchData(validationMode = false) {
-            // Record this poll for API usage tracking (before actual fetch)
-            // Note: complexity will be updated after response if available from API
-            recordPoll();
+            // Estimated complexity per poll:
+            // - Auth mutation: ~100 complexity
+            // - Data query (plannedDispatches + vehicleChargingPreferences): ~200 complexity
+            // - Total: ~300 complexity per poll
+            const ESTIMATED_POLL_COMPLEXITY = 300;
 
             // Debug object to track API calls
             const debugInfo = {
@@ -429,7 +467,9 @@ module.exports = function (RED) {
                     statusCode: dataResponse.status,
                     hasErrors: !!(dataResponse.data.errors),
                     errors: dataResponse.data.errors || null,
-                    hasData: !!(dataResponse.data.data)
+                    hasData: !!(dataResponse.data.data),
+                    // Capture response headers for rate limit analysis
+                    responseHeaders: dataResponse.headers || {}
                 });
 
                 // Validate data response
@@ -445,6 +485,19 @@ module.exports = function (RED) {
                 const data = dataResponse.data.data || {};
                 const slots = data.plannedDispatches || [];
                 const prefs = data.vehicleChargingPreferences || {};
+
+                // Check for GraphQL extensions (may contain complexity/rate limit info)
+                let actualComplexity = null;
+                if (dataResponse.data.extensions) {
+                    debugInfo.apiCalls[1].extensions = dataResponse.data.extensions;
+                    // Try to extract complexity if available
+                    actualComplexity = dataResponse.data.extensions.complexity ||
+                                      dataResponse.data.extensions.cost ||
+                                      null;
+                }
+
+                // Record poll with estimated or actual complexity
+                recordPoll(actualComplexity || ESTIMATED_POLL_COMPLEXITY);
 
                 debugInfo.apiCalls[1].slotsFound = slots.length;
                 debugInfo.apiCalls[1].preferencesFound = !!(prefs.weekdayTargetSoc);
@@ -488,6 +541,9 @@ module.exports = function (RED) {
                 // Update next poll time after successful fetch
                 updateNextPollTime();
 
+                // Get API metrics for inclusion in payload
+                const apiMetrics = getApiMetrics();
+
                 // Build Payload
                 const statusPayload = {
                     next_start: nextSlot ? nextSlot.startDt : null,
@@ -505,6 +561,12 @@ module.exports = function (RED) {
                     // Next poll time
                     next_poll: nextPollTime,
                     next_poll_raw: nextPollTime,
+                    // Refresh available timestamp (null = ready, ISO timestamp = counting down)
+                    refresh_available_at: getRefreshAvailableAt(),
+                    // API complexity metrics
+                    api_requests_hour: apiMetrics.requests_last_hour,
+                    api_complexity_hour: apiMetrics.complexity_last_hour,
+                    api_complexity_percent: parseFloat(apiMetrics.complexity_percent),
                     // Individual slots (first 3 active/future) - formatted timestamps
                     slot1_start: activeAndFutureSlots[0] ? activeAndFutureSlots[0].startDt : null,
                     slot1_end: activeAndFutureSlots[0] ? activeAndFutureSlots[0].endDt : null,
@@ -543,14 +605,14 @@ module.exports = function (RED) {
                     debugInfo.validated = isValidated;
                 }
 
-                // Add API usage metrics to debug info
-                const apiMetrics = getApiMetrics();
+                // Add API usage metrics to debug info (already fetched above)
                 debugInfo.api_usage = {
                     requests_last_hour: apiMetrics.requests_last_hour,
                     complexity_last_hour: apiMetrics.complexity_last_hour,
                     complexity_percent_used: apiMetrics.complexity_percent,
                     api_limit_hourly: 50000,
-                    request_complexity: null  // Would be populated if rateLimitInfo available
+                    request_complexity: actualComplexity || ESTIMATED_POLL_COMPLEXITY,
+                    complexity_source: actualComplexity ? "api" : "estimated"
                 };
 
                 // Store this as the last known full state
@@ -630,6 +692,10 @@ module.exports = function (RED) {
                 pending_limit: pendingLimit,
                 pending_time: pendingTime,
                 charging_now: chargingNow,
+                refresh_available_at: null,
+                api_requests_hour: 0,
+                api_complexity_hour: 0,
+                api_complexity_percent: 0,
                 slot1_start: null,
                 slot1_end: null,
                 slot2_start: null,
@@ -712,14 +778,37 @@ module.exports = function (RED) {
         function canManualRefresh() {
             const now = Date.now();
             const timeSinceLastRefresh = now - lastManualRefresh;
-            return timeSinceLastRefresh >= MANUAL_REFRESH_COOLDOWN;
+            return lastManualRefresh === 0 || timeSinceLastRefresh >= MANUAL_REFRESH_COOLDOWN;
         }
 
         function getSecondsUntilNextRefresh() {
             const now = Date.now();
             const timeSinceLastRefresh = now - lastManualRefresh;
             const timeRemaining = MANUAL_REFRESH_COOLDOWN - timeSinceLastRefresh;
-            return Math.ceil(timeRemaining / 1000);
+            return Math.max(0, Math.ceil(timeRemaining / 1000));
+        }
+
+        function getRefreshAvailableAt() {
+            const now = Date.now();
+            const timeSinceLastRefresh = now - lastManualRefresh;
+
+            // If never refreshed OR cooldown expired, ready now
+            if (lastManualRefresh === 0 || timeSinceLastRefresh >= MANUAL_REFRESH_COOLDOWN) {
+                return null;  // Ready - no cooldown
+            }
+
+            // Cooldown active - return timestamp when it expires
+            return new Date(lastManualRefresh + MANUAL_REFRESH_COOLDOWN).toISOString();
+        }
+
+        function publishRefreshCooldownState() {
+            if (enableMqtt && node.broker) {
+                const fullState = {
+                    ...lastKnownState,
+                    refresh_available_at: getRefreshAvailableAt()
+                };
+                node.broker.client.publish(stateTopic, JSON.stringify(fullState), { retain: true });
+            }
         }
 
         // Polling metrics helpers
@@ -821,6 +910,10 @@ module.exports = function (RED) {
 
                         if (dataResponse.data.data && dataResponse.data.data.plannedDispatches) {
                             cachedSlots = dataResponse.data.data.plannedDispatches;
+
+                            // Record pre-validation API usage (auth + simple query = ~200 complexity)
+                            const ESTIMATED_PREVALIDATION_COMPLEXITY = 200;
+                            recordPoll(ESTIMATED_PREVALIDATION_COMPLEXITY);
 
                             // Check if slot still exists (within 1 minute tolerance)
                             const stillExists = cachedSlots.find(s =>
@@ -963,9 +1056,9 @@ module.exports = function (RED) {
             }
         }
 
-        // A. Handle Node-RED Input Messages
+        // A. Handle Node-RED Input Messages (NO rate limiting - programmers control this)
         node.on('input', function (msg) {
-            // Check for control commands (preference updates bypass rate limiting)
+            // Check for control commands (preference updates)
             if (msg.payload && typeof msg.payload === 'object') {
                 if (msg.payload.set_limit || msg.payload.set_time) {
                     // Use new values if present, otherwise keep existing
@@ -976,35 +1069,12 @@ module.exports = function (RED) {
                 }
             }
 
-            // Manual refresh request - apply rate limiting
-            if (!canManualRefresh()) {
-                const secondsRemaining = getSecondsUntilNextRefresh();
-                node.status({
-                    fill: "red",
-                    shape: "dot",
-                    text: `Cooldown: ${secondsRemaining}s`
-                });
-                node.warn(`Manual refresh blocked. Please wait ${secondsRemaining} seconds.`);
-
-                // Send feedback message
-                node.send({
-                    payload: null,
-                    debug: {
-                        timestamp: new Date().toISOString(),
-                        trigger: 'manual_blocked',
-                        success: false,
-                        message: `Manual refresh rate limited. Wait ${secondsRemaining}s.`,
-                        cooldown_remaining_seconds: secondsRemaining,
-                        last_manual_refresh: new Date(lastManualRefresh).toISOString()
-                    }
-                });
-                return;
-            }
-
-            // Refresh allowed - update timestamp and fetch
+            // Manual refresh request from Node-RED - NO rate limiting
+            // (Programmers can control rate limiting in their flows if needed)
+            // Update timestamp so HA sees cooldown, but don't block the refresh
             lastManualRefresh = Date.now();
             node.status({ fill: "yellow", shape: "ring", text: "Manual refresh..." });
-            fetchData('manual');
+            fetchData();
         });
 
         // B. Handle MQTT Commands (Home Assistant)
@@ -1031,7 +1101,40 @@ module.exports = function (RED) {
             node.broker.subscribe(cmdTopicSubmit, 0, (topic, payload) => {
                 setPreferences(pendingLimit, pendingTime);
             });
-            
+
+            // Refresh button pressed - MQTT has hardcoded 30s rate limiting
+            node.broker.subscribe(cmdTopicRefresh, 0, (topic, payload) => {
+                // Check rate limit (only for MQTT button)
+                if (!canManualRefresh()) {
+                    const secondsRemaining = getSecondsUntilNextRefresh();
+                    node.status({
+                        fill: "red",
+                        shape: "dot",
+                        text: `Cooldown: ${secondsRemaining}s`
+                    });
+                    node.warn(`MQTT refresh blocked. Please wait ${secondsRemaining} seconds.`);
+                    return;  // Block the refresh
+                }
+
+                // Refresh allowed - set cooldown timestamp
+                lastManualRefresh = Date.now();
+
+                // Publish immediate update with countdown timestamp
+                publishRefreshCooldownState();
+
+                // Schedule cleanup at exactly 30 seconds to clear countdown
+                if (cooldownExpiryTimer) clearTimeout(cooldownExpiryTimer);
+                cooldownExpiryTimer = setTimeout(() => {
+                    // Cooldown expired - publish null to clear countdown in HA
+                    publishRefreshCooldownState();
+                    cooldownExpiryTimer = null;
+                }, MANUAL_REFRESH_COOLDOWN);
+
+                // Trigger the actual refresh
+                node.status({ fill: "yellow", shape: "ring", text: "Manual refresh..." });
+                fetchData();
+            });
+
             setTimeout(announceControls, 2000);
         }
 
@@ -1046,7 +1149,12 @@ module.exports = function (RED) {
             retryTimeouts = [];
             // Clear charging timers
             clearChargingTimers();
-            if (node.broker) node.broker.unsubscribe(cmdTopicLimit, cmdTopicTime, cmdTopicSubmit);
+            // Clear cooldown expiry timer
+            if (cooldownExpiryTimer) {
+                clearTimeout(cooldownExpiryTimer);
+                cooldownExpiryTimer = null;
+            }
+            if (node.broker) node.broker.unsubscribe(cmdTopicLimit, cmdTopicTime, cmdTopicSubmit, cmdTopicRefresh);
         });
     }
 

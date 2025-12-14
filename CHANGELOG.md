@@ -5,6 +5,70 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2025-12-11
+
+### Added
+- **Manual Refresh Button (MQTT)** - "Octopus Refresh API" button in Home Assistant
+  - Hardcoded 30-second rate limiting to prevent API spam
+  - Shows warning in Node-RED when rate limited
+  - Publishes refresh cooldown state to MQTT
+- **Refresh Available At Sensor** - Diagnostic timestamp sensor
+  - Shows ISO timestamp when manual refresh becomes available
+  - Displays as countdown in Home Assistant ("in 25 seconds")
+  - Automatically clears to `null` after 30 seconds
+  - Leverages Home Assistant's native timestamp handling
+- **Next Poll Time Sensors** - Shows when next automatic poll will occur
+  - `sensor.octopus_next_poll_time` - Main sensor (timestamp class)
+  - `sensor.octopus_next_poll_time_raw` - Diagnostic raw timestamp
+  - Updates after each successful poll
+- **API Complexity Tracking** - Monitor API usage against 50,000 hourly limit
+  - `sensor.octopus_api_requests_hour` - Count of requests (last 60 min)
+  - `sensor.octopus_api_complexity_hour` - Total complexity used
+  - `sensor.octopus_api_complexity_usage` - Percentage of limit used
+  - Estimated complexity: Regular poll (300), Mutation (250), Pre-validation (200)
+  - All API complexity sensors in Diagnostics section
+- **Enhanced Debug Output** - `msg.debug` now includes:
+  - `responseHeaders` - Full HTTP response headers from API
+  - `extensions` - GraphQL extensions field (if present)
+  - `api_usage` - Comprehensive API usage metrics per request
+- **Comprehensive Test Coverage** - Added 5 new tests
+  - Tests for MQTT refresh button rate limiting
+  - Tests for countdown expiry behavior
+  - Validates countdown doesn't go negative
+  - Tests timer cleanup and MQTT message structure
+
+### Changed
+- **Rate Limiting Strategy** - Different behavior for MQTT vs Node-RED
+  - MQTT Button: Hardcoded 30-second cooldown (enforced)
+  - Node-RED Input: No rate limiting (programmers control this)
+  - Timestamp-based cooldown (not seconds counter)
+- **State Output** - Node-RED now outputs state on every poll
+  - Previously only output on changes
+  - Now outputs full `statusPayload` every poll cycle
+  - Better for automations and monitoring
+- **Global Setter** - Updated `NodeRed_Global_Setter.js` with new fields:
+  - `octopus_next_poll`
+  - `octopus_refresh_available_at`
+  - `octopus_api_requests_hour`
+  - `octopus_api_complexity_hour`
+  - `octopus_api_complexity_percent`
+
+### Fixed
+- **Cooldown Timer Expiry** - Properly publishes `null` at 30 seconds
+  - Prevents countdown showing negative values in Home Assistant
+  - Timer cleanup prevents memory leaks
+  - Exactly 2 MQTT messages per refresh (start + expiry)
+
+### Technical Details
+- **API Complexity Estimation** - Since Octopus API doesn't provide actual complexity:
+  - Uses estimated values based on query types
+  - Tracks rolling 60-minute window
+  - If actual complexity becomes available, will use it automatically
+- **Timestamp-Based Cooldown** - Uses ISO timestamps instead of seconds
+  - Home Assistant handles countdown display automatically
+  - Zero MQTT spam during countdown
+  - Clean `null` state when ready
+
 ## [1.0.3] - 2025-12-04
 
 ### Added
