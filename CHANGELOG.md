@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2025-12-31
+
+### Fixed
+- **README Documentation** - Removed misleading "Octopus Energy branded device cards" claim
+  - Changed to accurate description: "Clean Organization" and "Professional Layout"
+  - No actual Octopus Energy branding exists in Home Assistant device cards
+  - Avoids potential trademark/copyright concerns
+
 ## [1.0.4] - 2025-12-11
 
 ### Added

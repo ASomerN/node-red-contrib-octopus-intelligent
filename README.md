@@ -73,8 +73,8 @@ If this project has helped you!
 
 ### 🏠 Home Assistant Integration
 - **Zero Configuration** - MQTT auto-discovery sets everything up
-- **Professional UI** - Octopus Energy branded device cards
-- **Organized Entities** - Controls, main sensors, and diagnostics neatly grouped
+- **Clean Organization** - Controls, sensors, and diagnostics neatly grouped
+- **Professional Layout** - Organized entity categories in device card
 - **Suggested Area** - Auto-suggests "Energy" area
 
 ---
@@ -459,7 +459,10 @@ Use at your own risk. The Octopus Energy name and logo are trademarks of Octopus
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history and release notes.
 
-### Latest Release: v1.0.4 (2025-12-11)
+### Latest Release: v1.0.5 (2025-12-31)
+- **Documentation Fix** - Corrected misleading "branded device cards" claim in README
+
+### Previous Release: v1.0.4 (2025-12-11)
 - **Manual Refresh Button** - Force API refresh via Home Assistant with 30s cooldown
 - **Next Poll Timer** - See when next automatic refresh occurs
 - **API Complexity Monitoring** - Track API usage against 50,000/hour limit
