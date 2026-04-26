@@ -10,6 +10,7 @@ module.exports = function (RED) {
         const apiKey = this.credentials.apiKey ? this.credentials.apiKey.trim() : "";
         const refreshRate = (config.refreshInterval || 5) * 60 * 1000;
         const enableMqtt = config.enableMqtt;
+        node.timezoneOverride = config.timezoneOverride || "";
 
         // MQTT Topics
         this.broker = RED.nodes.getNode(config.broker);
@@ -606,7 +607,7 @@ module.exports = function (RED) {
                 const serverTz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch(e) { return 'UTC'; } })();
                 const appliedTz = resolveTimezone(node);
                 const statusPayload = {
-                    next_start: nextSlot ? nextSlot.startDt : null,
+                    next_start: nextSlot ? convertToTimezone(nextSlot.startDt, appliedTz) : null,
                     total_energy: parseFloat(totalEnergy.toFixed(2)),
                     next_kwh: nextSlot ? nextSlot.deltaKwh.toFixed(2) : "0",
                     next_source: nextSlot && nextSlot.meta ? nextSlot.meta.source : "unknown",
@@ -627,16 +628,16 @@ module.exports = function (RED) {
                     api_requests_hour: apiMetrics.requests_last_hour,
                     api_complexity_hour: apiMetrics.complexity_last_hour,
                     api_complexity_percent: parseFloat(apiMetrics.complexity_percent),
-                    // Individual slots (first 3 active/future) - formatted timestamps
-                    slot1_start: activeAndFutureSlots[0] ? activeAndFutureSlots[0].startDt : null,
-                    slot1_end: activeAndFutureSlots[0] ? activeAndFutureSlots[0].endDt : null,
-                    slot2_start: activeAndFutureSlots[1] ? activeAndFutureSlots[1].startDt : null,
-                    slot2_end: activeAndFutureSlots[1] ? activeAndFutureSlots[1].endDt : null,
-                    slot3_start: activeAndFutureSlots[2] ? activeAndFutureSlots[2].startDt : null,
-                    slot3_end: activeAndFutureSlots[2] ? activeAndFutureSlots[2].endDt : null,
-                    // Overall window (first start to last end) - formatted timestamps
-                    window_start: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[0].startDt : null,
-                    window_end: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt : null,
+                    // Individual slots (first 3 active/future) — timezone-converted (appliedTz)
+                    slot1_start: activeAndFutureSlots[0] ? convertToTimezone(activeAndFutureSlots[0].startDt, appliedTz) : null,
+                    slot1_end: activeAndFutureSlots[0] ? convertToTimezone(activeAndFutureSlots[0].endDt, appliedTz) : null,
+                    slot2_start: activeAndFutureSlots[1] ? convertToTimezone(activeAndFutureSlots[1].startDt, appliedTz) : null,
+                    slot2_end: activeAndFutureSlots[1] ? convertToTimezone(activeAndFutureSlots[1].endDt, appliedTz) : null,
+                    slot3_start: activeAndFutureSlots[2] ? convertToTimezone(activeAndFutureSlots[2].startDt, appliedTz) : null,
+                    slot3_end: activeAndFutureSlots[2] ? convertToTimezone(activeAndFutureSlots[2].endDt, appliedTz) : null,
+                    // Overall window (first start to last end) — timezone-converted (appliedTz)
+                    window_start: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[0].startDt, appliedTz) : null,
+                    window_end: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt, appliedTz) : null,
                     // Raw timestamp strings (exact API output)
                     next_start_raw: nextSlot ? nextSlot.startDt : null,
                     slot1_start_raw: activeAndFutureSlots[0] ? activeAndFutureSlots[0].startDt : null,

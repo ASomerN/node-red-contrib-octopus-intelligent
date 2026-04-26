@@ -203,3 +203,41 @@ describe('Payload locale field shape (Phase A)', () => {
         expect(result).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
     });
 });
+
+// ============================================================
+// Phase B: Display fields vs raw fields vs locale fields
+// ============================================================
+describe('Timestamp tiers — raw unchanged, display converted, locale auto-detected', () => {
+    const RAW = '2025-11-29 21:30:00+00:00';
+
+    test('display field and locale field are independent — different TZ inputs produce different results', () => {
+        const RAW = '2025-11-29 21:30:00+00:00';
+        // Simulate: serverTz = UTC (locale never changes), appliedTz = Australia/Sydney (display changes)
+        const localeField = convertToTimezone(RAW, 'UTC');          // serverTz = UTC
+        const displayField = convertToTimezone(RAW, 'Australia/Sydney');  // appliedTz = Aus/Sydney
+        const rawField = RAW;                                        // raw always untouched
+
+        expect(rawField).toBe('2025-11-29 21:30:00+00:00');         // raw unchanged
+        expect(localeField).toBe('2025-11-29 21:30:00+00:00');      // locale in UTC = same as raw
+        expect(displayField).toBe('2025-11-30 08:30:00+11:00');     // display converted to Aus/Syd
+        expect(displayField).not.toBe(rawField);                     // display ≠ raw
+        expect(localeField).not.toBe(displayField);                  // locale ≠ display
+    });
+
+    test('display field differs from raw when appliedTz is not UTC', () => {
+        const displayValue = convertToTimezone(RAW, 'Europe/London');
+        // In winter (Nov) Europe/London = UTC, so same value
+        expect(displayValue).toBe('2025-11-29 21:30:00+00:00');
+
+        const summerRaw = '2025-07-15 21:30:00+00:00';
+        const summerDisplay = convertToTimezone(summerRaw, 'Europe/London');
+        expect(summerDisplay).toBe('2025-07-15 22:30:00+01:00');
+        expect(summerDisplay).not.toBe(summerRaw);
+    });
+
+    test('locale field always uses serverTz (auto-detect) regardless of appliedTz', () => {
+        const localeValue = convertToTimezone(RAW, 'UTC');
+        const displayValue = convertToTimezone(RAW, 'Australia/Sydney');
+        expect(localeValue).not.toBe(displayValue);
+    });
+});

@@ -220,9 +220,9 @@ describe('Data Processing', () => {
       expect(payload.window_start).toBe("2025-11-29 21:30:00+00:00");
       expect(payload.window_end).toBe("2025-11-30 04:00:00+00:00");
 
-      // Verify raw timestamps match
-      expect(payload.next_start_raw).toBe(payload.next_start);
-      expect(payload.slot1_start_raw).toBe(payload.slot1_start);
+      // Verify raw timestamps hold the original API string (independent of display conversion)
+      expect(payload.next_start_raw).toBe("2025-11-29 21:30:00+00:00");
+      expect(payload.slot1_start_raw).toBe("2025-11-29 21:30:00+00:00");
     });
 
     /**
