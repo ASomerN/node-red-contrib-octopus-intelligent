@@ -535,7 +535,12 @@ Use at your own risk. The Octopus Energy name and logo are trademarks of Octopus
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history and release notes.
 
-### Latest Release: v1.0.5 (2025-12-31)
+### Latest Release: v1.1.0 (2026-04-26)
+- **Timezone Support** - Locale timestamps, HA timezone select entity, `set_timezone` command
+- **`*_locale` Sensors** - All slot/window times in server auto-detected timezone
+- **Configurable Display Timezone** - Override via node config, HA select, or flow command
+
+### Previous Release: v1.0.5 (2025-12-31)
 - **Documentation Fix** - Corrected misleading "branded device cards" claim in README
 
 ### Previous Release: v1.0.4 (2025-12-11)
