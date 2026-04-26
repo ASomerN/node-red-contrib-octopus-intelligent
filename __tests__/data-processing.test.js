@@ -146,6 +146,9 @@ describe('Data Processing', () => {
     /**
      * Simulate the payload building logic from fetchData()
      */
+    // Note: this stub uses raw slot timestamps for display fields (no timezone conversion).
+    // It tests slot filtering and energy logic. Timezone conversion of display fields
+    // is covered in __tests__/timezone.test.js.
     function buildPayloadFromSlots(slots, prefs, currentTime, chargingNow) {
       const now = new Date(currentTime);
       const activeAndFutureSlots = slots.filter(s => new Date(s.endDt) > now);

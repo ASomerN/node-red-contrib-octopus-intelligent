@@ -211,7 +211,6 @@ describe('Timestamp tiers — raw unchanged, display converted, locale auto-dete
     const RAW = '2025-11-29 21:30:00+00:00';
 
     test('display field and locale field are independent — different TZ inputs produce different results', () => {
-        const RAW = '2025-11-29 21:30:00+00:00';
         // Simulate: serverTz = UTC (locale never changes), appliedTz = Australia/Sydney (display changes)
         const localeField = convertToTimezone(RAW, 'UTC');          // serverTz = UTC
         const displayField = convertToTimezone(RAW, 'Australia/Sydney');  // appliedTz = Aus/Sydney
@@ -239,5 +238,67 @@ describe('Timestamp tiers — raw unchanged, display converted, locale auto-dete
         const localeValue = convertToTimezone(RAW, 'UTC');
         const displayValue = convertToTimezone(RAW, 'Australia/Sydney');
         expect(localeValue).not.toBe(displayValue);
+    });
+});
+
+// ============================================================
+// set_timezone command
+// ============================================================
+describe('set_timezone input command', () => {
+    test('valid string timezone saves to context', () => {
+        const contextStore = {};
+        const mockContext = {
+            get: (k) => contextStore[k],
+            set: (k, v) => { contextStore[k] = v; }
+        };
+
+        function handleSetTimezone(tz, ctx) {
+            if (typeof tz === 'string' && tz.trim().length > 0) {
+                ctx.set('timezone', tz.trim());
+                return true;
+            }
+            return false;
+        }
+
+        handleSetTimezone('Australia/Sydney', mockContext);
+        expect(mockContext.get('timezone')).toBe('Australia/Sydney');
+    });
+
+    test('empty string does not save', () => {
+        const contextStore = {};
+        const mockContext = {
+            get: (k) => contextStore[k],
+            set: (k, v) => { contextStore[k] = v; }
+        };
+
+        function handleSetTimezone(tz, ctx) {
+            if (typeof tz === 'string' && tz.trim().length > 0) {
+                ctx.set('timezone', tz.trim());
+                return true;
+            }
+            return false;
+        }
+
+        handleSetTimezone('', mockContext);
+        expect(mockContext.get('timezone')).toBeUndefined();
+    });
+
+    test('trims whitespace before saving', () => {
+        const contextStore = {};
+        const mockContext = {
+            get: (k) => contextStore[k],
+            set: (k, v) => { contextStore[k] = v; }
+        };
+
+        function handleSetTimezone(tz, ctx) {
+            if (typeof tz === 'string' && tz.trim().length > 0) {
+                ctx.set('timezone', tz.trim());
+                return true;
+            }
+            return false;
+        }
+
+        handleSetTimezone('  Pacific/Auckland  ', mockContext);
+        expect(mockContext.get('timezone')).toBe('Pacific/Auckland');
     });
 });

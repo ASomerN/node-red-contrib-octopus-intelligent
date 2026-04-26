@@ -23,6 +23,7 @@ module.exports = function (RED) {
         const cmdTopicTime = `nodered_octopus/${account}/set_time`;
         const cmdTopicSubmit = `nodered_octopus/${account}/submit_changes`;
         const cmdTopicRefresh = `nodered_octopus/${account}/refresh`;
+        const cmdTopicTimezone = `nodered_octopus/${account}/set_timezone`;
 
         // 2. Constants & Validation
         const TIME_OPTIONS = [
@@ -71,7 +72,20 @@ module.exports = function (RED) {
             { id: "slot3_start_raw", name: "Slot 3 Start (Raw)", icon: "mdi:timer-outline", val: "slot3_start_raw" },
             { id: "slot3_end_raw", name: "Slot 3 End (Raw)", icon: "mdi:timer-outline", val: "slot3_end_raw" },
             { id: "window_start_raw", name: "Overall Window Start (Raw)", icon: "mdi:timer-play", val: "window_start_raw" },
-            { id: "window_end_raw", name: "Overall Window End (Raw)", icon: "mdi:timer-stop", val: "window_end_raw" }
+            { id: "window_end_raw", name: "Overall Window End (Raw)", icon: "mdi:timer-stop", val: "window_end_raw" },
+            // v1.1.0: Locale timestamp sensors (always server auto-detected timezone)
+            { id: "next_charge_locale", name: "Next Charge Time (Locale)", class: "timestamp", icon: "mdi:timer", val: "next_start_locale" },
+            { id: "slot1_start_locale", name: "Slot 1 Start (Locale)", class: "timestamp", icon: "mdi:timer-outline", val: "slot1_start_locale" },
+            { id: "slot1_end_locale", name: "Slot 1 End (Locale)", class: "timestamp", icon: "mdi:timer-outline", val: "slot1_end_locale" },
+            { id: "slot2_start_locale", name: "Slot 2 Start (Locale)", class: "timestamp", icon: "mdi:timer-outline", val: "slot2_start_locale" },
+            { id: "slot2_end_locale", name: "Slot 2 End (Locale)", class: "timestamp", icon: "mdi:timer-outline", val: "slot2_end_locale" },
+            { id: "slot3_start_locale", name: "Slot 3 Start (Locale)", class: "timestamp", icon: "mdi:timer-outline", val: "slot3_start_locale" },
+            { id: "slot3_end_locale", name: "Slot 3 End (Locale)", class: "timestamp", icon: "mdi:timer-outline", val: "slot3_end_locale" },
+            { id: "window_start_locale", name: "Overall Window Start (Locale)", class: "timestamp", icon: "mdi:timer-play", val: "window_start_locale" },
+            { id: "window_end_locale", name: "Overall Window End (Locale)", class: "timestamp", icon: "mdi:timer-stop", val: "window_end_locale" },
+            // v1.1.0: Timezone diagnostic sensors
+            { id: "timezone_detected", name: "Timezone Detected", icon: "mdi:earth", val: "timezone_detected" },
+            { id: "timezone_applied", name: "Timezone Applied", icon: "mdi:earth-plus", val: "timezone_applied" }
         ];
 
         // 3. Timezone Helpers
@@ -246,21 +260,46 @@ module.exports = function (RED) {
                 if (sensor.unit) payload.unit_of_measurement = sensor.unit;
                 if (sensor.icon) payload.icon = sensor.icon;
 
-                // Mark raw sensors, refresh timestamp, and API metrics as diagnostic (moves to Diagnostics section)
+                // Mark raw sensors, refresh timestamp, API metrics, and timezone diagnostics as diagnostic
                 if (sensor.id.includes('_raw') ||
                     sensor.id === 'refresh_available_at' ||
-                    sensor.id.startsWith('api_')) {
+                    sensor.id.startsWith('api_') ||
+                    sensor.id.startsWith('timezone_')) {
                     payload.entity_category = "diagnostic";
                 }
 
                 node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_${sensor.id}/config`, JSON.stringify(payload), { retain: true });
             });
 
+            // I. Timezone Select Entity
+            const TIMEZONE_OPTIONS = [
+                "Europe/London", "Europe/Berlin", "Europe/Madrid",
+                "Australia/Sydney", "Australia/Melbourne", "Australia/Brisbane",
+                "Australia/Perth", "Australia/Adelaide", "Pacific/Auckland",
+                "America/New_York", "America/Chicago", "America/Denver",
+                "America/Los_Angeles", "Asia/Tokyo", "UTC"
+            ];
+            node.broker.client.publish(
+                `${mqttPrefix}/select/${uniqueIdPrefix}_timezone/config`,
+                JSON.stringify({
+                    name: "Timezone",
+                    unique_id: `${uniqueIdPrefix}_timezone`,
+                    options: TIMEZONE_OPTIONS,
+                    command_topic: cmdTopicTimezone,
+                    state_topic: `${stateTopic}/timezone`,
+                    icon: "mdi:earth",
+                    entity_category: "config",
+                    device: device
+                }),
+                { retain: true }
+            );
+
             // Subscribe to Commands
             node.broker.client.subscribe(cmdTopicLimit);
             node.broker.client.subscribe(cmdTopicTime);
             node.broker.client.subscribe(cmdTopicSubmit);
             node.broker.client.subscribe(cmdTopicRefresh);
+            node.broker.client.subscribe(cmdTopicTimezone);
         }
 
         // 5. Helper: Set Preferences (The Mutation)
@@ -1154,6 +1193,14 @@ module.exports = function (RED) {
                     setPreferences(targetLimit, targetTime);
                     return; // Don't run standard fetch if setting
                 }
+                if (msg.payload.set_timezone !== undefined) {
+                    const tz = msg.payload.set_timezone;
+                    if (typeof tz === 'string' && tz.trim().length > 0) {
+                        node.context().set('timezone', tz.trim());
+                        node.log(`Timezone set to: ${tz.trim()}`);
+                    }
+                    return;
+                }
             }
 
             // Manual refresh request from Node-RED - NO rate limiting
@@ -1222,7 +1269,27 @@ module.exports = function (RED) {
                 fetchData();
             });
 
+            // Timezone select changed in Home Assistant
+            node.broker.subscribe(cmdTopicTimezone, 0, (topic, payload) => {
+                const tz = payload.toString().trim();
+                if (tz.length > 0) {
+                    node.context().set('timezone', tz);
+                    node.log(`Timezone set via MQTT to: ${tz}`);
+                    node.broker.client.publish(`${stateTopic}/timezone`, tz, { retain: true });
+                }
+            });
+
             setTimeout(announceControls, 2000);
+
+            // Republish persisted timezone to HA select on startup
+            setTimeout(() => {
+                try {
+                    const persistedTz = node.context().get('timezone');
+                    if (persistedTz && node.broker) {
+                        node.broker.client.publish(`${stateTopic}/timezone`, persistedTz, { retain: true });
+                    }
+                } catch (e) { node.warn('Failed to republish timezone on startup: ' + e.message); }
+            }, 2500);
         }
 
         // Init
@@ -1241,7 +1308,7 @@ module.exports = function (RED) {
                 clearTimeout(cooldownExpiryTimer);
                 cooldownExpiryTimer = null;
             }
-            if (node.broker) node.broker.unsubscribe(cmdTopicLimit, cmdTopicTime, cmdTopicSubmit, cmdTopicRefresh);
+            if (node.broker) node.broker.unsubscribe(cmdTopicLimit, cmdTopicTime, cmdTopicSubmit, cmdTopicRefresh, cmdTopicTimezone);
         });
     }
 
