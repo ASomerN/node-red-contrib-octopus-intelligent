@@ -77,6 +77,13 @@ If this project has helped you!
 - **Professional Layout** - Organized entity categories in device card
 - **Suggested Area** - Auto-suggests "Energy" area
 
+### 🌍 Timezone Support
+- **Locale Timestamps** (`*_locale` fields) — always in server auto-detected timezone
+- **Resolved Display Fields** — slot and window times in your configured timezone
+- **HA Timezone Select** — change timezone from Home Assistant without redeploying
+- **Node Config Override** — set IANA timezone directly in the node editor
+- **Zero Dependencies** — native `Intl` API, no new packages
+
 ---
 
 ## 📸 Screenshots
@@ -123,6 +130,7 @@ After enabling MQTT in the Node-RED node, Home Assistant automatically creates:
 - **Ready Time** - Dropdown selector (04:00-11:00) for when car needs to be ready
 - **Apply Changes** - Button to submit new settings (prevents API spam while adjusting)
 - **Refresh API** - Button to force manual refresh (30-second cooldown prevents spam)
+- **Timezone** — Select entity for choosing display timezone (15 IANA options, persists across restarts)
 
 #### Sensors (Main Section)
 - **Confirmed Charge Limit** - Current API-validated charge limit
@@ -132,6 +140,9 @@ After enabling MQTT in the Node-RED node, Home Assistant automatically creates:
 - **Total Planned Energy** - Total kWh across all upcoming slots
 - **Slot 1, 2, 3 Start/End** - Individual charging slot times
 - **Overall Window Start/End** - First slot start to last slot end
+- **Slot 1, 2, 3 Start/End (Locale)** — Same slots in server auto-detected timezone
+- **Overall Window Start/End (Locale)** — Window times in server auto-detected timezone
+- **Next Charge Time (Locale)** — Next charge start in server auto-detected timezone
 - **Charging Now** - Binary sensor (ON/OFF) showing if actively charging
 
 #### Diagnostics (Raw timestamps and monitoring)
@@ -139,6 +150,8 @@ After enabling MQTT in the Node-RED node, Home Assistant automatically creates:
 - **API Requests (Last Hour)** - Number of API calls in the last 60 minutes
 - **API Complexity (Last Hour)** - Total complexity used (max 50,000/hour)
 - **API Complexity Usage** - Percentage of hourly API limit used
+- **Timezone Detected** — Server's auto-detected timezone (e.g. `Europe/London`)
+- **Timezone Applied** — Active timezone used for display fields
 - **Raw timestamp sensors** - Exact API responses for all sensors
 - Useful for debugging, advanced automations, and monitoring API usage
 
@@ -201,6 +214,7 @@ number.octopus_target_charge       Battery charge limit (50-100%)
 select.octopus_ready_time          Ready by time (04:00-11:00)
 button.octopus_apply_changes       Submit changes to API
 button.octopus_refresh_api         Manual refresh (30s cooldown)
+select.octopus_timezone            Display timezone (15 IANA options)
 ```
 
 ### Main Sensors
@@ -216,6 +230,11 @@ sensor.octopus_slot_[1-3]_start          Individual slot starts
 sensor.octopus_slot_[1-3]_end            Individual slot ends
 sensor.octopus_overall_window_start      First slot start
 sensor.octopus_overall_window_end        Last slot end
+sensor.octopus_next_charge_locale        Next charge start (server TZ)
+sensor.octopus_slot_[1-3]_start_locale  Individual slot starts (server TZ)
+sensor.octopus_slot_[1-3]_end_locale    Individual slot ends (server TZ)
+sensor.octopus_overall_window_start_locale  Window start (server TZ)
+sensor.octopus_overall_window_end_locale    Window end (server TZ)
 ```
 
 ### Diagnostics (Raw Timestamps & Monitoring)
@@ -235,7 +254,48 @@ sensor.octopus_slot_[1-3]_start_raw      Raw slot start times
 sensor.octopus_slot_[1-3]_end_raw        Raw slot end times
 sensor.octopus_overall_window_start_raw  Raw window start
 sensor.octopus_overall_window_end_raw    Raw window end
+
+# Timezone Diagnostics
+sensor.octopus_timezone_detected     Server auto-detected timezone
+sensor.octopus_timezone_applied      Active timezone used for display fields
 ```
+
+---
+
+## 🌍 Timezone Configuration
+
+By default, slot and window times are converted to the **server's auto-detected timezone** (wherever Node-RED is running). Three ways to configure:
+
+### Option 1: Node Config (static)
+Set a fixed IANA timezone in the node editor:
+- Open node → **Timezone** field → type `Australia/Sydney`
+- Applies to all display fields (`slot1_start`, `window_start`, etc.)
+- Leave blank to use server auto-detect
+
+### Option 2: Home Assistant Select (dynamic, persists across restarts)
+Use the **Timezone** select entity in Home Assistant:
+- Home Assistant → Octopus Intelligent device → Timezone
+- Change takes effect on next poll
+- Persists across Node-RED restarts
+
+### Option 3: `set_timezone` Input Command
+```javascript
+msg.payload = { set_timezone: "Europe/London" };
+// Send to Octopus Intelligent node input
+```
+Saved to node context, applies on next poll.
+
+### Timestamp Tiers
+| Field suffix | Timezone | Configurable? |
+|-------------|----------|---------------|
+| `*_raw` | Always UTC (exact API string) | Never |
+| `*_locale` | Server auto-detected | Never (always server TZ) |
+| Display fields (`slot1_start`, `window_start`, etc.) | Resolved TZ | Yes — via HA, config, or command |
+
+### Supported Timezones (HA select)
+`Europe/London`, `Europe/Berlin`, `Europe/Madrid`, `Australia/Sydney`, `Australia/Melbourne`, `Australia/Brisbane`, `Australia/Perth`, `Australia/Adelaide`, `Pacific/Auckland`, `America/New_York`, `America/Chicago`, `America/Denver`, `America/Los_Angeles`, `Asia/Tokyo`, `UTC`
+
+Any valid IANA timezone works in the node config field or `set_timezone` command.
 
 ---
 
@@ -257,12 +317,21 @@ msg.payload = {
 return msg;
 ```
 
+### Set Timezone from Flow
+
+```javascript
+msg.payload = { set_timezone: "Australia/Sydney" };
+return msg;
+```
+
+Valid values: any IANA timezone string (e.g. `Europe/London`, `UTC`, `America/New_York`).
+
 ### Output Format
 
 ```json
 {
   "payload": {
-    "next_start": "2025-11-29T01:30:00Z",
+    "next_start": "2025-11-29 01:30:00+00:00",
     "total_energy": 42.5,
     "next_kwh": "15.20",
     "next_source": "smart-charge",
@@ -276,8 +345,15 @@ return msg;
     "api_requests_hour": 12,
     "api_complexity_hour": 3600,
     "api_complexity_percent": 7.2,
-    "slot1_start": "2025-11-29T01:30:00Z",
-    "slot1_end": "2025-11-29T05:30:00Z"
+    "slot1_start": "2025-11-29 01:30:00+00:00",
+    "slot1_end": "2025-11-29 05:30:00+00:00",
+    "timezone_detected": "Europe/London",
+    "timezone_applied": "Europe/London",
+    "next_start_locale": "2025-11-29 01:30:00+00:00",
+    "slot1_start_locale": "2025-11-29 01:30:00+00:00",
+    "slot1_end_locale": "2025-11-29 05:30:00+00:00",
+    "window_start_locale": "2025-11-29 01:30:00+00:00",
+    "window_end_locale": "2025-11-29 05:30:00+00:00"
   },
   "debug": {
     "success": true,

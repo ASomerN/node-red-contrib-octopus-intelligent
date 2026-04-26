@@ -73,16 +73,16 @@ module.exports = function (RED) {
             { id: "slot3_end_raw", name: "Slot 3 End (Raw)", icon: "mdi:timer-outline", val: "slot3_end_raw" },
             { id: "window_start_raw", name: "Overall Window Start (Raw)", icon: "mdi:timer-play", val: "window_start_raw" },
             { id: "window_end_raw", name: "Overall Window End (Raw)", icon: "mdi:timer-stop", val: "window_end_raw" },
-            // v1.1.0: Locale timestamp sensors (always server auto-detected timezone)
-            { id: "next_charge_locale", name: "Next Charge Time (Locale)", class: "timestamp", icon: "mdi:timer", val: "next_start_locale" },
-            { id: "slot1_start_locale", name: "Slot 1 Start (Locale)", class: "timestamp", icon: "mdi:timer-outline", val: "slot1_start_locale" },
-            { id: "slot1_end_locale", name: "Slot 1 End (Locale)", class: "timestamp", icon: "mdi:timer-outline", val: "slot1_end_locale" },
-            { id: "slot2_start_locale", name: "Slot 2 Start (Locale)", class: "timestamp", icon: "mdi:timer-outline", val: "slot2_start_locale" },
-            { id: "slot2_end_locale", name: "Slot 2 End (Locale)", class: "timestamp", icon: "mdi:timer-outline", val: "slot2_end_locale" },
-            { id: "slot3_start_locale", name: "Slot 3 Start (Locale)", class: "timestamp", icon: "mdi:timer-outline", val: "slot3_start_locale" },
-            { id: "slot3_end_locale", name: "Slot 3 End (Locale)", class: "timestamp", icon: "mdi:timer-outline", val: "slot3_end_locale" },
-            { id: "window_start_locale", name: "Overall Window Start (Locale)", class: "timestamp", icon: "mdi:timer-play", val: "window_start_locale" },
-            { id: "window_end_locale", name: "Overall Window End (Locale)", class: "timestamp", icon: "mdi:timer-stop", val: "window_end_locale" },
+            // v1.1.0: Locale timestamp sensors (plain string — already human-readable local time, no device_class)
+            { id: "next_charge_locale", name: "Next Charge Time (Locale)", icon: "mdi:timer", val: "next_start_locale" },
+            { id: "slot1_start_locale", name: "Slot 1 Start (Locale)", icon: "mdi:timer-outline", val: "slot1_start_locale" },
+            { id: "slot1_end_locale", name: "Slot 1 End (Locale)", icon: "mdi:timer-outline", val: "slot1_end_locale" },
+            { id: "slot2_start_locale", name: "Slot 2 Start (Locale)", icon: "mdi:timer-outline", val: "slot2_start_locale" },
+            { id: "slot2_end_locale", name: "Slot 2 End (Locale)", icon: "mdi:timer-outline", val: "slot2_end_locale" },
+            { id: "slot3_start_locale", name: "Slot 3 Start (Locale)", icon: "mdi:timer-outline", val: "slot3_start_locale" },
+            { id: "slot3_end_locale", name: "Slot 3 End (Locale)", icon: "mdi:timer-outline", val: "slot3_end_locale" },
+            { id: "window_start_locale", name: "Overall Window Start (Locale)", icon: "mdi:timer-play", val: "window_start_locale" },
+            { id: "window_end_locale", name: "Overall Window End (Locale)", icon: "mdi:timer-stop", val: "window_end_locale" },
             // v1.1.0: Timezone diagnostic sensors
             { id: "timezone_detected", name: "Timezone Detected", icon: "mdi:earth", val: "timezone_detected" },
             { id: "timezone_applied", name: "Timezone Applied", icon: "mdi:earth-plus", val: "timezone_applied" }
