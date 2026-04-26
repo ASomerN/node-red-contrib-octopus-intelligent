@@ -146,6 +146,9 @@ describe('Data Processing', () => {
     /**
      * Simulate the payload building logic from fetchData()
      */
+    // Note: this stub uses raw slot timestamps for display fields (no timezone conversion).
+    // It tests slot filtering and energy logic. Timezone conversion of display fields
+    // is covered in __tests__/timezone.test.js.
     function buildPayloadFromSlots(slots, prefs, currentTime, chargingNow) {
       const now = new Date(currentTime);
       const activeAndFutureSlots = slots.filter(s => new Date(s.endDt) > now);
@@ -220,9 +223,9 @@ describe('Data Processing', () => {
       expect(payload.window_start).toBe("2025-11-29 21:30:00+00:00");
       expect(payload.window_end).toBe("2025-11-30 04:00:00+00:00");
 
-      // Verify raw timestamps match
-      expect(payload.next_start_raw).toBe(payload.next_start);
-      expect(payload.slot1_start_raw).toBe(payload.slot1_start);
+      // Verify raw timestamps hold the original API string (independent of display conversion)
+      expect(payload.next_start_raw).toBe("2025-11-29 21:30:00+00:00");
+      expect(payload.slot1_start_raw).toBe("2025-11-29 21:30:00+00:00");
     });
 
     /**

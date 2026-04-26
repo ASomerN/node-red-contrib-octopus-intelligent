@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-04-24
+
+### Added
+- **Locale Timestamps** — new `*_locale` fields in every payload, always in server auto-detected timezone
+  - `slot1_start_locale`, `slot1_end_locale`, `slot2_start_locale`, `slot2_end_locale`
+  - `slot3_start_locale`, `slot3_end_locale`, `window_start_locale`, `window_end_locale`
+  - `next_start_locale`
+- **Timezone Metadata** — `timezone_detected` (server auto-detect) and `timezone_applied` (active TZ for display fields)
+- **HA Timezone Select Entity** — `select.octopus_timezone` with 15 curated IANA timezones covering all Octopus operating countries (UK, AU, DE, ES, NZ, US)
+  - Selection persists across Node-RED restarts via node context storage
+  - State republished to HA on Node-RED startup
+- **`set_timezone` Input Command** — `msg.payload = { set_timezone: "Europe/London" }`, same pattern as `set_limit`/`set_time`
+- **`timezoneOverride` Node Config Field** — optional IANA timezone in node editor, leave blank for auto-detect
+- **Timezone Diagnostic Sensors** — `sensor.octopus_timezone_detected` and `sensor.octopus_timezone_applied`
+
+### Changed
+- **Display timestamp fields now output resolved timezone** instead of raw UTC
+  - Affected fields: `slot1_start`, `slot1_end`, `slot2_start`, `slot2_end`, `slot3_start`, `slot3_end`, `window_start`, `window_end`, `next_start`
+  - Resolution order: HA-persisted selection → `timezoneOverride` config → server auto-detected
+  - **Raw fields (`*_raw`) remain unchanged** — always exact UTC strings from the API
+
+### Technical
+- Zero new npm dependencies — native `Intl.DateTimeFormat` API (Node 14 compatible)
+- `convertToTimezone(dateStr, tz)` — handles DST correctly, falls back to original string on error
+- `resolveTimezone(node)` — reads node context storage, config field, or server auto-detect
+
 ## [1.0.5] - 2025-12-31
 
 ### Fixed

@@ -10,6 +10,7 @@ module.exports = function (RED) {
         const apiKey = this.credentials.apiKey ? this.credentials.apiKey.trim() : "";
         const refreshRate = (config.refreshInterval || 5) * 60 * 1000;
         const enableMqtt = config.enableMqtt;
+        node.timezoneOverride = config.timezoneOverride || "";
 
         // MQTT Topics
         this.broker = RED.nodes.getNode(config.broker);
@@ -22,6 +23,7 @@ module.exports = function (RED) {
         const cmdTopicTime = `nodered_octopus/${account}/set_time`;
         const cmdTopicSubmit = `nodered_octopus/${account}/submit_changes`;
         const cmdTopicRefresh = `nodered_octopus/${account}/refresh`;
+        const cmdTopicTimezone = `nodered_octopus/${account}/set_timezone`;
 
         // 2. Constants & Validation
         const TIME_OPTIONS = [
@@ -70,8 +72,79 @@ module.exports = function (RED) {
             { id: "slot3_start_raw", name: "Slot 3 Start (Raw)", icon: "mdi:timer-outline", val: "slot3_start_raw" },
             { id: "slot3_end_raw", name: "Slot 3 End (Raw)", icon: "mdi:timer-outline", val: "slot3_end_raw" },
             { id: "window_start_raw", name: "Overall Window Start (Raw)", icon: "mdi:timer-play", val: "window_start_raw" },
-            { id: "window_end_raw", name: "Overall Window End (Raw)", icon: "mdi:timer-stop", val: "window_end_raw" }
+            { id: "window_end_raw", name: "Overall Window End (Raw)", icon: "mdi:timer-stop", val: "window_end_raw" },
+            // v1.1.0: Locale timestamp sensors (plain string — already human-readable local time, no device_class)
+            { id: "next_charge_locale", name: "Next Charge Time (Locale)", icon: "mdi:timer", val: "next_start_locale" },
+            { id: "slot1_start_locale", name: "Slot 1 Start (Locale)", icon: "mdi:timer-outline", val: "slot1_start_locale" },
+            { id: "slot1_end_locale", name: "Slot 1 End (Locale)", icon: "mdi:timer-outline", val: "slot1_end_locale" },
+            { id: "slot2_start_locale", name: "Slot 2 Start (Locale)", icon: "mdi:timer-outline", val: "slot2_start_locale" },
+            { id: "slot2_end_locale", name: "Slot 2 End (Locale)", icon: "mdi:timer-outline", val: "slot2_end_locale" },
+            { id: "slot3_start_locale", name: "Slot 3 Start (Locale)", icon: "mdi:timer-outline", val: "slot3_start_locale" },
+            { id: "slot3_end_locale", name: "Slot 3 End (Locale)", icon: "mdi:timer-outline", val: "slot3_end_locale" },
+            { id: "window_start_locale", name: "Overall Window Start (Locale)", icon: "mdi:timer-play", val: "window_start_locale" },
+            { id: "window_end_locale", name: "Overall Window End (Locale)", icon: "mdi:timer-stop", val: "window_end_locale" },
+            // v1.1.0: Timezone diagnostic sensors
+            { id: "timezone_detected", name: "Timezone Detected", icon: "mdi:earth", val: "timezone_detected" },
+            { id: "timezone_applied", name: "Timezone Applied", icon: "mdi:earth-plus", val: "timezone_applied" }
         ];
+
+        // 3. Timezone Helpers
+        function convertToTimezone(dateStr, tz) {
+            if (!dateStr || typeof dateStr !== 'string') return dateStr;
+            try {
+                const date = new Date(dateStr.replace(' ', 'T'));
+                if (isNaN(date.getTime())) return dateStr;
+
+                const parts = new Intl.DateTimeFormat('en-CA', {
+                    timeZone: tz,
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit',
+                    hour12: false, hourCycle: 'h23'
+                }).formatToParts(date);
+
+                const get = (type) => (parts.find(p => p.type === type) || {}).value || '00';
+                const y = get('year');
+                const mo = get('month');
+                const d = get('day');
+                const h = get('hour');
+                const mi = get('minute');
+                const s = get('second');
+
+                const localAsUtc = Date.UTC(
+                    parseInt(y, 10), parseInt(mo, 10) - 1, parseInt(d, 10),
+                    parseInt(h, 10), parseInt(mi, 10), parseInt(s, 10)
+                );
+                const offsetMins = Math.round((localAsUtc - date.getTime()) / 60000);
+                const sign = offsetMins >= 0 ? '+' : '-';
+                const absMin = Math.abs(offsetMins);
+                const offsetStr = `${sign}${String(Math.floor(absMin / 60)).padStart(2, '0')}:${String(absMin % 60).padStart(2, '0')}`;
+
+                return `${y}-${mo}-${d} ${h}:${mi}:${s}${offsetStr}`;
+            } catch (e) {
+                node.warn(`Invalid timezone: ${tz}, falling back to auto-detected`);
+                return dateStr;
+            }
+        }
+
+        function resolveTimezone(nd) {
+            try {
+                const persisted = nd.context().get('timezone');
+                if (persisted && typeof persisted === 'string' && persisted.trim().length > 0) {
+                    return persisted.trim();
+                }
+            } catch (e) {}
+
+            const override = nd.timezoneOverride;
+            if (override && typeof override === 'string' && override.trim().length > 0) {
+                return override.trim();
+            }
+
+            try {
+                return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+            } catch (e) {
+                return 'UTC';
+            }
+        }
 
         // 4. Helper: Announce Controls (Write-Enabled)
         function announceControls() {
@@ -187,21 +260,46 @@ module.exports = function (RED) {
                 if (sensor.unit) payload.unit_of_measurement = sensor.unit;
                 if (sensor.icon) payload.icon = sensor.icon;
 
-                // Mark raw sensors, refresh timestamp, and API metrics as diagnostic (moves to Diagnostics section)
+                // Mark raw sensors, refresh timestamp, API metrics, and timezone diagnostics as diagnostic
                 if (sensor.id.includes('_raw') ||
                     sensor.id === 'refresh_available_at' ||
-                    sensor.id.startsWith('api_')) {
+                    sensor.id.startsWith('api_') ||
+                    sensor.id.startsWith('timezone_')) {
                     payload.entity_category = "diagnostic";
                 }
 
                 node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_${sensor.id}/config`, JSON.stringify(payload), { retain: true });
             });
 
+            // I. Timezone Select Entity
+            const TIMEZONE_OPTIONS = [
+                "Europe/London", "Europe/Berlin", "Europe/Madrid",
+                "Australia/Sydney", "Australia/Melbourne", "Australia/Brisbane",
+                "Australia/Perth", "Australia/Adelaide", "Pacific/Auckland",
+                "America/New_York", "America/Chicago", "America/Denver",
+                "America/Los_Angeles", "Asia/Tokyo", "UTC"
+            ];
+            node.broker.client.publish(
+                `${mqttPrefix}/select/${uniqueIdPrefix}_timezone/config`,
+                JSON.stringify({
+                    name: "Timezone",
+                    unique_id: `${uniqueIdPrefix}_timezone`,
+                    options: TIMEZONE_OPTIONS,
+                    command_topic: cmdTopicTimezone,
+                    state_topic: `${stateTopic}/timezone`,
+                    icon: "mdi:earth",
+                    entity_category: "config",
+                    device: device
+                }),
+                { retain: true }
+            );
+
             // Subscribe to Commands
             node.broker.client.subscribe(cmdTopicLimit);
             node.broker.client.subscribe(cmdTopicTime);
             node.broker.client.subscribe(cmdTopicSubmit);
             node.broker.client.subscribe(cmdTopicRefresh);
+            node.broker.client.subscribe(cmdTopicTimezone);
         }
 
         // 5. Helper: Set Preferences (The Mutation)
@@ -545,8 +643,10 @@ module.exports = function (RED) {
                 const apiMetrics = getApiMetrics();
 
                 // Build Payload
+                const serverTz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch(e) { return 'UTC'; } })();
+                const appliedTz = resolveTimezone(node);
                 const statusPayload = {
-                    next_start: nextSlot ? nextSlot.startDt : null,
+                    next_start: nextSlot ? convertToTimezone(nextSlot.startDt, appliedTz) : null,
                     total_energy: parseFloat(totalEnergy.toFixed(2)),
                     next_kwh: nextSlot ? nextSlot.deltaKwh.toFixed(2) : "0",
                     next_source: nextSlot && nextSlot.meta ? nextSlot.meta.source : "unknown",
@@ -567,16 +667,16 @@ module.exports = function (RED) {
                     api_requests_hour: apiMetrics.requests_last_hour,
                     api_complexity_hour: apiMetrics.complexity_last_hour,
                     api_complexity_percent: parseFloat(apiMetrics.complexity_percent),
-                    // Individual slots (first 3 active/future) - formatted timestamps
-                    slot1_start: activeAndFutureSlots[0] ? activeAndFutureSlots[0].startDt : null,
-                    slot1_end: activeAndFutureSlots[0] ? activeAndFutureSlots[0].endDt : null,
-                    slot2_start: activeAndFutureSlots[1] ? activeAndFutureSlots[1].startDt : null,
-                    slot2_end: activeAndFutureSlots[1] ? activeAndFutureSlots[1].endDt : null,
-                    slot3_start: activeAndFutureSlots[2] ? activeAndFutureSlots[2].startDt : null,
-                    slot3_end: activeAndFutureSlots[2] ? activeAndFutureSlots[2].endDt : null,
-                    // Overall window (first start to last end) - formatted timestamps
-                    window_start: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[0].startDt : null,
-                    window_end: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt : null,
+                    // Individual slots (first 3 active/future) — timezone-converted (appliedTz)
+                    slot1_start: activeAndFutureSlots[0] ? convertToTimezone(activeAndFutureSlots[0].startDt, appliedTz) : null,
+                    slot1_end: activeAndFutureSlots[0] ? convertToTimezone(activeAndFutureSlots[0].endDt, appliedTz) : null,
+                    slot2_start: activeAndFutureSlots[1] ? convertToTimezone(activeAndFutureSlots[1].startDt, appliedTz) : null,
+                    slot2_end: activeAndFutureSlots[1] ? convertToTimezone(activeAndFutureSlots[1].endDt, appliedTz) : null,
+                    slot3_start: activeAndFutureSlots[2] ? convertToTimezone(activeAndFutureSlots[2].startDt, appliedTz) : null,
+                    slot3_end: activeAndFutureSlots[2] ? convertToTimezone(activeAndFutureSlots[2].endDt, appliedTz) : null,
+                    // Overall window (first start to last end) — timezone-converted (appliedTz)
+                    window_start: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[0].startDt, appliedTz) : null,
+                    window_end: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt, appliedTz) : null,
                     // Raw timestamp strings (exact API output)
                     next_start_raw: nextSlot ? nextSlot.startDt : null,
                     slot1_start_raw: activeAndFutureSlots[0] ? activeAndFutureSlots[0].startDt : null,
@@ -586,7 +686,20 @@ module.exports = function (RED) {
                     slot3_start_raw: activeAndFutureSlots[2] ? activeAndFutureSlots[2].startDt : null,
                     slot3_end_raw: activeAndFutureSlots[2] ? activeAndFutureSlots[2].endDt : null,
                     window_start_raw: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[0].startDt : null,
-                    window_end_raw: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt : null
+                    window_end_raw: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt : null,
+                    // Timezone metadata
+                    timezone_detected: serverTz,
+                    timezone_applied: appliedTz,
+                    // Locale timestamps — always server auto-detected timezone (never overridden)
+                    next_start_locale: nextSlot ? convertToTimezone(nextSlot.startDt, serverTz) : null,
+                    slot1_start_locale: activeAndFutureSlots[0] ? convertToTimezone(activeAndFutureSlots[0].startDt, serverTz) : null,
+                    slot1_end_locale: activeAndFutureSlots[0] ? convertToTimezone(activeAndFutureSlots[0].endDt, serverTz) : null,
+                    slot2_start_locale: activeAndFutureSlots[1] ? convertToTimezone(activeAndFutureSlots[1].startDt, serverTz) : null,
+                    slot2_end_locale: activeAndFutureSlots[1] ? convertToTimezone(activeAndFutureSlots[1].endDt, serverTz) : null,
+                    slot3_start_locale: activeAndFutureSlots[2] ? convertToTimezone(activeAndFutureSlots[2].startDt, serverTz) : null,
+                    slot3_end_locale: activeAndFutureSlots[2] ? convertToTimezone(activeAndFutureSlots[2].endDt, serverTz) : null,
+                    window_start_locale: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[0].startDt, serverTz) : null,
+                    window_end_locale: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt, serverTz) : null
                 };
 
                 // Success!
@@ -713,7 +826,20 @@ module.exports = function (RED) {
                 slot3_start_raw: null,
                 slot3_end_raw: null,
                 window_start_raw: null,
-                window_end_raw: null
+                window_end_raw: null,
+                // Timezone metadata
+                timezone_detected: null,
+                timezone_applied: null,
+                // Locale timestamps
+                next_start_locale: null,
+                slot1_start_locale: null,
+                slot1_end_locale: null,
+                slot2_start_locale: null,
+                slot2_end_locale: null,
+                slot3_start_locale: null,
+                slot3_end_locale: null,
+                window_start_locale: null,
+                window_end_locale: null
             };
         }
 
@@ -1067,6 +1193,14 @@ module.exports = function (RED) {
                     setPreferences(targetLimit, targetTime);
                     return; // Don't run standard fetch if setting
                 }
+                if (msg.payload.set_timezone !== undefined) {
+                    const tz = msg.payload.set_timezone;
+                    if (typeof tz === 'string' && tz.trim().length > 0) {
+                        node.context().set('timezone', tz.trim());
+                        node.log(`Timezone set to: ${tz.trim()}`);
+                    }
+                    return;
+                }
             }
 
             // Manual refresh request from Node-RED - NO rate limiting
@@ -1135,7 +1269,27 @@ module.exports = function (RED) {
                 fetchData();
             });
 
+            // Timezone select changed in Home Assistant
+            node.broker.subscribe(cmdTopicTimezone, 0, (topic, payload) => {
+                const tz = payload.toString().trim();
+                if (tz.length > 0) {
+                    node.context().set('timezone', tz);
+                    node.log(`Timezone set via MQTT to: ${tz}`);
+                    node.broker.client.publish(`${stateTopic}/timezone`, tz, { retain: true });
+                }
+            });
+
             setTimeout(announceControls, 2000);
+
+            // Republish persisted timezone to HA select on startup
+            setTimeout(() => {
+                try {
+                    const persistedTz = node.context().get('timezone');
+                    if (persistedTz && node.broker) {
+                        node.broker.client.publish(`${stateTopic}/timezone`, persistedTz, { retain: true });
+                    }
+                } catch (e) { node.warn('Failed to republish timezone on startup: ' + e.message); }
+            }, 2500);
         }
 
         // Init
@@ -1154,7 +1308,7 @@ module.exports = function (RED) {
                 clearTimeout(cooldownExpiryTimer);
                 cooldownExpiryTimer = null;
             }
-            if (node.broker) node.broker.unsubscribe(cmdTopicLimit, cmdTopicTime, cmdTopicSubmit, cmdTopicRefresh);
+            if (node.broker) node.broker.unsubscribe(cmdTopicLimit, cmdTopicTime, cmdTopicSubmit, cmdTopicRefresh, cmdTopicTimezone);
         });
     }
 
