@@ -73,6 +73,64 @@ module.exports = function (RED) {
             { id: "window_end_raw", name: "Overall Window End (Raw)", icon: "mdi:timer-stop", val: "window_end_raw" }
         ];
 
+        // 3. Timezone Helpers
+        function convertToTimezone(dateStr, tz) {
+            if (!dateStr || typeof dateStr !== 'string') return dateStr;
+            try {
+                const date = new Date(dateStr.replace(' ', 'T'));
+                if (isNaN(date.getTime())) return dateStr;
+
+                const parts = new Intl.DateTimeFormat('en-CA', {
+                    timeZone: tz,
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit',
+                    hour12: false, hourCycle: 'h23'
+                }).formatToParts(date);
+
+                const get = (type) => (parts.find(p => p.type === type) || {}).value || '00';
+                const y = get('year');
+                const mo = get('month');
+                const d = get('day');
+                const h = get('hour');
+                const mi = get('minute');
+                const s = get('second');
+
+                const localAsUtc = Date.UTC(
+                    parseInt(y, 10), parseInt(mo, 10) - 1, parseInt(d, 10),
+                    parseInt(h, 10), parseInt(mi, 10), parseInt(s, 10)
+                );
+                const offsetMins = Math.round((localAsUtc - date.getTime()) / 60000);
+                const sign = offsetMins >= 0 ? '+' : '-';
+                const absMin = Math.abs(offsetMins);
+                const offsetStr = `${sign}${String(Math.floor(absMin / 60)).padStart(2, '0')}:${String(absMin % 60).padStart(2, '0')}`;
+
+                return `${y}-${mo}-${d} ${h}:${mi}:${s}${offsetStr}`;
+            } catch (e) {
+                node.warn(`Invalid timezone: ${tz}, falling back to auto-detected`);
+                return dateStr;
+            }
+        }
+
+        function resolveTimezone(nd) {
+            try {
+                const persisted = nd.context().get('timezone');
+                if (persisted && typeof persisted === 'string' && persisted.trim().length > 0) {
+                    return persisted.trim();
+                }
+            } catch (e) {}
+
+            const override = nd.timezoneOverride;
+            if (override && typeof override === 'string' && override.trim().length > 0) {
+                return override.trim();
+            }
+
+            try {
+                return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+            } catch (e) {
+                return 'UTC';
+            }
+        }
+
         // 4. Helper: Announce Controls (Write-Enabled)
         function announceControls() {
             if (!enableMqtt || !node.broker) return;
@@ -545,6 +603,8 @@ module.exports = function (RED) {
                 const apiMetrics = getApiMetrics();
 
                 // Build Payload
+                const serverTz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch(e) { return 'UTC'; } })();
+                const appliedTz = resolveTimezone(node);
                 const statusPayload = {
                     next_start: nextSlot ? nextSlot.startDt : null,
                     total_energy: parseFloat(totalEnergy.toFixed(2)),
@@ -586,7 +646,20 @@ module.exports = function (RED) {
                     slot3_start_raw: activeAndFutureSlots[2] ? activeAndFutureSlots[2].startDt : null,
                     slot3_end_raw: activeAndFutureSlots[2] ? activeAndFutureSlots[2].endDt : null,
                     window_start_raw: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[0].startDt : null,
-                    window_end_raw: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt : null
+                    window_end_raw: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt : null,
+                    // Timezone metadata
+                    timezone_detected: serverTz,
+                    timezone_applied: appliedTz,
+                    // Locale timestamps — always server auto-detected timezone (never overridden)
+                    next_start_locale: nextSlot ? convertToTimezone(nextSlot.startDt, serverTz) : null,
+                    slot1_start_locale: activeAndFutureSlots[0] ? convertToTimezone(activeAndFutureSlots[0].startDt, serverTz) : null,
+                    slot1_end_locale: activeAndFutureSlots[0] ? convertToTimezone(activeAndFutureSlots[0].endDt, serverTz) : null,
+                    slot2_start_locale: activeAndFutureSlots[1] ? convertToTimezone(activeAndFutureSlots[1].startDt, serverTz) : null,
+                    slot2_end_locale: activeAndFutureSlots[1] ? convertToTimezone(activeAndFutureSlots[1].endDt, serverTz) : null,
+                    slot3_start_locale: activeAndFutureSlots[2] ? convertToTimezone(activeAndFutureSlots[2].startDt, serverTz) : null,
+                    slot3_end_locale: activeAndFutureSlots[2] ? convertToTimezone(activeAndFutureSlots[2].endDt, serverTz) : null,
+                    window_start_locale: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[0].startDt, serverTz) : null,
+                    window_end_locale: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt, serverTz) : null
                 };
 
                 // Success!
@@ -713,7 +786,20 @@ module.exports = function (RED) {
                 slot3_start_raw: null,
                 slot3_end_raw: null,
                 window_start_raw: null,
-                window_end_raw: null
+                window_end_raw: null,
+                // Timezone metadata
+                timezone_detected: null,
+                timezone_applied: null,
+                // Locale timestamps
+                next_start_locale: null,
+                slot1_start_locale: null,
+                slot1_end_locale: null,
+                slot2_start_locale: null,
+                slot2_end_locale: null,
+                slot3_start_locale: null,
+                slot3_end_locale: null,
+                window_start_locale: null,
+                window_end_locale: null
             };
         }
 
