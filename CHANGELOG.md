@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-04-26
+
+### Security
+- **Removed `axios` dependency** — replaced with Node.js built-in `https` module; eliminates 13 transitive packages and all associated supply chain risk
+- **Removed test/mock files from npm package** — `__tests__/` and `test-mocks.js` no longer published; removes 139 kB of dev artefacts from end-user installs
+- **Removed images from npm package** — 364 kB of images no longer bundled; README images now reference GitHub raw URLs and render correctly on npmjs.com
+
+### Changed
+- Package size reduced from 369 kB → 27 kB (93% reduction)
+- Zero production dependencies (was: `axios ^1.6.0`)
+
+---
+
 ## [1.1.0] - 2026-04-24
 
 ### Added

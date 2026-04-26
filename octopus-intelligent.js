@@ -1,4 +1,34 @@
-const axios = require("axios");
+const https = require("https");
+
+function graphqlPost(body, token) {
+    return new Promise((resolve, reject) => {
+        const payload = JSON.stringify(body);
+        const headers = {
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(payload)
+        };
+        if (token) headers["Authorization"] = token;
+        const req = https.request({
+            hostname: "api.octopus.energy",
+            path: "/v1/graphql/",
+            method: "POST",
+            headers
+        }, (res) => {
+            let raw = "";
+            res.on("data", chunk => raw += chunk);
+            res.on("end", () => {
+                try {
+                    resolve({ data: JSON.parse(raw), status: res.statusCode, headers: res.headers });
+                } catch (e) {
+                    reject(new Error("Failed to parse API response: " + e.message));
+                }
+            });
+        });
+        req.on("error", reject);
+        req.write(payload);
+        req.end();
+    });
+}
 
 module.exports = function (RED) {
     function OctopusIntelligentNode(config) {
@@ -367,7 +397,7 @@ module.exports = function (RED) {
                 node.status({ fill: "blue", shape: "dot", text: "Updating Settings..." });
 
                 // A. Get Token
-                const authResponse = await axios.post("https://api.octopus.energy/v1/graphql/", {
+                const authResponse = await graphqlPost({
                     query: `mutation obtainToken($input: ObtainJSONWebTokenInput!) { obtainKrakenToken(input: $input) { token } }`,
                     variables: { input: { APIKey: apiKey } }
                 });
@@ -397,10 +427,10 @@ module.exports = function (RED) {
                     }
                 };
 
-                const mutationResponse = await axios.post("https://api.octopus.energy/v1/graphql/", {
+                const mutationResponse = await graphqlPost({
                     query: mutation,
                     variables: variables
-                }, { headers: { Authorization: token } });
+                }, token);
 
                 if (mutationResponse.data.errors) {
                     throw new Error(`Mutation failed: ${JSON.stringify(mutationResponse.data.errors)}`);
@@ -513,7 +543,7 @@ module.exports = function (RED) {
                     variables: { input: { APIKey: apiKey } }
                 };
 
-                const authResponse = await axios.post(authRequest.url, {
+                const authResponse = await graphqlPost({
                     query: authRequest.query,
                     variables: authRequest.variables
                 });
@@ -551,10 +581,10 @@ module.exports = function (RED) {
                     vehicleChargingPreferences(accountNumber: $account) { weekdayTargetSoc weekdayTargetTime }
                 }`;
 
-                const dataResponse = await axios.post("https://api.octopus.energy/v1/graphql/", {
+                const dataResponse = await graphqlPost({
                     query: masterQuery,
                     variables: { account: account }
-                }, { headers: { Authorization: token } });
+                }, token);
 
                 debugInfo.apiCalls.push({
                     step: 2,
@@ -1018,7 +1048,7 @@ module.exports = function (RED) {
                     node.warn("Pre-validating slot data (30s before start)");
                     try {
                         // Fetch fresh data from API
-                        const authResponse = await axios.post("https://api.octopus.energy/v1/graphql/", {
+                        const authResponse = await graphqlPost({
                             query: `mutation obtainToken($input: ObtainJSONWebTokenInput!) { obtainKrakenToken(input: $input) { token } }`,
                             variables: { input: { APIKey: apiKey } }
                         });
@@ -1029,10 +1059,10 @@ module.exports = function (RED) {
 
                         const token = authResponse.data.data.obtainKrakenToken.token;
 
-                        const dataResponse = await axios.post("https://api.octopus.energy/v1/graphql/", {
+                        const dataResponse = await graphqlPost({
                             query: `query getData($account: String!) { plannedDispatches(accountNumber: $account) { startDt endDt deltaKwh meta { source } } }`,
                             variables: { account: account }
-                        }, { headers: { Authorization: token } });
+                        }, token);
 
                         if (dataResponse.data.data && dataResponse.data.data.plannedDispatches) {
                             cachedSlots = dataResponse.data.data.plannedDispatches;

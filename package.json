@@ -1,6 +1,6 @@
 {
   "name": "node-red-contrib-octopus-intelligent",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Node-RED integration for Octopus Energy Intelligent Octopus Go with Home Assistant MQTT discovery",
   "main": "octopus-intelligent.js",
   "scripts": {
@@ -25,10 +25,7 @@
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
-    "examples/",
-    "images/",
-    "__tests__/",
-    "test-mocks.js"
+    "examples/"
   ],
   "node-red": {
     "version": ">=2.0.0",
@@ -40,9 +37,7 @@
     "node": ">=14.0.0",
     "node-red": ">=2.0.0"
   },
-  "dependencies": {
-    "axios": "^1.6.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "jest": "^29.7.0",
     "@types/jest": "^29.5.0"

@@ -91,7 +91,7 @@ If this project has helped you!
 ### Node-RED Flow Examples
 
 #### Basic Monitoring & Control
-![Node-RED Flow Examples](images/examples/basic-monitoring-flow.png)
+![Node-RED Flow Examples](https://raw.githubusercontent.com/ASomerN/node-red-contrib-octopus-intelligent/master/images/examples/basic-monitoring-flow.png)
 
 This example flow demonstrates three key usage patterns:
 
@@ -108,7 +108,7 @@ This example flow demonstrates three key usage patterns:
 **How to use:** Import any of these flows, configure your Account Number and API Key in the Octopus Intelligent node, and deploy!
 
 #### MQTT Integration with Home Assistant
-![MQTT Integration Flow](images/examples/mqtt-integration-flow.png)
+![MQTT Integration Flow](https://raw.githubusercontent.com/ASomerN/node-red-contrib-octopus-intelligent/master/images/examples/mqtt-integration-flow.png)
 
 This flow shows the complete MQTT setup:
 
@@ -121,7 +121,7 @@ This flow shows the complete MQTT setup:
 
 ### Home Assistant Auto-Configured Entities
 
-![Home Assistant Device](images/examples/homeassistant-device-v1.0.4.png)
+![Home Assistant Device](https://raw.githubusercontent.com/ASomerN/node-red-contrib-octopus-intelligent/master/images/examples/homeassistant-device-v1.0.4.png)
 
 After enabling MQTT in the Node-RED node, Home Assistant automatically creates:
 
@@ -535,7 +535,7 @@ Use at your own risk. The Octopus Energy name and logo are trademarks of Octopus
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history and release notes.
 
-### Latest Release: v1.1.0 (2026-04-26)
+### Latest Release: v1.1.1 (2026-04-26)
 - **Timezone Support** - Locale timestamps, HA timezone select entity, `set_timezone` command
 - **`*_locale` Sensors** - All slot/window times in server auto-detected timezone
 - **Configurable Display Timezone** - Override via node config, HA select, or flow command
