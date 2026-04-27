@@ -843,7 +843,8 @@ module.exports = function (RED) {
                     slot3_start_locale: activeAndFutureSlots[2] ? convertToTimezone(activeAndFutureSlots[2].startDt, serverTz) : null,
                     slot3_end_locale: activeAndFutureSlots[2] ? convertToTimezone(activeAndFutureSlots[2].endDt, serverTz) : null,
                     window_start_locale: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[0].startDt, serverTz) : null,
-                    window_end_locale: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt, serverTz) : null
+                    window_end_locale: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt, serverTz) : null,
+                    smart_charging: smartChargingSuspended === null ? null : !smartChargingSuspended
                 };
 
                 // Success!
@@ -983,7 +984,8 @@ module.exports = function (RED) {
                 slot3_start_locale: null,
                 slot3_end_locale: null,
                 window_start_locale: null,
-                window_end_locale: null
+                window_end_locale: null,
+                smart_charging: smartChargingSuspended === null ? null : !smartChargingSuspended
             };
         }
 
