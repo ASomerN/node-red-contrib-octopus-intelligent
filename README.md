@@ -130,6 +130,12 @@ This flow shows the complete MQTT setup:
 
 After enabling MQTT in the Node-RED node, Home Assistant automatically creates:
 
+### Home Assistant Controls Configuration
+
+![Home Assistant Controls Configuration](https://raw.githubusercontent.com/ASomerN/node-red-contrib-octopus-intelligent/master/images/examples/configuration.png)
+
+The Controls section of the device card includes the **Timezone** select and the new **Smart Charging** toggle, letting you suspend or resume intelligent charging directly from Home Assistant.
+
 #### Controls (Top Section)
 - **Target Charge** - Number slider (50-100%) to set desired battery level
 - **Ready Time** - Dropdown selector (04:00-11:00) for when car needs to be ready
