@@ -582,6 +582,15 @@ module.exports = function (RED) {
                 node.error(`Failed to toggle smart charging: ${e.message}`);
                 // Revert optimistic update to pre-mutation state
                 smartChargingSuspended = previousSuspended;
+                node.status({ fill: "red", shape: "ring", text: "Smart charging update failed" });
+                // Republish previous state so HA switch UI re-syncs
+                if (enableMqtt && node.broker && node.broker.client && previousSuspended !== null) {
+                    node.broker.client.publish(
+                        `${stateTopic}/smart_charging`,
+                        previousSuspended ? "OFF" : "ON",
+                        { retain: true }
+                    );
+                }
             }
         }
 
