@@ -339,13 +339,23 @@ return msg;
 
 ### Toggle Smart Charging from Flow
 
+Send a boolean to enable or disable Octopus intelligent charging:
+
 ```javascript
 msg.payload = { set_smart_charging: true };   // enable (unsuspend)
 msg.payload = { set_smart_charging: false };  // disable (suspend)
 return msg;
 ```
 
-Valid values: any IANA timezone string (e.g. `Europe/London`, `UTC`, `America/New_York`).
+Wire an **Inject node** with a JSON payload, or build this in a function node and connect it to the Octopus Intelligent node's input. Non-boolean values are silently ignored.
+
+**Example: suspend charging when home battery is in use**
+```
+[Inject: suspend] → [Function: set_smart_charging=false] → [Octopus Intelligent]
+[Inject: resume]  → [Function: set_smart_charging=true]  → [Octopus Intelligent]
+```
+
+The node fetches your device ID at startup — if it hasn't been fetched yet (first few seconds after deploy), the command will log a warning and be ignored. The current smart charging state is always available in `msg.payload.smart_charging` (`true` = active, `false` = suspended, `null` = startup pending).
 
 ### Output Format
 
