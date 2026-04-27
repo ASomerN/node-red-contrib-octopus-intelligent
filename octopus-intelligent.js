@@ -1397,6 +1397,14 @@ module.exports = function (RED) {
                     }
                     return;
                 }
+                if (msg.payload.set_smart_charging !== undefined) {
+                    const val = msg.payload.set_smart_charging;
+                    if (typeof val === 'boolean') {
+                        setSmartCharging(val);
+                    }
+                    // silently ignore non-boolean (consistent with other handlers)
+                    return;
+                }
             }
 
             // Manual refresh request from Node-RED - NO rate limiting
