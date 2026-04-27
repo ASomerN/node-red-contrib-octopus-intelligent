@@ -54,6 +54,7 @@ module.exports = function (RED) {
         const cmdTopicSubmit = `nodered_octopus/${account}/submit_changes`;
         const cmdTopicRefresh = `nodered_octopus/${account}/refresh`;
         const cmdTopicTimezone = `nodered_octopus/${account}/set_timezone`;
+        const cmdTopicSmartCharging = `nodered_octopus/${account}/set_smart_charging`;
 
         // 2. Constants & Validation
         const TIME_OPTIONS = [
@@ -368,6 +369,11 @@ module.exports = function (RED) {
         // - Regular poll (auth + data query): ~300
         // - Mutation (auth + setPreferences): ~250
         // - Pre-validation (auth + plannedDispatches only): ~200
+
+        // Smart charging state (fetched once at startup)
+        let krakenflexDeviceId = null;
+        let smartChargingSuspended = null; // null=unknown, true=suspended(off), false=active(on)
+        let smartChargingRetryTimeouts = [];
 
         // Last known full state - prevents sensors going unknown when controls change
         let lastKnownState = buildDefaultPayload();
@@ -873,6 +879,38 @@ module.exports = function (RED) {
             };
         }
 
+        // Helper: Fetch device ID and initial smart charging state (called once at startup)
+        async function fetchDeviceId() {
+            try {
+                const authResponse = await graphqlPost({
+                    query: `mutation obtainToken($input: ObtainJSONWebTokenInput!) { obtainKrakenToken(input: $input) { token } }`,
+                    variables: { input: { APIKey: apiKey } }
+                });
+                if (authResponse.data.errors || !authResponse.data.data || !authResponse.data.data.obtainKrakenToken) {
+                    throw new Error(`Auth failed: ${JSON.stringify(authResponse.data.errors)}`);
+                }
+                const token = authResponse.data.data.obtainKrakenToken.token;
+
+                const deviceResponse = await graphqlPost({
+                    query: `query registeredKrakenflexDevice($accountNumber: String!) { registeredKrakenflexDevice(accountNumber: $accountNumber) { krakenflexDeviceId suspended } }`,
+                    variables: { accountNumber: account }
+                }, token);
+
+                if (deviceResponse.data.errors || !deviceResponse.data.data || !deviceResponse.data.data.registeredKrakenflexDevice) {
+                    throw new Error(`Device fetch failed: ${JSON.stringify(deviceResponse.data.errors)}`);
+                }
+
+                const d = deviceResponse.data.data.registeredKrakenflexDevice;
+                krakenflexDeviceId = d.krakenflexDeviceId;
+                smartChargingSuspended = d.suspended;
+                node.log(`Device ID cached: ${krakenflexDeviceId}, suspended: ${smartChargingSuspended}`);
+            } catch (e) {
+                node.warn(`Failed to fetch device ID at startup: ${e.message}. Smart charging toggle unavailable.`);
+                krakenflexDeviceId = null;
+                smartChargingSuspended = null;
+            }
+        }
+
         // 6a. Charging Now - Timer Management Functions
 
         // State reconciliation - checks every 10s if charging state matches reality
@@ -1326,6 +1364,7 @@ module.exports = function (RED) {
         pollIntervalHandle = setInterval(fetchData, refreshRate);
         updateNextPollTime();  // Set initial next poll time
         setTimeout(fetchData, 1000);
+        setTimeout(fetchDeviceId, 1500);
         node.on('close', () => {
             clearInterval(pollIntervalHandle);
             // Clear any pending retry timeouts
