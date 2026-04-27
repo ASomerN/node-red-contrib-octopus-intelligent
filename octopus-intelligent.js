@@ -325,12 +325,30 @@ module.exports = function (RED) {
                 { retain: true }
             );
 
+            // J. Smart Charging Switch
+            node.broker.client.publish(
+                `${mqttPrefix}/switch/${uniqueIdPrefix}_smart_charging/config`,
+                JSON.stringify({
+                    name: "Smart Charging",
+                    unique_id: `${uniqueIdPrefix}_smart_charging`,
+                    command_topic: cmdTopicSmartCharging,
+                    state_topic: `${stateTopic}/smart_charging`,
+                    payload_on: "ON",
+                    payload_off: "OFF",
+                    icon: "mdi:lightning-bolt",
+                    entity_category: "config",
+                    device: device
+                }),
+                { retain: true }
+            );
+
             // Subscribe to Commands
             node.broker.client.subscribe(cmdTopicLimit);
             node.broker.client.subscribe(cmdTopicTime);
             node.broker.client.subscribe(cmdTopicSubmit);
             node.broker.client.subscribe(cmdTopicRefresh);
             node.broker.client.subscribe(cmdTopicTimezone);
+            node.broker.client.subscribe(cmdTopicSmartCharging);
         }
 
         // 5. Helper: Set Preferences (The Mutation)
@@ -1457,6 +1475,13 @@ module.exports = function (RED) {
                 }
             });
 
+            // Smart charging switch toggled in Home Assistant
+            node.broker.subscribe(cmdTopicSmartCharging, 0, (topic, payload) => {
+                const val = payload.toString().trim();
+                if (val === "ON") setSmartCharging(true);
+                else if (val === "OFF") setSmartCharging(false);
+            });
+
             setTimeout(announceControls, 2000);
 
             // Republish persisted timezone to HA select on startup
@@ -1468,6 +1493,16 @@ module.exports = function (RED) {
                     }
                 } catch (e) { node.warn('Failed to republish timezone on startup: ' + e.message); }
             }, 2500);
+
+            // Republish smart charging state to HA switch on startup (after fetchDeviceId runs at 1500ms)
+            setTimeout(() => {
+                try {
+                    if (smartChargingSuspended !== null && node.broker && node.broker.client) {
+                        const stateVal = smartChargingSuspended ? "OFF" : "ON";
+                        node.broker.client.publish(`${stateTopic}/smart_charging`, stateVal, { retain: true });
+                    }
+                } catch (e) { node.warn('Failed to republish smart charging state on startup: ' + e.message); }
+            }, 3000);
         }
 
         // Init
@@ -1480,6 +1515,9 @@ module.exports = function (RED) {
             // Clear any pending retry timeouts
             retryTimeouts.forEach(timeout => clearTimeout(timeout));
             retryTimeouts = [];
+            // Clear smart charging retry timeouts
+            smartChargingRetryTimeouts.forEach(t => clearTimeout(t));
+            smartChargingRetryTimeouts = [];
             // Clear charging timers
             clearChargingTimers();
             // Clear cooldown expiry timer
@@ -1487,7 +1525,7 @@ module.exports = function (RED) {
                 clearTimeout(cooldownExpiryTimer);
                 cooldownExpiryTimer = null;
             }
-            if (node.broker) node.broker.unsubscribe(cmdTopicLimit, cmdTopicTime, cmdTopicSubmit, cmdTopicRefresh, cmdTopicTimezone);
+            if (node.broker) node.broker.unsubscribe(cmdTopicLimit, cmdTopicTime, cmdTopicSubmit, cmdTopicRefresh, cmdTopicTimezone, cmdTopicSmartCharging);
         });
     }
 
