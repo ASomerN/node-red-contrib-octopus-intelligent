@@ -544,12 +544,16 @@ module.exports = function (RED) {
                     throw new Error(`Smart charging mutation failed: ${JSON.stringify(mutationResponse.data.errors)}`);
                 }
 
+                // Record mutation API usage (auth + mutation = ~250 complexity)
+                const ESTIMATED_MUTATION_COMPLEXITY = 250;
+                recordPoll(ESTIMATED_MUTATION_COMPLEXITY);
+
                 // Optimistically update cached state
                 const expectedSuspended = !enable;
                 smartChargingSuspended = expectedSuspended;
 
                 // Publish new state to HA switch topic immediately
-                if (enableMqtt && node.broker) {
+                if (enableMqtt && node.broker && node.broker.client) {
                     node.broker.client.publish(`${stateTopic}/smart_charging`, enable ? "ON" : "OFF", { retain: true });
                 }
 
@@ -566,6 +570,7 @@ module.exports = function (RED) {
         function scheduleSmartChargingVerification(expectedSuspended, intervals, index) {
             if (index >= intervals.length) {
                 node.warn("Smart charging state could not be confirmed after all retries");
+                node.status({ fill: "red", shape: "ring", text: "Smart charging: update unconfirmed" });
                 return;
             }
             const timeout = setTimeout(async () => {
@@ -590,6 +595,10 @@ module.exports = function (RED) {
                         return;
                     }
 
+                    // Record verification API usage (auth + device query = ~200 complexity)
+                    const ESTIMATED_VERIFICATION_COMPLEXITY = 200;
+                    recordPoll(ESTIMATED_VERIFICATION_COMPLEXITY);
+
                     const actualSuspended = deviceResponse.data.data.registeredKrakenflexDevice.suspended;
                     if (actualSuspended === expectedSuspended) {
                         // Confirmed — clear remaining retries
@@ -601,6 +610,7 @@ module.exports = function (RED) {
                         scheduleSmartChargingVerification(expectedSuspended, intervals, index + 1);
                     }
                 } catch (e) {
+                    node.warn(`Smart charging verification attempt ${index + 1} failed: ${e.message}`);
                     scheduleSmartChargingVerification(expectedSuspended, intervals, index + 1);
                 }
             }, intervals[index]);
