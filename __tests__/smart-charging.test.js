@@ -2,11 +2,6 @@
  * Smart Charging Toggle Tests
  */
 
-const {
-    mockAuthSuccess,
-    mockDataWithSlots
-} = require('../test-mocks');
-
 describe('Smart Charging — payload field', () => {
     // Simulate the node's smart charging state variables
     let smartChargingSuspended;
