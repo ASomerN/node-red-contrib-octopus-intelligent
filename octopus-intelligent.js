@@ -54,6 +54,7 @@ module.exports = function (RED) {
         const cmdTopicSubmit = `nodered_octopus/${account}/submit_changes`;
         const cmdTopicRefresh = `nodered_octopus/${account}/refresh`;
         const cmdTopicTimezone = `nodered_octopus/${account}/set_timezone`;
+        const cmdTopicSmartCharging = `nodered_octopus/${account}/set_smart_charging`;
 
         // 2. Constants & Validation
         const TIME_OPTIONS = [
@@ -324,12 +325,30 @@ module.exports = function (RED) {
                 { retain: true }
             );
 
+            // J. Smart Charging Switch
+            node.broker.client.publish(
+                `${mqttPrefix}/switch/${uniqueIdPrefix}_smart_charging/config`,
+                JSON.stringify({
+                    name: "Smart Charging",
+                    unique_id: `${uniqueIdPrefix}_smart_charging`,
+                    command_topic: cmdTopicSmartCharging,
+                    state_topic: `${stateTopic}/smart_charging`,
+                    payload_on: "ON",
+                    payload_off: "OFF",
+                    icon: "mdi:lightning-bolt",
+                    entity_category: "config",
+                    device: device
+                }),
+                { retain: true }
+            );
+
             // Subscribe to Commands
             node.broker.client.subscribe(cmdTopicLimit);
             node.broker.client.subscribe(cmdTopicTime);
             node.broker.client.subscribe(cmdTopicSubmit);
             node.broker.client.subscribe(cmdTopicRefresh);
             node.broker.client.subscribe(cmdTopicTimezone);
+            node.broker.client.subscribe(cmdTopicSmartCharging);
         }
 
         // 5. Helper: Set Preferences (The Mutation)
@@ -368,6 +387,11 @@ module.exports = function (RED) {
         // - Regular poll (auth + data query): ~300
         // - Mutation (auth + setPreferences): ~250
         // - Pre-validation (auth + plannedDispatches only): ~200
+
+        // Smart charging state (fetched once at startup)
+        let krakenflexDeviceId = null;
+        let smartChargingSuspended = null; // null=unknown, true=suspended(off), false=active(on)
+        let smartChargingRetryTimeouts = [];
 
         // Last known full state - prevents sensors going unknown when controls change
         let lastKnownState = buildDefaultPayload();
@@ -501,6 +525,123 @@ module.exports = function (RED) {
                 node.warn(`Retry ${currentIndex + 1} failed: ${error.message}`);
                 scheduleRetries(intervals, currentIndex + 1);
             }
+        }
+
+        // Helper: Toggle smart charging on/off
+        async function setSmartCharging(enable) {
+            if (!krakenflexDeviceId) {
+                node.warn("Device ID not available — cannot toggle smart charging");
+                return;
+            }
+
+            // Cancel any pending verification retries
+            smartChargingRetryTimeouts.forEach(t => clearTimeout(t));
+            smartChargingRetryTimeouts = [];
+
+            const previousSuspended = smartChargingSuspended;
+
+            try {
+                node.status({ fill: "blue", shape: "dot", text: enable ? "Enabling smart charging..." : "Suspending smart charging..." });
+
+                const authResponse = await graphqlPost({
+                    query: `mutation obtainToken($input: ObtainJSONWebTokenInput!) { obtainKrakenToken(input: $input) { token } }`,
+                    variables: { input: { APIKey: apiKey } }
+                });
+                if (authResponse.data.errors || !authResponse.data.data || !authResponse.data.data.obtainKrakenToken) {
+                    throw new Error(`Auth failed: ${JSON.stringify(authResponse.data.errors)}`);
+                }
+                const token = authResponse.data.data.obtainKrakenToken.token;
+
+                const action = enable ? "UNSUSPEND" : "SUSPEND";
+                const mutationResponse = await graphqlPost({
+                    query: `mutation UpdateSmartControl($deviceId: ID!, $action: SmartControlAction!) { updateDeviceSmartControl(input: { deviceId: $deviceId, action: $action }) { id } }`,
+                    variables: { deviceId: krakenflexDeviceId, action: action }
+                }, token);
+
+                if (mutationResponse.data.errors) {
+                    throw new Error(`Smart charging mutation failed: ${JSON.stringify(mutationResponse.data.errors)}`);
+                }
+
+                // Record mutation API usage (auth + mutation = ~250 complexity)
+                const ESTIMATED_MUTATION_COMPLEXITY = 250;
+                recordPoll(ESTIMATED_MUTATION_COMPLEXITY);
+
+                // Optimistically update cached state
+                const expectedSuspended = !enable;
+                smartChargingSuspended = expectedSuspended;
+
+                // Publish new state to HA switch topic immediately
+                if (enableMqtt && node.broker && node.broker.client) {
+                    node.broker.client.publish(`${stateTopic}/smart_charging`, enable ? "ON" : "OFF", { retain: true });
+                }
+
+                // Schedule verification: 15s / 30s / 60s / 120s
+                scheduleSmartChargingVerification(expectedSuspended, [15000, 30000, 60000, 120000], 0);
+
+            } catch (e) {
+                node.error(`Failed to toggle smart charging: ${e.message}`);
+                // Revert optimistic update to pre-mutation state
+                smartChargingSuspended = previousSuspended;
+                node.status({ fill: "red", shape: "ring", text: "Smart charging update failed" });
+                // Republish previous state so HA switch UI re-syncs
+                if (enableMqtt && node.broker && node.broker.client && previousSuspended !== null) {
+                    node.broker.client.publish(
+                        `${stateTopic}/smart_charging`,
+                        previousSuspended ? "OFF" : "ON",
+                        { retain: true }
+                    );
+                }
+            }
+        }
+
+        function scheduleSmartChargingVerification(expectedSuspended, intervals, index) {
+            if (index >= intervals.length) {
+                node.warn("Smart charging state could not be confirmed after all retries");
+                node.status({ fill: "red", shape: "ring", text: "Smart charging: update unconfirmed" });
+                return;
+            }
+            const timeout = setTimeout(async () => {
+                try {
+                    const authResponse = await graphqlPost({
+                        query: `mutation obtainToken($input: ObtainJSONWebTokenInput!) { obtainKrakenToken(input: $input) { token } }`,
+                        variables: { input: { APIKey: apiKey } }
+                    });
+                    if (authResponse.data.errors || !authResponse.data.data || !authResponse.data.data.obtainKrakenToken) {
+                        scheduleSmartChargingVerification(expectedSuspended, intervals, index + 1);
+                        return;
+                    }
+                    const token = authResponse.data.data.obtainKrakenToken.token;
+
+                    const deviceResponse = await graphqlPost({
+                        query: `query registeredKrakenflexDevice($accountNumber: String!) { registeredKrakenflexDevice(accountNumber: $accountNumber) { krakenflexDeviceId suspended } }`,
+                        variables: { accountNumber: account }
+                    }, token);
+
+                    if (deviceResponse.data.errors || !deviceResponse.data.data || !deviceResponse.data.data.registeredKrakenflexDevice) {
+                        scheduleSmartChargingVerification(expectedSuspended, intervals, index + 1);
+                        return;
+                    }
+
+                    // Record verification API usage (auth + device query = ~200 complexity)
+                    const ESTIMATED_VERIFICATION_COMPLEXITY = 200;
+                    recordPoll(ESTIMATED_VERIFICATION_COMPLEXITY);
+
+                    const actualSuspended = deviceResponse.data.data.registeredKrakenflexDevice.suspended;
+                    if (actualSuspended === expectedSuspended) {
+                        // Confirmed — clear remaining retries
+                        smartChargingSuspended = actualSuspended;
+                        smartChargingRetryTimeouts.forEach(t => clearTimeout(t));
+                        smartChargingRetryTimeouts = [];
+                        node.log(`Smart charging confirmed: suspended=${actualSuspended}`);
+                    } else {
+                        scheduleSmartChargingVerification(expectedSuspended, intervals, index + 1);
+                    }
+                } catch (e) {
+                    node.warn(`Smart charging verification attempt ${index + 1} failed: ${e.message}`);
+                    scheduleSmartChargingVerification(expectedSuspended, intervals, index + 1);
+                }
+            }, intervals[index]);
+            smartChargingRetryTimeouts.push(timeout);
         }
 
         // 6. Logic: Fetch Data (Read)
@@ -729,7 +870,8 @@ module.exports = function (RED) {
                     slot3_start_locale: activeAndFutureSlots[2] ? convertToTimezone(activeAndFutureSlots[2].startDt, serverTz) : null,
                     slot3_end_locale: activeAndFutureSlots[2] ? convertToTimezone(activeAndFutureSlots[2].endDt, serverTz) : null,
                     window_start_locale: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[0].startDt, serverTz) : null,
-                    window_end_locale: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt, serverTz) : null
+                    window_end_locale: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt, serverTz) : null,
+                    smart_charging: smartChargingSuspended === null ? null : !smartChargingSuspended
                 };
 
                 // Success!
@@ -869,8 +1011,41 @@ module.exports = function (RED) {
                 slot3_start_locale: null,
                 slot3_end_locale: null,
                 window_start_locale: null,
-                window_end_locale: null
+                window_end_locale: null,
+                smart_charging: smartChargingSuspended === null ? null : !smartChargingSuspended
             };
+        }
+
+        // Helper: Fetch device ID and initial smart charging state (called once at startup)
+        async function fetchDeviceId() {
+            try {
+                const authResponse = await graphqlPost({
+                    query: `mutation obtainToken($input: ObtainJSONWebTokenInput!) { obtainKrakenToken(input: $input) { token } }`,
+                    variables: { input: { APIKey: apiKey } }
+                });
+                if (authResponse.data.errors || !authResponse.data.data || !authResponse.data.data.obtainKrakenToken) {
+                    throw new Error(`Auth failed: ${JSON.stringify(authResponse.data.errors)}`);
+                }
+                const token = authResponse.data.data.obtainKrakenToken.token;
+
+                const deviceResponse = await graphqlPost({
+                    query: `query registeredKrakenflexDevice($accountNumber: String!) { registeredKrakenflexDevice(accountNumber: $accountNumber) { krakenflexDeviceId suspended } }`,
+                    variables: { accountNumber: account }
+                }, token);
+
+                if (deviceResponse.data.errors || !deviceResponse.data.data || !deviceResponse.data.data.registeredKrakenflexDevice) {
+                    throw new Error(`Device fetch failed: ${JSON.stringify(deviceResponse.data.errors)}`);
+                }
+
+                const d = deviceResponse.data.data.registeredKrakenflexDevice;
+                krakenflexDeviceId = d.krakenflexDeviceId;
+                smartChargingSuspended = d.suspended;
+                node.log(`Device ID cached: ${krakenflexDeviceId}, suspended: ${smartChargingSuspended}`);
+            } catch (e) {
+                node.warn(`Failed to fetch device ID at startup: ${e.message}. Smart charging toggle unavailable.`);
+                krakenflexDeviceId = null;
+                smartChargingSuspended = null;
+            }
         }
 
         // 6a. Charging Now - Timer Management Functions
@@ -1231,6 +1406,14 @@ module.exports = function (RED) {
                     }
                     return;
                 }
+                if (msg.payload.set_smart_charging !== undefined) {
+                    const val = msg.payload.set_smart_charging;
+                    if (typeof val === 'boolean') {
+                        setSmartCharging(val);
+                    }
+                    // silently ignore non-boolean (consistent with other handlers)
+                    return;
+                }
             }
 
             // Manual refresh request from Node-RED - NO rate limiting
@@ -1309,6 +1492,13 @@ module.exports = function (RED) {
                 }
             });
 
+            // Smart charging switch toggled in Home Assistant
+            node.broker.subscribe(cmdTopicSmartCharging, 0, (topic, payload) => {
+                const val = payload.toString().trim();
+                if (val === "ON") setSmartCharging(true);
+                else if (val === "OFF") setSmartCharging(false);
+            });
+
             setTimeout(announceControls, 2000);
 
             // Republish persisted timezone to HA select on startup
@@ -1320,17 +1510,31 @@ module.exports = function (RED) {
                     }
                 } catch (e) { node.warn('Failed to republish timezone on startup: ' + e.message); }
             }, 2500);
+
+            // Republish smart charging state to HA switch on startup (after fetchDeviceId runs at 1500ms)
+            setTimeout(() => {
+                try {
+                    if (smartChargingSuspended !== null && node.broker && node.broker.client) {
+                        const stateVal = smartChargingSuspended ? "OFF" : "ON";
+                        node.broker.client.publish(`${stateTopic}/smart_charging`, stateVal, { retain: true });
+                    }
+                } catch (e) { node.warn('Failed to republish smart charging state on startup: ' + e.message); }
+            }, 3000);
         }
 
         // Init
         pollIntervalHandle = setInterval(fetchData, refreshRate);
         updateNextPollTime();  // Set initial next poll time
         setTimeout(fetchData, 1000);
+        setTimeout(fetchDeviceId, 1500);
         node.on('close', () => {
             clearInterval(pollIntervalHandle);
             // Clear any pending retry timeouts
             retryTimeouts.forEach(timeout => clearTimeout(timeout));
             retryTimeouts = [];
+            // Clear smart charging retry timeouts
+            smartChargingRetryTimeouts.forEach(t => clearTimeout(t));
+            smartChargingRetryTimeouts = [];
             // Clear charging timers
             clearChargingTimers();
             // Clear cooldown expiry timer
@@ -1338,7 +1542,7 @@ module.exports = function (RED) {
                 clearTimeout(cooldownExpiryTimer);
                 cooldownExpiryTimer = null;
             }
-            if (node.broker) node.broker.unsubscribe(cmdTopicLimit, cmdTopicTime, cmdTopicSubmit, cmdTopicRefresh, cmdTopicTimezone);
+            if (node.broker) node.broker.unsubscribe(cmdTopicLimit, cmdTopicTime, cmdTopicSubmit, cmdTopicRefresh, cmdTopicTimezone, cmdTopicSmartCharging);
         });
     }
 

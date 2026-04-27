@@ -77,6 +77,11 @@ If this project has helped you!
 - **Professional Layout** - Organized entity categories in device card
 - **Suggested Area** - Auto-suggests "Energy" area
 
+### ⚡ Smart Charging Control
+- **Smart Charging Toggle** — suspend or resume Octopus intelligent charging from Node-RED or Home Assistant
+- **HA MQTT Switch** — "Smart Charging" switch entity auto-discovered in Home Assistant
+- **`smart_charging` field** — live state in every payload (`true` = active, `false` = suspended, `null` = unknown)
+
 ### 🌍 Timezone Support
 - **Locale Timestamps** (`*_locale` fields) — always in server auto-detected timezone
 - **Resolved Display Fields** — slot and window times in your configured timezone
@@ -125,12 +130,19 @@ This flow shows the complete MQTT setup:
 
 After enabling MQTT in the Node-RED node, Home Assistant automatically creates:
 
+### Home Assistant Controls Configuration
+
+![Home Assistant Controls Configuration](https://raw.githubusercontent.com/ASomerN/node-red-contrib-octopus-intelligent/master/images/examples/configuration.png)
+
+The Controls section of the device card includes the **Timezone** select and the new **Smart Charging** toggle, letting you suspend or resume intelligent charging directly from Home Assistant.
+
 #### Controls (Top Section)
 - **Target Charge** - Number slider (50-100%) to set desired battery level
 - **Ready Time** - Dropdown selector (04:00-11:00) for when car needs to be ready
 - **Apply Changes** - Button to submit new settings (prevents API spam while adjusting)
 - **Refresh API** - Button to force manual refresh (30-second cooldown prevents spam)
 - **Timezone** — Select entity for choosing display timezone (15 IANA options, persists across restarts)
+- **Smart Charging** — Switch to suspend or resume Octopus intelligent charging
 
 #### Sensors (Main Section)
 - **Confirmed Charge Limit** - Current API-validated charge limit
@@ -215,6 +227,7 @@ select.octopus_ready_time          Ready by time (04:00-11:00)
 button.octopus_apply_changes       Submit changes to API
 button.octopus_refresh_api         Manual refresh (30s cooldown)
 select.octopus_timezone            Display timezone (15 IANA options)
+switch.octopus_smart_charging      Enable/disable smart charging
 ```
 
 ### Main Sensors
@@ -324,6 +337,14 @@ msg.payload = { set_timezone: "Australia/Sydney" };
 return msg;
 ```
 
+### Toggle Smart Charging from Flow
+
+```javascript
+msg.payload = { set_smart_charging: true };   // enable (unsuspend)
+msg.payload = { set_smart_charging: false };  // disable (suspend)
+return msg;
+```
+
 Valid values: any IANA timezone string (e.g. `Europe/London`, `UTC`, `America/New_York`).
 
 ### Output Format
@@ -349,6 +370,7 @@ Valid values: any IANA timezone string (e.g. `Europe/London`, `UTC`, `America/Ne
     "slot1_end": "2025-11-29 05:30:00+00:00",
     "timezone_detected": "Europe/London",
     "timezone_applied": "Europe/London",
+    "smart_charging": true,
     "next_start_locale": "2025-11-29 01:30:00+00:00",
     "slot1_start_locale": "2025-11-29 01:30:00+00:00",
     "slot1_end_locale": "2025-11-29 05:30:00+00:00",
@@ -535,10 +557,10 @@ Use at your own risk. The Octopus Energy name and logo are trademarks of Octopus
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history and release notes.
 
-### Latest Release: v1.1.1 (2026-04-26)
-- **Timezone Support** - Locale timestamps, HA timezone select entity, `set_timezone` command
-- **`*_locale` Sensors** - All slot/window times in server auto-detected timezone
-- **Configurable Display Timezone** - Override via node config, HA select, or flow command
+### Latest Release: v1.2.0 (2026-04-26)
+- **Smart Charging Toggle** — suspend/resume Octopus intelligent charging from Node-RED or Home Assistant
+- **HA MQTT Switch** — auto-discovered Smart Charging switch entity
+- **`smart_charging` payload field** — live state in every message
 
 ### Previous Release: v1.0.5 (2025-12-31)
 - **Documentation Fix** - Corrected misleading "branded device cards" claim in README

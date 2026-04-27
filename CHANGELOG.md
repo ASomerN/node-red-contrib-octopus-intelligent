@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-04-26
+
+### Added
+- **Smart Charging Toggle** — suspend or unsuspend Octopus intelligent charging from Node-RED or Home Assistant
+  - `msg.payload = { set_smart_charging: true }` — enable (unsuspend)
+  - `msg.payload = { set_smart_charging: false }` — disable (suspend)
+- **HA MQTT Switch** — "Smart Charging" switch entity in Home Assistant (auto-discovered)
+- **`smart_charging` payload field** — `true` = active, `false` = suspended, `null` = unknown (startup fetch pending or failed)
+- **Device ID startup fetch** — `krakenflexDeviceId` fetched once at startup via `registeredKrakenflexDevice` query; cached permanently
+
+### Technical
+- Mirrors `setPreferences` pattern: auth → mutation → optimistic update → exponential backoff verification (15s/30s/60s/120s)
+- Verification re-fetches `registeredKrakenflexDevice.suspended` to confirm state change
+- Zero new npm dependencies
+
+---
+
 ## [1.1.1] - 2026-04-26
 
 ### Security
