@@ -613,11 +613,17 @@ module.exports = function (RED) {
                     const token = authResponse.data.data.obtainKrakenToken.token;
 
                     const deviceResponse = await graphqlPost({
-                        query: `query registeredKrakenflexDevice($accountNumber: String!) { registeredKrakenflexDevice(accountNumber: $accountNumber) { krakenflexDeviceId suspended } }`,
+                        query: `query getDevices($accountNumber: String!) { devices(accountNumber: $accountNumber) { id deviceType status { isSuspended } } }`,
                         variables: { accountNumber: account }
                     }, token);
 
-                    if (deviceResponse.data.errors || !deviceResponse.data.data || !deviceResponse.data.data.registeredKrakenflexDevice) {
+                    if (deviceResponse.data.errors || !deviceResponse.data.data) {
+                        scheduleSmartChargingVerification(expectedSuspended, intervals, index + 1);
+                        return;
+                    }
+
+                    const evDevice = (deviceResponse.data.data.devices || []).find(d => d.deviceType === 'ELECTRIC_VEHICLES');
+                    if (!evDevice) {
                         scheduleSmartChargingVerification(expectedSuspended, intervals, index + 1);
                         return;
                     }
@@ -626,7 +632,7 @@ module.exports = function (RED) {
                     const ESTIMATED_VERIFICATION_COMPLEXITY = 200;
                     recordPoll(ESTIMATED_VERIFICATION_COMPLEXITY);
 
-                    const actualSuspended = deviceResponse.data.data.registeredKrakenflexDevice.suspended;
+                    const actualSuspended = evDevice.status.isSuspended;
                     if (actualSuspended === expectedSuspended) {
                         // Confirmed — clear remaining retries
                         smartChargingSuspended = actualSuspended;
