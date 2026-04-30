@@ -652,6 +652,7 @@ module.exports = function (RED) {
                         smartChargingRetryTimeouts.forEach(t => clearTimeout(t));
                         smartChargingRetryTimeouts = [];
                         node.log(`Smart charging confirmed: suspended=${actualSuspended}`);
+                        node.status({ fill: "green", shape: "dot", text: actualSuspended ? "Smart charging suspended" : "Smart charging enabled" });
                     } else {
                         scheduleSmartChargingVerification(expectedSuspended, intervals, index + 1);
                     }
