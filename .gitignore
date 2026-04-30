@@ -7,11 +7,21 @@ docs/
 
 # Build artifacts
 builds/
+*.tgz
 
 # Utility scripts
 utilities/
+
+# Sensitive files — never commit
+.env
+.env.*
+*.pem
+*.key
+*.cert
+local-test/
 
 # Specific files to ignore
 images/IMAGES_NEEDED.md
 __tests__/TEST-SUMMARY.md
 npm-support-email.txt
+todo.md
