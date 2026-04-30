@@ -1029,17 +1029,25 @@ module.exports = function (RED) {
                 const token = authResponse.data.data.obtainKrakenToken.token;
 
                 const deviceResponse = await graphqlPost({
-                    query: `query registeredKrakenflexDevice($accountNumber: String!) { registeredKrakenflexDevice(accountNumber: $accountNumber) { krakenflexDeviceId suspended } }`,
+                    query: `query getDevices($accountNumber: String!) { devices(accountNumber: $accountNumber) { id deviceType status { isSuspended } } }`,
                     variables: { accountNumber: account }
                 }, token);
 
-                if (deviceResponse.data.errors || !deviceResponse.data.data || !deviceResponse.data.data.registeredKrakenflexDevice) {
+                if (deviceResponse.data.errors || !deviceResponse.data.data) {
                     throw new Error(`Device fetch failed: ${JSON.stringify(deviceResponse.data.errors)}`);
                 }
 
-                const d = deviceResponse.data.data.registeredKrakenflexDevice;
-                krakenflexDeviceId = d.krakenflexDeviceId;
-                smartChargingSuspended = d.suspended;
+                function extractEvDevice(devices) {
+                    return (devices || []).find(d => d.deviceType === 'ELECTRIC_VEHICLES') || null;
+                }
+
+                const evDevice = extractEvDevice(deviceResponse.data.data.devices);
+                if (!evDevice) {
+                    throw new Error('No ELECTRIC_VEHICLES device found on account');
+                }
+
+                krakenflexDeviceId = evDevice.id;
+                smartChargingSuspended = evDevice.status.isSuspended;
                 node.log(`Device ID cached: ${krakenflexDeviceId}, suspended: ${smartChargingSuspended}`);
             } catch (e) {
                 node.warn(`Failed to fetch device ID at startup: ${e.message}. Smart charging toggle unavailable.`);
