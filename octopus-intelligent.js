@@ -436,19 +436,32 @@ module.exports = function (RED) {
                 const token = authResponse.data.data.obtainKrakenToken.token;
 
                 // B. Send Mutation
+                if (!krakenflexDeviceId) {
+                    throw new Error('Device ID not available — cannot set preferences');
+                }
+
                 const mutation = `
-                mutation setPreferences($input: VehicleChargingPreferencesInput!) {
-                    setVehicleChargePreferences(input: $input) { __typename }
+                mutation setPreferences($input: SmartFlexDevicePreferencesInput!) {
+                    setDevicePreferences(input: $input) { __typename }
                 }`;
 
+                const DAYS = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'];
+                function buildDevicePreferencesInput(deviceId, socLimit, readyTime) {
+                    return {
+                        deviceId,
+                        mode: 'CHARGE',
+                        unit: 'PERCENTAGE',
+                        schedules: DAYS.map(dayOfWeek => ({
+                            dayOfWeek,
+                            time: readyTime + ':00',
+                            min: 0,
+                            max: socLimit
+                        }))
+                    };
+                }
+
                 const variables = {
-                    input: {
-                        accountNumber: account,
-                        weekdayTargetSoc: limit,
-                        weekendTargetSoc: limit,
-                        weekdayTargetTime: time,
-                        weekendTargetTime: time
-                    }
+                    input: buildDevicePreferencesInput(krakenflexDeviceId, limit, time)
                 };
 
                 const mutationResponse = await graphqlPost({
