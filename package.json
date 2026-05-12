@@ -1,6 +1,6 @@
 {
   "name": "node-red-contrib-octopus-intelligent",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Node-RED integration for Octopus Energy Intelligent Octopus Go with Home Assistant MQTT discovery",
   "main": "octopus-intelligent.js",
   "scripts": {
@@ -22,6 +22,7 @@
   "files": [
     "octopus-intelligent.js",
     "octopus-intelligent.html",
+    "lib/",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",

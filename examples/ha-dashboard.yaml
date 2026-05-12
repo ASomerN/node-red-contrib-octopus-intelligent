@@ -1,0 +1,470 @@
+type: sections
+title: Octopus Intelligent
+path: octopus-intelligent
+icon: mdi:lightning-bolt
+max_columns: 4
+# ────────────────────────────────────────────────────────────────────────────────
+# Octopus Intelligent — comprehensive v1.3.0 dashboard
+#
+# Each section is a single focused card so the sections view packs them into a
+# uniform grid without big empty gaps. On wide screens HA renders up to 4
+# columns; narrower viewports collapse to fewer columns automatically.
+#
+# Covers every MQTT entity published by node-red-contrib-octopus-intelligent
+# v1.3.0. Fresh install entity-id prefix: octopus_intelligent_octopus_*.
+# Upgraders from pre-v1.0 may have node_red_octopus_intelligent_octopus_*
+# on carry-over entities (see Dev Tools → States to look up the actual ID).
+# ────────────────────────────────────────────────────────────────────────────────
+sections:
+  # ════════════════════════════════════════════════════════════════════════════
+  # EV
+  # ════════════════════════════════════════════════════════════════════════════
+  - type: grid
+    cards:
+      - type: entities
+        title: EV — controls
+        icon: mdi:car-electric
+        entities:
+          - entity: number.octopus_intelligent_octopus_target_charge
+            name: Target Charge Limit
+          - entity: select.octopus_intelligent_octopus_ready_time
+            name: Ready By
+          - entity: button.octopus_intelligent_octopus_apply_changes
+            name: Apply Changes
+          - entity: switch.octopus_intelligent_smart_charging
+            name: Smart Charging
+          - entity: button.octopus_intelligent_octopus_refresh_api
+            name: Refresh API
+
+  - type: grid
+    cards:
+      - type: glance
+        title: EV — now
+        entities:
+          - entity: binary_sensor.octopus_intelligent_octopus_charging_now
+            name: Charging
+          - entity: sensor.octopus_intelligent_octopus_charge_source
+            name: Source
+          - entity: sensor.octopus_intelligent_octopus_total_planned_energy
+            name: Planned
+          - entity: sensor.octopus_intelligent_octopus_next_slot_energy
+            name: Next slot
+
+  - type: grid
+    cards:
+      - type: entities
+        title: EV — confirmed targets
+        icon: mdi:check-circle
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_confirmed_charge_limit
+            name: Confirmed limit
+          - entity: sensor.octopus_intelligent_octopus_confirmed_ready_time
+            name: Confirmed ready time
+
+  - type: grid
+    cards:
+      - type: entities
+        title: EV — next charge / window
+        icon: mdi:timer-outline
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_next_charge_time_locale
+            name: Next charge starts
+          - entity: sensor.octopus_intelligent_octopus_overall_window_start_locale
+            name: Window opens
+          - entity: sensor.octopus_intelligent_octopus_overall_window_end_locale
+            name: Window closes
+
+  - type: grid
+    cards:
+      - type: entities
+        title: EV — planned slots
+        icon: mdi:format-list-numbered
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_slot_1_start_locale
+            name: Slot 1 — starts
+          - entity: sensor.octopus_intelligent_octopus_slot_1_end_locale
+            name: Slot 1 — ends
+          - entity: sensor.octopus_intelligent_octopus_slot_2_start_locale
+            name: Slot 2 — starts
+          - entity: sensor.octopus_intelligent_octopus_slot_2_end_locale
+            name: Slot 2 — ends
+          - entity: sensor.octopus_intelligent_octopus_slot_3_start_locale
+            name: Slot 3 — starts
+          - entity: sensor.octopus_intelligent_octopus_slot_3_end_locale
+            name: Slot 3 — ends
+          - entity: sensor.octopus_intelligent_octopus_flex_planned_dispatches
+            name: Planned dispatches
+          - entity: sensor.octopus_intelligent_octopus_completed_dispatches
+            name: Completed (12h)
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Electricity — import
+  # ════════════════════════════════════════════════════════════════════════════
+  - type: grid
+    cards:
+      - type: glance
+        title: Electricity import — live
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_current_electricity_rate
+            name: Rate
+          - entity: sensor.octopus_intelligent_octopus_electricity_standing_charge
+            name: Standing
+          - entity: sensor.octopus_intelligent_octopus_electricity_consumption
+            name: Today (kWh)
+
+  - type: grid
+    cards:
+      - type: entities
+        title: Electricity import — tariff
+        icon: mdi:flash
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_electricity_tariff_code
+            name: Tariff code
+          - entity: sensor.octopus_intelligent_octopus_electricity_unit_rate
+            name: Unit rate (fixed only)
+          - entity: sensor.octopus_intelligent_octopus_electricity_tariff_valid_from
+            name: Valid from
+          - entity: sensor.octopus_intelligent_octopus_electricity_tariff_valid_to
+            name: Valid to
+
+  - type: grid
+    cards:
+      - type: entities
+        title: Electricity import — consumption window
+        icon: mdi:calendar-clock
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_electricity_consumption_from
+            name: From
+          - entity: sensor.octopus_intelligent_octopus_electricity_consumption_to
+            name: To
+          - entity: sensor.octopus_intelligent_octopus_electricity_rate
+            name: Rate (GBP/kWh — Energy Dashboard)
+
+  - type: grid
+    cards:
+      - type: entities
+        title: Applicable rates — import
+        icon: mdi:cash-clock
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_current_electricity_rate
+            name: Current rate (p/kWh)
+          - entity: sensor.octopus_intelligent_octopus_electricity_rate
+            name: Current rate (GBP/kWh)
+          - entity: sensor.octopus_intelligent_octopus_applicable_rates_slots
+            name: Slots received
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Electricity — export
+  # ════════════════════════════════════════════════════════════════════════════
+  - type: grid
+    cards:
+      - type: glance
+        title: Electricity export — live
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_current_electricity_export_rate
+            name: Rate
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_standing_charge
+            name: Standing
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_consumption
+            name: Today (kWh)
+
+  - type: grid
+    cards:
+      - type: entities
+        title: Electricity export — tariff
+        icon: mdi:transmission-tower-export
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_tariff_code
+            name: Tariff code
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_unit_rate
+            name: Unit rate (fixed only)
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_tariff_valid_from
+            name: Valid from
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_tariff_valid_to
+            name: Valid to
+
+  - type: grid
+    cards:
+      - type: entities
+        title: Electricity export — consumption window
+        icon: mdi:calendar-clock
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_consumption_from
+            name: From
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_consumption_to
+            name: To
+
+  - type: grid
+    cards:
+      - type: entities
+        title: Applicable rates — export
+        icon: mdi:transmission-tower-export
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_current_electricity_export_rate
+            name: Current rate (p/kWh)
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_rate
+            name: Current rate (GBP/kWh)
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_rate_slots
+            name: Slots received
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_rate_prev
+            name: Previous rate
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_rate_prev_ends
+            name: Previous ended
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_rate_next
+            name: Next rate
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_rate_next_from
+            name: Next from
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Gas
+  # ════════════════════════════════════════════════════════════════════════════
+  - type: grid
+    cards:
+      - type: glance
+        title: Gas — live
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_gas_unit_rate
+            name: Rate
+          - entity: sensor.octopus_intelligent_octopus_gas_standing_charge
+            name: Standing
+          - entity: sensor.octopus_intelligent_octopus_gas_consumption
+            name: Today (kWh)
+
+  - type: grid
+    cards:
+      - type: entities
+        title: Gas — tariff
+        icon: mdi:fire
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_gas_tariff_code
+            name: Tariff code
+          - entity: sensor.octopus_intelligent_octopus_gas_tariff_valid_from
+            name: Valid from
+          - entity: sensor.octopus_intelligent_octopus_gas_tariff_valid_to
+            name: Valid to
+
+  - type: grid
+    cards:
+      - type: entities
+        title: Gas — consumption window
+        icon: mdi:calendar-clock
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_gas_consumption_from
+            name: From
+          - entity: sensor.octopus_intelligent_octopus_gas_consumption_to
+            name: To
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Account / Octoplus / Rewards / Mini
+  # ════════════════════════════════════════════════════════════════════════════
+  - type: grid
+    cards:
+      - type: entities
+        title: Account
+        icon: mdi:account-cash
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_account_balance
+            name: Balance (£)
+          - entity: sensor.octopus_intelligent_octopus_account_balance_pence
+            name: Balance (pence)
+
+  - type: grid
+    cards:
+      - type: entities
+        title: Octoplus
+        icon: mdi:star-circle
+        entities:
+          # Enrolled / Loyalty Points are booleans → binary_sensor in v1.3+
+          - entity: binary_sensor.octopus_intelligent_octopus_octoplus_enrolled
+            name: Enrolled
+          - entity: sensor.octopus_intelligent_octopus_octoplus_status
+            name: Status
+          - entity: binary_sensor.octopus_intelligent_octopus_octoplus_loyalty_points
+            name: Loyalty points user
+
+  - type: grid
+    cards:
+      - type: entities
+        title: Saving Sessions
+        icon: mdi:lightning-bolt-circle
+        entities:
+          - entity: binary_sensor.octopus_intelligent_octopus_saving_session_available
+            name: Next session available
+          - entity: sensor.octopus_intelligent_octopus_saving_session_start
+            name: Next session — starts
+          - entity: sensor.octopus_intelligent_octopus_saving_session_end
+            name: Next session — ends
+          - entity: sensor.octopus_intelligent_octopus_saving_session_joined
+            name: Joined
+
+  - type: grid
+    cards:
+      - type: entities
+        title: Free Electricity
+        icon: mdi:flash-circle
+        entities:
+          - entity: binary_sensor.octopus_intelligent_octopus_free_electricity_active
+            name: Active now
+          - entity: binary_sensor.octopus_intelligent_octopus_free_electricity_available
+            name: Upcoming
+          - entity: sensor.octopus_intelligent_octopus_free_electricity_start
+            name: Starts
+          - entity: sensor.octopus_intelligent_octopus_free_electricity_end
+            name: Ends
+
+  - type: grid
+    cards:
+      - type: glance
+        title: Wheel of Fortune
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_wheel_of_fortune_electricity_spins
+            name: Elec spins
+          - entity: sensor.octopus_intelligent_octopus_wheel_of_fortune_gas_spins
+            name: Gas spins
+
+  - type: grid
+    cards:
+      - type: gauge
+        entity: sensor.octopus_intelligent_octopus_home_mini_demand
+        name: Home Mini — live demand
+        unit: kW
+        min: 0
+        max: 10
+        severity:
+          green: 0
+          yellow: 3
+          red: 6
+
+  - type: grid
+    cards:
+      - type: entities
+        title: Home Mini — readings
+        icon: mdi:home-lightning-bolt
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_home_mini_period_consumption
+            name: Half-hour kWh
+          - entity: sensor.octopus_intelligent_octopus_home_mini_reading_time
+            name: Last reading
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Diagnostics — system, errors, raw / UTC timestamps
+  # ════════════════════════════════════════════════════════════════════════════
+  - type: grid
+    cards:
+      - type: entities
+        title: System
+        icon: mdi:cog
+        entities:
+          - entity: select.octopus_intelligent_timezone
+            name: Timezone (override)
+          - entity: sensor.octopus_intelligent_octopus_timezone_detected
+            name: Timezone — detected
+          - entity: sensor.octopus_intelligent_octopus_timezone_applied
+            name: Timezone — applied
+          - entity: sensor.octopus_intelligent_octopus_next_poll_time
+            name: Next poll
+          - entity: sensor.octopus_intelligent_octopus_refresh_available_at
+            name: Refresh available at
+
+  - type: grid
+    cards:
+      - type: entities
+        title: API usage
+        icon: mdi:api
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_api_requests_last_hour
+            name: Requests (last hour)
+          - entity: sensor.octopus_intelligent_octopus_api_complexity_last_hour
+            name: Complexity (last hour)
+          - entity: sensor.octopus_intelligent_octopus_api_complexity_usage
+            name: Complexity vs limit
+
+  - type: grid
+    cards:
+      - type: entities
+        title: Diagnostic — slot UTC
+        icon: mdi:clock-outline
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_next_charge_time
+            name: Next charge
+          - entity: sensor.octopus_intelligent_octopus_overall_window_start
+            name: Window start
+          - entity: sensor.octopus_intelligent_octopus_overall_window_end
+            name: Window end
+          - entity: sensor.octopus_intelligent_octopus_slot_1_start
+            name: Slot 1 start
+          - entity: sensor.octopus_intelligent_octopus_slot_1_end
+            name: Slot 1 end
+          - entity: sensor.octopus_intelligent_octopus_slot_2_start
+            name: Slot 2 start
+          - entity: sensor.octopus_intelligent_octopus_slot_2_end
+            name: Slot 2 end
+          - entity: sensor.octopus_intelligent_octopus_slot_3_start
+            name: Slot 3 start
+          - entity: sensor.octopus_intelligent_octopus_slot_3_end
+            name: Slot 3 end
+
+  - type: grid
+    cards:
+      - type: entities
+        title: Diagnostic — raw API timestamps
+        icon: mdi:code-tags
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_next_charge_time_raw
+            name: Next charge
+          - entity: sensor.octopus_intelligent_octopus_next_poll_time_raw
+            name: Next poll
+          - entity: sensor.octopus_intelligent_octopus_overall_window_start_raw
+            name: Window start
+          - entity: sensor.octopus_intelligent_octopus_overall_window_end_raw
+            name: Window end
+          - entity: sensor.octopus_intelligent_octopus_slot_1_start_raw
+            name: Slot 1 start
+          - entity: sensor.octopus_intelligent_octopus_slot_1_end_raw
+            name: Slot 1 end
+          - entity: sensor.octopus_intelligent_octopus_slot_2_start_raw
+            name: Slot 2 start
+          - entity: sensor.octopus_intelligent_octopus_slot_2_end_raw
+            name: Slot 2 end
+          - entity: sensor.octopus_intelligent_octopus_slot_3_start_raw
+            name: Slot 3 start
+          - entity: sensor.octopus_intelligent_octopus_slot_3_end_raw
+            name: Slot 3 end
+
+  - type: grid
+    column_span: 2
+    cards:
+      - type: entities
+        title: Diagnostic — errors
+        icon: mdi:alert-circle
+        entities:
+          - entity: sensor.octopus_intelligent_octopus_electricity_rates_error
+            name: Electricity rates
+          - entity: sensor.octopus_intelligent_octopus_electricity_consumption_error
+            name: Electricity consumption
+          - entity: sensor.octopus_intelligent_octopus_gas_rates_error
+            name: Gas rates
+          - entity: sensor.octopus_intelligent_octopus_gas_consumption_error
+            name: Gas consumption
+          - entity: sensor.octopus_intelligent_octopus_applicable_rates_error
+            name: Applicable rates
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_rate_error
+            name: Applicable rates — export
+          - entity: sensor.octopus_intelligent_octopus_account_error
+            name: Account
+          - entity: sensor.octopus_intelligent_octopus_octoplus_error
+            name: Octoplus
+          - entity: sensor.octopus_intelligent_octopus_wof_error
+            name: WoF
+          - entity: sensor.octopus_intelligent_octopus_home_mini_error
+            name: Home Mini
+          - entity: sensor.octopus_intelligent_octopus_saving_sessions_error
+            name: Saving sessions
+          - entity: sensor.octopus_intelligent_octopus_free_electricity_error
+            name: Free electricity
+          - entity: sensor.octopus_intelligent_octopus_intelligent_error
+            name: Intelligent
+          - entity: sensor.octopus_intelligent_octopus_completed_dispatches_error
+            name: Completed dispatches
+          - entity: sensor.octopus_intelligent_octopus_flex_planned_dispatches_error
+            name: Flex planned dispatches

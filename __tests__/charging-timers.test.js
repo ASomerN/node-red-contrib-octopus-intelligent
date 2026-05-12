@@ -269,8 +269,8 @@ describe('Charging Timer Management', () => {
 
       // Check if currently in a charging slot
       const activeSlot = slots.find(s => {
-        const start = new Date(s.startDt);
-        const end = new Date(s.endDt);
+        const start = new Date(s.start);
+        const end = new Date(s.end);
         return start <= now && end > now;
       });
 
@@ -286,7 +286,7 @@ describe('Charging Timer Management', () => {
         }
 
         // Set end timer
-        const slotEnd = new Date(activeSlot.endDt);
+        const slotEnd = new Date(activeSlot.end);
         const msUntilEnd = slotEnd.getTime() - now.getTime();
         if (msUntilEnd > 0) {
           slotEndTimer = setTimeout(() => {
@@ -308,9 +308,9 @@ describe('Charging Timer Management', () => {
         }
 
         // Find next future slot
-        const nextSlot = slots.find(s => new Date(s.startDt) > now);
+        const nextSlot = slots.find(s => new Date(s.start) > now);
         if (nextSlot) {
-          const slotStart = new Date(nextSlot.startDt);
+          const slotStart = new Date(nextSlot.start);
           const preValidationTime = slotStart.getTime() - 30000; // 30s before
           const msUntilPreValidation = preValidationTime - now.getTime();
 
@@ -338,10 +338,10 @@ describe('Charging Timer Management', () => {
 
       const slots = [
         {
-          startDt: "2025-11-29 01:30:00+00:00",
-          endDt: "2025-11-29 05:30:00+00:00",
-          deltaKwh: -15.5,
-          meta: { source: "smart-charge" }
+          start: "2025-11-29 01:30:00+00:00",
+          end: "2025-11-29 05:30:00+00:00",
+          energyAddedKwh: 15.5,
+          type: "SMART"
         }
       ];
 
@@ -372,10 +372,10 @@ describe('Charging Timer Management', () => {
 
       const slots = [
         {
-          startDt: "2025-11-29 01:30:00+00:00",
-          endDt: "2025-11-29 05:30:00+00:00",
-          deltaKwh: -15.5,
-          meta: { source: "smart-charge" }
+          start: "2025-11-29 01:30:00+00:00",
+          end: "2025-11-29 05:30:00+00:00",
+          energyAddedKwh: 15.5,
+          type: "SMART"
         }
       ];
 
@@ -433,16 +433,16 @@ describe('Charging Timer Management', () => {
 
       const slots = [
         {
-          startDt: "2025-11-29 01:30:00+00:00",
-          endDt: "2025-11-29 05:30:00+00:00",
-          deltaKwh: -15.5,
-          meta: { source: "smart-charge" }
+          start: "2025-11-29 01:30:00+00:00",
+          end: "2025-11-29 05:30:00+00:00",
+          energyAddedKwh: 15.5,
+          type: "SMART"
         },
         {
-          startDt: "2025-11-29 23:30:00+00:00",
-          endDt: "2025-11-30 05:30:00+00:00",
-          deltaKwh: -18.2,
-          meta: { source: "smart-charge" }
+          start: "2025-11-29 23:30:00+00:00",
+          end: "2025-11-30 05:30:00+00:00",
+          energyAddedKwh: 18.2,
+          type: "SMART"
         }
       ];
 
@@ -465,10 +465,10 @@ describe('Charging Timer Management', () => {
 
       const slots = [
         {
-          startDt: "2025-11-29 01:30:00+00:00",
-          endDt: "2025-11-29 05:30:00+00:00",
-          deltaKwh: -15.5,
-          meta: { source: "smart-charge" }
+          start: "2025-11-29 01:30:00+00:00",
+          end: "2025-11-29 05:30:00+00:00",
+          energyAddedKwh: 15.5,
+          type: "SMART"
         }
       ];
 
@@ -490,10 +490,10 @@ describe('Charging Timer Management', () => {
 
       const slots = [
         {
-          startDt: "2025-11-29 01:30:00+00:00",
-          endDt: "2025-11-29 05:30:00+00:00",
-          deltaKwh: -15.5,
-          meta: { source: "smart-charge" }
+          start: "2025-11-29 01:30:00+00:00",
+          end: "2025-11-29 05:30:00+00:00",
+          energyAddedKwh: 15.5,
+          type: "SMART"
         }
       ];
 
@@ -528,30 +528,30 @@ describe('Charging Timer Management', () => {
 
       const slots = [
         {
-          startDt: "2025-11-28 01:30:00+00:00",
-          endDt: "2025-11-28 05:30:00+00:00", // Past
-          deltaKwh: -12,
-          meta: { source: "smart-charge" }
+          start: "2025-11-28 01:30:00+00:00",
+          end: "2025-11-28 05:30:00+00:00", // Past
+          energyAddedKwh: 12,
+          type: "SMART"
         },
         {
-          startDt: "2025-11-29 21:30:00+00:00",
-          endDt: "2025-11-29 22:00:00+00:00", // Future
-          deltaKwh: 0,
-          meta: { source: "smart-charge" }
+          start: "2025-11-29 21:30:00+00:00",
+          end: "2025-11-29 22:00:00+00:00", // Future
+          energyAddedKwh: 0,
+          type: "SMART"
         },
         {
-          startDt: "2025-11-29 23:00:00+00:00",
-          endDt: "2025-11-30 04:00:00+00:00", // Future
-          deltaKwh: -12,
-          meta: { source: "smart-charge" }
+          start: "2025-11-29 23:00:00+00:00",
+          end: "2025-11-30 04:00:00+00:00", // Future
+          energyAddedKwh: 12,
+          type: "SMART"
         }
       ];
 
-      const activeAndFutureSlots = slots.filter(s => new Date(s.endDt) > now);
+      const activeAndFutureSlots = slots.filter(s => new Date(s.end) > now);
 
       expect(activeAndFutureSlots.length).toBe(2);
-      expect(activeAndFutureSlots[0].endDt).toBe("2025-11-29 22:00:00+00:00");
-      expect(activeAndFutureSlots[1].endDt).toBe("2025-11-30 04:00:00+00:00");
+      expect(activeAndFutureSlots[0].end).toBe("2025-11-29 22:00:00+00:00");
+      expect(activeAndFutureSlots[1].end).toBe("2025-11-30 04:00:00+00:00");
     });
 
     /**
@@ -562,14 +562,14 @@ describe('Charging Timer Management', () => {
      */
     test('should calculate total energy correctly', () => {
       const slots = [
-        { deltaKwh: -10.5 },
-        { deltaKwh: -15.2 },
-        { deltaKwh: -8.3 }
+        { energyAddedKwh: 10.5 },
+        { energyAddedKwh: 15.2 },
+        { energyAddedKwh: 8.3 }
       ];
 
-      const totalEnergy = slots.reduce((sum, s) => sum + (s.deltaKwh || 0), 0);
+      const totalEnergy = slots.reduce((sum, s) => sum + (s.energyAddedKwh || 0), 0);
 
-      expect(totalEnergy).toBeCloseTo(-34.0, 1);
+      expect(totalEnergy).toBeCloseTo(34.0, 1);
     });
 
     /**
@@ -582,17 +582,17 @@ describe('Charging Timer Management', () => {
     test('should calculate charging window correctly', () => {
       const slots = [
         {
-          startDt: "2025-11-29 21:30:00+00:00",
-          endDt: "2025-11-29 22:00:00+00:00"
+          start: "2025-11-29 21:30:00+00:00",
+          end: "2025-11-29 22:00:00+00:00"
         },
         {
-          startDt: "2025-11-29 23:00:00+00:00",
-          endDt: "2025-11-30 04:00:00+00:00"
+          start: "2025-11-29 23:00:00+00:00",
+          end: "2025-11-30 04:00:00+00:00"
         }
       ];
 
-      const windowStart = slots.length > 0 ? slots[0].startDt : null;
-      const windowEnd = slots.length > 0 ? slots[slots.length - 1].endDt : null;
+      const windowStart = slots.length > 0 ? slots[0].start : null;
+      const windowEnd = slots.length > 0 ? slots[slots.length - 1].end : null;
 
       expect(windowStart).toBe("2025-11-29 21:30:00+00:00");
       expect(windowEnd).toBe("2025-11-30 04:00:00+00:00");

@@ -149,39 +149,45 @@ describe('Data Processing', () => {
     // Note: this stub uses raw slot timestamps for display fields (no timezone conversion).
     // It tests slot filtering and energy logic. Timezone conversion of display fields
     // is covered in __tests__/timezone.test.js.
-    function buildPayloadFromSlots(slots, prefs, currentTime, chargingNow) {
+    function buildPayloadFromSlots(slots, devices, currentTime, chargingNow) {
       const now = new Date(currentTime);
-      const activeAndFutureSlots = slots.filter(s => new Date(s.endDt) > now);
+      const activeAndFutureSlots = slots.filter(s => new Date(s.end) > now);
       const nextSlot = activeAndFutureSlots[0] || null;
-      const totalEnergy = activeAndFutureSlots.reduce((sum, s) => sum + (s.deltaKwh || 0), 0);
+      const totalEnergy = activeAndFutureSlots.reduce((sum, s) => sum + (s.energyAddedKwh || 0), 0);
+
+      const ev = (devices || []).find(d => d.deviceType === 'ELECTRIC_VEHICLES');
+      const schedules = ev ? ((ev.preferences || {}).schedules || []) : [];
+      const weekdaySchedule = schedules.find(s => s.dayOfWeek === 'MONDAY') || schedules[0] || {};
+      const confirmedLimit = weekdaySchedule.max ?? 80;
+      const confirmedTime = weekdaySchedule.time ? weekdaySchedule.time.substring(0, 5) : '07:30';
 
       return {
-        next_start: nextSlot ? nextSlot.startDt : null,
+        next_start: nextSlot ? nextSlot.start : null,
         total_energy: parseFloat(totalEnergy.toFixed(2)),
-        next_kwh: nextSlot ? nextSlot.deltaKwh.toFixed(2) : "0",
-        next_source: nextSlot && nextSlot.meta ? nextSlot.meta.source : "unknown",
-        confirmed_limit: prefs.weekdayTargetSoc,
-        confirmed_time: prefs.weekdayTargetTime,
-        pending_limit: prefs.weekdayTargetSoc,
-        pending_time: prefs.weekdayTargetTime,
+        next_kwh: nextSlot ? nextSlot.energyAddedKwh.toFixed(2) : "0",
+        next_source: nextSlot ? (nextSlot.type || 'unknown').toLowerCase() : "unknown",
+        confirmed_limit: confirmedLimit,
+        confirmed_time: confirmedTime,
+        pending_limit: confirmedLimit,
+        pending_time: confirmedTime,
         charging_now: chargingNow,
-        slot1_start: activeAndFutureSlots[0] ? activeAndFutureSlots[0].startDt : null,
-        slot1_end: activeAndFutureSlots[0] ? activeAndFutureSlots[0].endDt : null,
-        slot2_start: activeAndFutureSlots[1] ? activeAndFutureSlots[1].startDt : null,
-        slot2_end: activeAndFutureSlots[1] ? activeAndFutureSlots[1].endDt : null,
-        slot3_start: activeAndFutureSlots[2] ? activeAndFutureSlots[2].startDt : null,
-        slot3_end: activeAndFutureSlots[2] ? activeAndFutureSlots[2].endDt : null,
-        window_start: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[0].startDt : null,
-        window_end: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt : null,
-        next_start_raw: nextSlot ? nextSlot.startDt : null,
-        slot1_start_raw: activeAndFutureSlots[0] ? activeAndFutureSlots[0].startDt : null,
-        slot1_end_raw: activeAndFutureSlots[0] ? activeAndFutureSlots[0].endDt : null,
-        slot2_start_raw: activeAndFutureSlots[1] ? activeAndFutureSlots[1].startDt : null,
-        slot2_end_raw: activeAndFutureSlots[1] ? activeAndFutureSlots[1].endDt : null,
-        slot3_start_raw: activeAndFutureSlots[2] ? activeAndFutureSlots[2].startDt : null,
-        slot3_end_raw: activeAndFutureSlots[2] ? activeAndFutureSlots[2].endDt : null,
-        window_start_raw: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[0].startDt : null,
-        window_end_raw: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt : null
+        slot1_start: activeAndFutureSlots[0] ? activeAndFutureSlots[0].start : null,
+        slot1_end: activeAndFutureSlots[0] ? activeAndFutureSlots[0].end : null,
+        slot2_start: activeAndFutureSlots[1] ? activeAndFutureSlots[1].start : null,
+        slot2_end: activeAndFutureSlots[1] ? activeAndFutureSlots[1].end : null,
+        slot3_start: activeAndFutureSlots[2] ? activeAndFutureSlots[2].start : null,
+        slot3_end: activeAndFutureSlots[2] ? activeAndFutureSlots[2].end : null,
+        window_start: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[0].start : null,
+        window_end: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[activeAndFutureSlots.length - 1].end : null,
+        next_start_raw: nextSlot ? nextSlot.start : null,
+        slot1_start_raw: activeAndFutureSlots[0] ? activeAndFutureSlots[0].start : null,
+        slot1_end_raw: activeAndFutureSlots[0] ? activeAndFutureSlots[0].end : null,
+        slot2_start_raw: activeAndFutureSlots[1] ? activeAndFutureSlots[1].start : null,
+        slot2_end_raw: activeAndFutureSlots[1] ? activeAndFutureSlots[1].end : null,
+        slot3_start_raw: activeAndFutureSlots[2] ? activeAndFutureSlots[2].start : null,
+        slot3_end_raw: activeAndFutureSlots[2] ? activeAndFutureSlots[2].end : null,
+        window_start_raw: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[0].start : null,
+        window_end_raw: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[activeAndFutureSlots.length - 1].end : null
       };
     }
 
@@ -198,17 +204,17 @@ describe('Data Processing', () => {
       const chargingNow = false;
 
       const payload = buildPayloadFromSlots(
-        apiData.plannedDispatches,
-        apiData.vehicleChargingPreferences,
+        apiData.flexPlannedDispatches,
+        apiData.devices,
         currentTime,
         chargingNow
       );
 
       // Verify key fields
       expect(payload.next_start).toBe("2025-11-29 21:30:00+00:00");
-      expect(payload.total_energy).toBe(-12);
+      expect(payload.total_energy).toBe(12);
       expect(payload.next_kwh).toBe("0.00");
-      expect(payload.next_source).toBe("smart-charge");
+      expect(payload.next_source).toBe("smart");
       expect(payload.charging_now).toBe(false);
 
       // Verify slot assignments
@@ -241,16 +247,16 @@ describe('Data Processing', () => {
       const chargingNow = true; // Active slot detected
 
       const payload = buildPayloadFromSlots(
-        apiData.plannedDispatches,
-        apiData.vehicleChargingPreferences,
+        apiData.flexPlannedDispatches,
+        apiData.devices,
         currentTime,
         chargingNow
       );
 
       expect(payload.next_start).toBe("2025-11-29 01:30:00+00:00");
-      expect(payload.total_energy).toBe(-15.5);
-      expect(payload.next_kwh).toBe("-15.50");
-      expect(payload.next_source).toBe("smart-charge");
+      expect(payload.total_energy).toBe(15.5);
+      expect(payload.next_kwh).toBe("15.50");
+      expect(payload.next_source).toBe("smart");
       expect(payload.charging_now).toBe(true);
 
       expect(payload.slot1_start).toBe("2025-11-29 01:30:00+00:00");
@@ -273,8 +279,8 @@ describe('Data Processing', () => {
       const chargingNow = false;
 
       const payload = buildPayloadFromSlots(
-        apiData.plannedDispatches,
-        apiData.vehicleChargingPreferences,
+        apiData.flexPlannedDispatches,
+        apiData.devices,
         currentTime,
         chargingNow
       );
@@ -310,8 +316,8 @@ describe('Data Processing', () => {
       const chargingNow = false;
 
       const payload = buildPayloadFromSlots(
-        apiData.plannedDispatches,
-        apiData.vehicleChargingPreferences,
+        apiData.flexPlannedDispatches,
+        apiData.devices,
         currentTime,
         chargingNow
       );
@@ -324,8 +330,8 @@ describe('Data Processing', () => {
       expect(payload.slot3_start).toBe("2025-11-30 02:00:00+00:00");
       expect(payload.slot3_end).toBe("2025-11-30 05:30:00+00:00");
 
-      // Total energy: -10.2 + -5.5 + -18.7 = -34.4
-      expect(payload.total_energy).toBeCloseTo(-34.4, 1);
+      // Total energy: 10.2 + 5.5 + 18.7 = 34.4
+      expect(payload.total_energy).toBeCloseTo(34.4, 1);
 
       // Window should span from first to last slot
       expect(payload.window_start).toBe("2025-11-29 01:30:00+00:00");
@@ -333,8 +339,8 @@ describe('Data Processing', () => {
 
       // Next slot details
       expect(payload.next_start).toBe("2025-11-29 01:30:00+00:00");
-      expect(payload.next_kwh).toBe("-10.20");
-      expect(payload.next_source).toBe("smart-charge");
+      expect(payload.next_kwh).toBe("10.20");
+      expect(payload.next_source).toBe("smart");
     });
 
     /**
@@ -351,19 +357,20 @@ describe('Data Processing', () => {
 
       const slots = [
         {
-          startDt: "2025-11-28 01:30:00+00:00",
-          endDt: "2025-11-28 05:30:00+00:00", // Yesterday - already ended
-          deltaKwh: -12,
-          meta: { source: "smart-charge" }
+          start: "2025-11-28 01:30:00+00:00",
+          end: "2025-11-28 05:30:00+00:00",
+          energyAddedKwh: 12,
+          type: "SMART"
         }
       ];
 
-      const prefs = {
-        weekdayTargetSoc: 80,
-        weekdayTargetTime: "08:00"
-      };
+      const devices = [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: { schedules: [{ dayOfWeek: 'MONDAY', time: '08:00:00', max: 80 }] }
+      }];
 
-      const payload = buildPayloadFromSlots(slots, prefs, currentTime, chargingNow);
+      const payload = buildPayloadFromSlots(slots, devices, currentTime, chargingNow);
 
       // Past slot should be filtered out
       expect(payload.next_start).toBeNull();
@@ -386,43 +393,44 @@ describe('Data Processing', () => {
 
       const slots = [
         {
-          startDt: "2025-11-28 01:30:00+00:00",
-          endDt: "2025-11-28 05:30:00+00:00", // Past
-          deltaKwh: -100, // Should not be counted
-          meta: { source: "smart-charge" }
+          start: "2025-11-28 01:30:00+00:00",
+          end: "2025-11-28 05:30:00+00:00", // Past
+          energyAddedKwh: 100,
+          type: "SMART"
         },
         {
-          startDt: "2025-11-29 21:30:00+00:00",
-          endDt: "2025-11-29 22:00:00+00:00", // Future
-          deltaKwh: -10,
-          meta: { source: "smart-charge" }
+          start: "2025-11-29 21:30:00+00:00",
+          end: "2025-11-29 22:00:00+00:00", // Future
+          energyAddedKwh: 10,
+          type: "SMART"
         },
         {
-          startDt: "2025-11-29 23:00:00+00:00",
-          endDt: "2025-11-30 04:00:00+00:00", // Future
-          deltaKwh: -15,
-          meta: { source: "smart-charge" }
+          start: "2025-11-29 23:00:00+00:00",
+          end: "2025-11-30 04:00:00+00:00", // Future
+          energyAddedKwh: 15,
+          type: "SMART"
         }
       ];
 
-      const prefs = {
-        weekdayTargetSoc: 80,
-        weekdayTargetTime: "04:00"
-      };
+      const devices = [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: { schedules: [{ dayOfWeek: 'MONDAY', time: '04:00:00', max: 80 }] }
+      }];
 
-      const payload = buildPayloadFromSlots(slots, prefs, currentTime, chargingNow);
+      const payload = buildPayloadFromSlots(slots, devices, currentTime, chargingNow);
 
       // Should only have 2 future slots
       expect(payload.slot1_start).toBe("2025-11-29 21:30:00+00:00");
       expect(payload.slot2_start).toBe("2025-11-29 23:00:00+00:00");
       expect(payload.slot3_start).toBeNull();
 
-      // Total energy should be -10 + -15 = -25 (not including -100 from past)
-      expect(payload.total_energy).toBe(-25);
+      // Total energy should be 10 + 15 = 25 (not including 100 from past)
+      expect(payload.total_energy).toBe(25);
 
       // Next slot should be first future slot
       expect(payload.next_start).toBe("2025-11-29 21:30:00+00:00");
-      expect(payload.next_kwh).toBe("-10.00");
+      expect(payload.next_kwh).toBe("10.00");
     });
 
     /**
@@ -437,8 +445,8 @@ describe('Data Processing', () => {
       const chargingNow = false;
 
       const payload = buildPayloadFromSlots(
-        apiData.plannedDispatches,
-        apiData.vehicleChargingPreferences,
+        apiData.flexPlannedDispatches,
+        apiData.devices,
         currentTime,
         chargingNow
       );
@@ -461,21 +469,22 @@ describe('Data Processing', () => {
 
       const slots = [
         {
-          startDt: "2025-11-29 12:00:00+00:00",
-          endDt: "2025-11-29 13:00:00+00:00",
-          deltaKwh: -5.5,
-          meta: { source: "bump-charge" }
+          start: "2025-11-29 12:00:00+00:00",
+          end: "2025-11-29 13:00:00+00:00",
+          energyAddedKwh: 5.5,
+          type: "BOOST"
         }
       ];
 
-      const prefs = {
-        weekdayTargetSoc: 90,
-        weekdayTargetTime: "07:00"
-      };
+      const devices = [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: { schedules: [{ dayOfWeek: 'MONDAY', time: '07:00:00', max: 90 }] }
+      }];
 
-      const payload = buildPayloadFromSlots(slots, prefs, currentTime, chargingNow);
+      const payload = buildPayloadFromSlots(slots, devices, currentTime, chargingNow);
 
-      expect(payload.next_source).toBe("bump-charge");
+      expect(payload.next_source).toBe("boost");
     });
   });
 });

@@ -76,8 +76,8 @@ describe('Reconciliation Loop - Time-Based State Detection', () => {
     const now = new Date();
 
     const shouldBeCharging = cachedSlots.some(slot => {
-      const start = new Date(slot.startDt);
-      const end = new Date(slot.endDt);
+      const start = new Date(slot.start);
+      const end = new Date(slot.end);
       return start <= now && end > now;
     });
 
@@ -119,10 +119,10 @@ describe('Reconciliation Loop - Time-Based State Detection', () => {
       // Slot starts at 02:00 (10 minutes from now)
       cachedSlots = [
         {
-          startDt: '2025-12-10 02:00:00+00:00',
-          endDt: '2025-12-10 03:00:00+00:00',
-          deltaKwh: -5,
-          meta: { source: 'smart-charge' }
+          start: '2025-12-10 02:00:00+00:00',
+          end: '2025-12-10 03:00:00+00:00',
+          energyAddedKwh: 5,
+          type: 'SMART'
         }
       ];
 
@@ -190,10 +190,10 @@ describe('Reconciliation Loop - Time-Based State Detection', () => {
 
       cachedSlots = [
         {
-          startDt: '2025-12-10 02:00:00+00:00',
-          endDt: '2025-12-10 03:00:00+00:00',
-          deltaKwh: -5,
-          meta: { source: 'smart-charge' }
+          start: '2025-12-10 02:00:00+00:00',
+          end: '2025-12-10 03:00:00+00:00',
+          energyAddedKwh: 5,
+          type: 'SMART'
         }
       ];
 
@@ -235,10 +235,10 @@ describe('Reconciliation Loop - Time-Based State Detection', () => {
 
       cachedSlots = [
         {
-          startDt: '2025-12-10 02:00:00+00:00',
-          endDt: '2025-12-10 03:00:00+00:00',
-          deltaKwh: -5,
-          meta: { source: 'smart-charge' }
+          start: '2025-12-10 02:00:00+00:00',
+          end: '2025-12-10 03:00:00+00:00',
+          energyAddedKwh: 5,
+          type: 'SMART'
         }
       ];
 
@@ -302,16 +302,16 @@ describe('Reconciliation Loop - Time-Based State Detection', () => {
 
       cachedSlots = [
         {
-          startDt: '2025-12-10 02:00:00+00:00', // Slot 1: 02:00-02:30
-          endDt: '2025-12-10 02:30:00+00:00',
-          deltaKwh: -3,
-          meta: { source: 'smart-charge' }
+          start: '2025-12-10 02:00:00+00:00', // Slot 1: 02:00-02:30
+          end: '2025-12-10 02:30:00+00:00',
+          energyAddedKwh: 3,
+          type: 'SMART'
         },
         {
-          startDt: '2025-12-10 03:00:00+00:00', // Slot 2: 03:00-03:30
-          endDt: '2025-12-10 03:30:00+00:00',
-          deltaKwh: -3,
-          meta: { source: 'smart-charge' }
+          start: '2025-12-10 03:00:00+00:00', // Slot 2: 03:00-03:30
+          end: '2025-12-10 03:30:00+00:00',
+          energyAddedKwh: 3,
+          type: 'SMART'
         }
       ];
 
@@ -371,10 +371,10 @@ describe('Reconciliation Loop - Time-Based State Detection', () => {
 
       cachedSlots = [
         {
-          startDt: '2025-12-10 02:00:00+00:00',
-          endDt: '2025-12-10 03:00:00+00:00',
-          deltaKwh: -5,
-          meta: { source: 'smart-charge' }
+          start: '2025-12-10 02:00:00+00:00',
+          end: '2025-12-10 03:00:00+00:00',
+          energyAddedKwh: 5,
+          type: 'SMART'
         }
       ];
 
@@ -435,10 +435,10 @@ describe('Reconciliation Loop - Time-Based State Detection', () => {
       jest.setSystemTime(new Date('2025-12-10T01:30:00Z'));
       cachedSlots = [
         {
-          startDt: '2025-12-10 02:00:00+00:00',
-          endDt: '2025-12-10 03:00:00+00:00',
-          deltaKwh: -15,
-          meta: { source: 'smart-charge' }
+          start: '2025-12-10 02:00:00+00:00',
+          end: '2025-12-10 03:00:00+00:00',
+          energyAddedKwh: 15,
+          type: 'SMART'
         }
       ];
       jest.advanceTimersByTime(10000);

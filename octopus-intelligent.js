@@ -1,34 +1,23 @@
-const https = require("https");
-
-function graphqlPost(body, token) {
-    return new Promise((resolve, reject) => {
-        const payload = JSON.stringify(body);
-        const headers = {
-            "Content-Type": "application/json",
-            "Content-Length": Buffer.byteLength(payload)
-        };
-        if (token) headers["Authorization"] = token;
-        const req = https.request({
-            hostname: "api.octopus.energy",
-            path: "/v1/graphql/",
-            method: "POST",
-            headers
-        }, (res) => {
-            let raw = "";
-            res.on("data", chunk => raw += chunk);
-            res.on("end", () => {
-                try {
-                    resolve({ data: JSON.parse(raw), status: res.statusCode, headers: res.headers });
-                } catch (e) {
-                    reject(new Error("Failed to parse API response: " + e.message));
-                }
-            });
-        });
-        req.on("error", reject);
-        req.write(payload);
-        req.end();
-    });
-}
+'use strict';
+const { graphqlPost } = require('./lib/graphql');
+const { convertToTimezone, resolveTimezone } = require('./lib/timezone');
+const { createApiMetrics } = require('./lib/api-metrics');
+const intelligentCategory = require('./lib/categories/intelligent');
+const { buildDefaultPayload } = require('./lib/payload');
+const { createScheduler } = require('./lib/scheduler');
+const { discoverProducts } = require('./lib/discovery');
+const { mergePayload } = require('./lib/payload');
+const electricityCategory = require('./lib/categories/electricity');
+const gasCategory = require('./lib/categories/gas');
+const wheelOfFortuneCategory = require('./lib/categories/wheel-of-fortune');
+const homeMiniCategory = require('./lib/categories/home-mini');
+const completedDispatchesCategory = require('./lib/categories/completed-dispatches');
+const accountCategory = require('./lib/categories/account');
+const octoplusCategory = require('./lib/categories/octoplus');
+const flexPlannedDispatchesCategory = require('./lib/categories/flex-planned-dispatches');
+const applicableRatesCategory = require('./lib/categories/applicable-rates');
+const savingSessionsCategory = require('./lib/categories/saving-sessions');
+const freeElectricityCategory = require('./lib/categories/free-electricity');
 
 module.exports = function (RED) {
     function OctopusIntelligentNode(config) {
@@ -65,117 +54,164 @@ module.exports = function (RED) {
         ];
 
         // 3. Sensor Definitions (Read-Only)
+        // category: undefined = main, 'config' = Configuration, 'diagnostic' = Diagnostics
         const sensors = [
-            // Formatted timestamps (show "1 hour ago" in Home Assistant)
-            { id: "next_charge", name: "Next Charge Time", class: "timestamp", icon: "mdi:timer", val: "next_start" },
-            { id: "total_energy", name: "Total Planned Energy", class: "energy", unit: "kWh", val: "total_energy" },
-            { id: "next_kwh", name: "Next Slot Energy", class: "energy", unit: "kWh", val: "next_kwh" },
-            { id: "source", name: "Charge Source", icon: "mdi:help-circle", val: "next_source" },
-            // Individual slot times (formatted)
-            { id: "slot1_start", name: "Slot 1 Start", class: "timestamp", icon: "mdi:timer-outline", val: "slot1_start" },
-            { id: "slot1_end", name: "Slot 1 End", class: "timestamp", icon: "mdi:timer-outline", val: "slot1_end" },
-            { id: "slot2_start", name: "Slot 2 Start", class: "timestamp", icon: "mdi:timer-outline", val: "slot2_start" },
-            { id: "slot2_end", name: "Slot 2 End", class: "timestamp", icon: "mdi:timer-outline", val: "slot2_end" },
-            { id: "slot3_start", name: "Slot 3 Start", class: "timestamp", icon: "mdi:timer-outline", val: "slot3_start" },
-            { id: "slot3_end", name: "Slot 3 End", class: "timestamp", icon: "mdi:timer-outline", val: "slot3_end" },
-            // Overall window (formatted)
-            { id: "window_start", name: "Overall Window Start", class: "timestamp", icon: "mdi:timer-play", val: "window_start" },
-            { id: "window_end", name: "Overall Window End", class: "timestamp", icon: "mdi:timer-stop", val: "window_end" },
+            // --- EV Charging (main) ---
+            { id: 'next_charge',   name: 'Next Charge Time',       class: 'timestamp', icon: 'mdi:timer',              val: 'next_start' },
+            { id: 'total_energy',  name: 'Total Planned Energy',   unit: 'kWh',        class: 'energy',                val: 'total_energy' },
+            { id: 'next_kwh',      name: 'Next Slot Energy',       unit: 'kWh',        class: 'energy',                val: 'next_kwh' },
+            { id: 'source',        name: 'Charge Source',          icon: 'mdi:help-circle',                            val: 'next_source' },
+            { id: 'slot1_start',   name: 'Slot 1 Start',           class: 'timestamp', icon: 'mdi:timer-outline',      val: 'slot1_start' },
+            { id: 'slot1_end',     name: 'Slot 1 End',             class: 'timestamp', icon: 'mdi:timer-outline',      val: 'slot1_end' },
+            { id: 'slot2_start',   name: 'Slot 2 Start',           class: 'timestamp', icon: 'mdi:timer-outline',      val: 'slot2_start' },
+            { id: 'slot2_end',     name: 'Slot 2 End',             class: 'timestamp', icon: 'mdi:timer-outline',      val: 'slot2_end' },
+            { id: 'slot3_start',   name: 'Slot 3 Start',           class: 'timestamp', icon: 'mdi:timer-outline',      val: 'slot3_start' },
+            { id: 'slot3_end',     name: 'Slot 3 End',             class: 'timestamp', icon: 'mdi:timer-outline',      val: 'slot3_end' },
+            { id: 'window_start',  name: 'Overall Window Start',   class: 'timestamp', icon: 'mdi:timer-play',         val: 'window_start' },
+            { id: 'window_end',    name: 'Overall Window End',     class: 'timestamp', icon: 'mdi:timer-stop',         val: 'window_end' },
 
-            // v1.0.4: Next poll timer
-            { id: "next_poll", name: "Next Poll Time", class: "timestamp", icon: "mdi:clock-outline", val: "next_poll" },
+            // --- EV Charging (diagnostic) ---
+            { id: 'next_poll',            name: 'Next Poll Time',          class: 'timestamp', icon: 'mdi:clock-outline', val: 'next_poll',            category: 'diagnostic' },
+            { id: 'refresh_available_at', name: 'Refresh Available At',    class: 'timestamp', icon: 'mdi:timer-sand',    val: 'refresh_available_at', category: 'diagnostic' },
+            { id: 'api_requests_hour',    name: 'API Requests (Last Hour)',                    icon: 'mdi:api',           val: 'api_requests_hour',    category: 'diagnostic' },
+            { id: 'api_complexity_hour',  name: 'API Complexity (Last Hour)',                  icon: 'mdi:chart-line',    val: 'api_complexity_hour',  category: 'diagnostic' },
+            { id: 'api_complexity_percent', name: 'API Complexity Usage',  unit: '%',          icon: 'mdi:percent',       val: 'api_complexity_percent', category: 'diagnostic' },
 
-            // v1.0.4: Refresh available timestamp (diagnostic) - for Home Assistant countdown
-            { id: "refresh_available_at", name: "Refresh Available At", class: "timestamp", icon: "mdi:timer-sand", val: "refresh_available_at" },
+            // --- Raw timestamps (diagnostic) ---
+            { id: 'next_charge_raw',     name: 'Next Charge Time (Raw)',        icon: 'mdi:timer',          val: 'next_start_raw',      category: 'diagnostic' },
+            { id: 'next_poll_raw',       name: 'Next Poll Time (Raw)',          icon: 'mdi:clock-outline',  val: 'next_poll_raw',       category: 'diagnostic' },
+            { id: 'slot1_start_raw',     name: 'Slot 1 Start (Raw)',            icon: 'mdi:timer-outline',  val: 'slot1_start_raw',     category: 'diagnostic' },
+            { id: 'slot1_end_raw',       name: 'Slot 1 End (Raw)',              icon: 'mdi:timer-outline',  val: 'slot1_end_raw',       category: 'diagnostic' },
+            { id: 'slot2_start_raw',     name: 'Slot 2 Start (Raw)',            icon: 'mdi:timer-outline',  val: 'slot2_start_raw',     category: 'diagnostic' },
+            { id: 'slot2_end_raw',       name: 'Slot 2 End (Raw)',              icon: 'mdi:timer-outline',  val: 'slot2_end_raw',       category: 'diagnostic' },
+            { id: 'slot3_start_raw',     name: 'Slot 3 Start (Raw)',            icon: 'mdi:timer-outline',  val: 'slot3_start_raw',     category: 'diagnostic' },
+            { id: 'slot3_end_raw',       name: 'Slot 3 End (Raw)',              icon: 'mdi:timer-outline',  val: 'slot3_end_raw',       category: 'diagnostic' },
+            { id: 'window_start_raw',    name: 'Overall Window Start (Raw)',    icon: 'mdi:timer-play',     val: 'window_start_raw',    category: 'diagnostic' },
+            { id: 'window_end_raw',      name: 'Overall Window End (Raw)',      icon: 'mdi:timer-stop',     val: 'window_end_raw',      category: 'diagnostic' },
 
-            // v1.0.4: API complexity tracking (diagnostic)
-            { id: "api_requests_hour", name: "API Requests (Last Hour)", icon: "mdi:api", val: "api_requests_hour" },
-            { id: "api_complexity_hour", name: "API Complexity (Last Hour)", icon: "mdi:chart-line", val: "api_complexity_hour" },
-            { id: "api_complexity_percent", name: "API Complexity Usage", icon: "mdi:percent", unit: "%", val: "api_complexity_percent" },
+            // --- Locale timestamps (diagnostic) ---
+            { id: 'next_charge_locale',  name: 'Next Charge Time (Locale)',     icon: 'mdi:timer',          val: 'next_start_locale',   category: 'diagnostic' },
+            { id: 'slot1_start_locale',  name: 'Slot 1 Start (Locale)',         icon: 'mdi:timer-outline',  val: 'slot1_start_locale',  category: 'diagnostic' },
+            { id: 'slot1_end_locale',    name: 'Slot 1 End (Locale)',           icon: 'mdi:timer-outline',  val: 'slot1_end_locale',    category: 'diagnostic' },
+            { id: 'slot2_start_locale',  name: 'Slot 2 Start (Locale)',         icon: 'mdi:timer-outline',  val: 'slot2_start_locale',  category: 'diagnostic' },
+            { id: 'slot2_end_locale',    name: 'Slot 2 End (Locale)',           icon: 'mdi:timer-outline',  val: 'slot2_end_locale',    category: 'diagnostic' },
+            { id: 'slot3_start_locale',  name: 'Slot 3 Start (Locale)',         icon: 'mdi:timer-outline',  val: 'slot3_start_locale',  category: 'diagnostic' },
+            { id: 'slot3_end_locale',    name: 'Slot 3 End (Locale)',           icon: 'mdi:timer-outline',  val: 'slot3_end_locale',    category: 'diagnostic' },
+            { id: 'window_start_locale', name: 'Overall Window Start (Locale)', icon: 'mdi:timer-play',     val: 'window_start_locale', category: 'diagnostic' },
+            { id: 'window_end_locale',   name: 'Overall Window End (Locale)',   icon: 'mdi:timer-stop',     val: 'window_end_locale',   category: 'diagnostic' },
+            { id: 'timezone_detected',   name: 'Timezone Detected',             icon: 'mdi:earth',          val: 'timezone_detected',   category: 'diagnostic' },
+            { id: 'timezone_applied',    name: 'Timezone Applied',              icon: 'mdi:earth-plus',     val: 'timezone_applied',    category: 'diagnostic' },
+            // --- Electricity (main) ---
+            { id: 'electricity_standing_charge',   name: 'Electricity Standing Charge', unit: 'p/day', icon: 'mdi:cash',                     val: 'electricity_standing_charge' },
+            { id: 'electricity_consumption_kwh',   name: 'Electricity Consumption',     unit: 'kWh',   class: 'energy',                      val: 'electricity_consumption_kwh' },
+            // --- Electricity (config) ---
+            { id: 'electricity_unit_rate',          name: 'Electricity Unit Rate',        unit: 'p/kWh', icon: 'mdi:flash',                    val: 'electricity_unit_rate' },
+            { id: 'electricity_tariff_code',        name: 'Electricity Tariff Code',                     icon: 'mdi:tag',                      val: 'electricity_tariff_code' },
+            { id: 'electricity_valid_from',         name: 'Electricity Tariff Valid From', class: 'timestamp', icon: 'mdi:calendar-start',     val: 'electricity_valid_from' },
+            { id: 'electricity_valid_to',           name: 'Electricity Tariff Valid To',   class: 'timestamp', icon: 'mdi:calendar-end',       val: 'electricity_valid_to' },
+            // --- Electricity (diagnostic) ---
+            { id: 'electricity_consumption_from',   name: 'Electricity Consumption From', class: 'timestamp', icon: 'mdi:calendar-clock',     val: 'electricity_consumption_from',  category: 'diagnostic' },
+            { id: 'electricity_consumption_to',     name: 'Electricity Consumption To',   class: 'timestamp', icon: 'mdi:calendar-clock',     val: 'electricity_consumption_to',    category: 'diagnostic' },
+            { id: 'electricity_rates_error',        name: 'Electricity Rates Error',                     icon: 'mdi:alert-circle',             val: 'electricity_rates_error',       category: 'diagnostic' },
+            { id: 'electricity_consumption_error',  name: 'Electricity Consumption Error',               icon: 'mdi:alert-circle',             val: 'electricity_consumption_error', category: 'diagnostic' },
 
-            // Raw timestamp strings (show exact API timestamp) - marked as diagnostic
-            { id: "next_charge_raw", name: "Next Charge Time (Raw)", icon: "mdi:timer", val: "next_start_raw" },
-            { id: "next_poll_raw", name: "Next Poll Time (Raw)", icon: "mdi:clock-outline", val: "next_poll_raw" },
-            { id: "slot1_start_raw", name: "Slot 1 Start (Raw)", icon: "mdi:timer-outline", val: "slot1_start_raw" },
-            { id: "slot1_end_raw", name: "Slot 1 End (Raw)", icon: "mdi:timer-outline", val: "slot1_end_raw" },
-            { id: "slot2_start_raw", name: "Slot 2 Start (Raw)", icon: "mdi:timer-outline", val: "slot2_start_raw" },
-            { id: "slot2_end_raw", name: "Slot 2 End (Raw)", icon: "mdi:timer-outline", val: "slot2_end_raw" },
-            { id: "slot3_start_raw", name: "Slot 3 Start (Raw)", icon: "mdi:timer-outline", val: "slot3_start_raw" },
-            { id: "slot3_end_raw", name: "Slot 3 End (Raw)", icon: "mdi:timer-outline", val: "slot3_end_raw" },
-            { id: "window_start_raw", name: "Overall Window Start (Raw)", icon: "mdi:timer-play", val: "window_start_raw" },
-            { id: "window_end_raw", name: "Overall Window End (Raw)", icon: "mdi:timer-stop", val: "window_end_raw" },
-            // v1.1.0: Locale timestamp sensors (plain string — already human-readable local time, no device_class)
-            { id: "next_charge_locale", name: "Next Charge Time (Locale)", icon: "mdi:timer", val: "next_start_locale" },
-            { id: "slot1_start_locale", name: "Slot 1 Start (Locale)", icon: "mdi:timer-outline", val: "slot1_start_locale" },
-            { id: "slot1_end_locale", name: "Slot 1 End (Locale)", icon: "mdi:timer-outline", val: "slot1_end_locale" },
-            { id: "slot2_start_locale", name: "Slot 2 Start (Locale)", icon: "mdi:timer-outline", val: "slot2_start_locale" },
-            { id: "slot2_end_locale", name: "Slot 2 End (Locale)", icon: "mdi:timer-outline", val: "slot2_end_locale" },
-            { id: "slot3_start_locale", name: "Slot 3 Start (Locale)", icon: "mdi:timer-outline", val: "slot3_start_locale" },
-            { id: "slot3_end_locale", name: "Slot 3 End (Locale)", icon: "mdi:timer-outline", val: "slot3_end_locale" },
-            { id: "window_start_locale", name: "Overall Window Start (Locale)", icon: "mdi:timer-play", val: "window_start_locale" },
-            { id: "window_end_locale", name: "Overall Window End (Locale)", icon: "mdi:timer-stop", val: "window_end_locale" },
-            // v1.1.0: Timezone diagnostic sensors
-            { id: "timezone_detected", name: "Timezone Detected", icon: "mdi:earth", val: "timezone_detected" },
-            { id: "timezone_applied", name: "Timezone Applied", icon: "mdi:earth-plus", val: "timezone_applied" }
+            // --- Electricity Export (main) ---
+            { id: 'electricity_export_consumption_kwh', name: 'Electricity Export Consumption', unit: 'kWh',   class: 'energy',                       val: 'electricity_export_consumption_kwh' },
+            { id: 'electricity_export_rate_current_pence', name: 'Current Electricity Export Rate',       unit: 'p/kWh',   icon: 'mdi:cash-clock',  val: 'electricity_export_rate_current_pence' },
+            { id: 'electricity_export_rate_current_gbp',   name: 'Electricity Export Rate',               unit: 'GBP/kWh', icon: 'mdi:cash-clock', stateClass: 'measurement', val: 'electricity_export_rate_current_gbp' },
+            // --- Electricity Export (config) ---
+            // Solar/export users have a second agreement with productCode containing "OUTGOING".
+            // unit_rate is null for half-hourly export tariffs (e.g. Agile Outgoing) — current
+            // half-hourly export rate comes from electricity_export_rate_current_pence.
+            { id: 'electricity_export_unit_rate',      name: 'Electricity Export Unit Rate',      unit: 'p/kWh', icon: 'mdi:transmission-tower-export', val: 'electricity_export_unit_rate' },
+            { id: 'electricity_export_standing_charge',name: 'Electricity Export Standing Charge',unit: 'p/day', icon: 'mdi:cash',                      val: 'electricity_export_standing_charge' },
+            { id: 'electricity_export_tariff_code',    name: 'Electricity Export Tariff Code',                   icon: 'mdi:tag',                       val: 'electricity_export_tariff_code' },
+            { id: 'electricity_export_valid_from',     name: 'Electricity Export Tariff Valid From', class: 'timestamp', icon: 'mdi:calendar-start',   val: 'electricity_export_valid_from' },
+            { id: 'electricity_export_valid_to',       name: 'Electricity Export Tariff Valid To',   class: 'timestamp', icon: 'mdi:calendar-end',     val: 'electricity_export_valid_to' },
+            // --- Electricity Export (diagnostic) ---
+            { id: 'electricity_export_consumption_from', name: 'Electricity Export Consumption From', class: 'timestamp', icon: 'mdi:calendar-clock', val: 'electricity_export_consumption_from', category: 'diagnostic' },
+            { id: 'electricity_export_consumption_to',   name: 'Electricity Export Consumption To',   class: 'timestamp', icon: 'mdi:calendar-clock', val: 'electricity_export_consumption_to',   category: 'diagnostic' },
+            { id: 'electricity_export_rate_count',       name: 'Electricity Export Rate Slots',       icon: 'mdi:format-list-numbered', val: 'electricity_export_rate_count', category: 'diagnostic' },
+            { id: 'electricity_export_rate_prev_pence',  name: 'Electricity Export Rate Prev',        unit: 'p/kWh', icon: 'mdi:cash-clock',          val: 'electricity_export_rate_prev_pence',  category: 'diagnostic' },
+            { id: 'electricity_export_rate_prev_to',     name: 'Electricity Export Rate Prev Ends',   class: 'timestamp', icon: 'mdi:calendar-clock', val: 'electricity_export_rate_prev_to',    category: 'diagnostic' },
+            { id: 'electricity_export_rate_next_pence',  name: 'Electricity Export Rate Next',        unit: 'p/kWh', icon: 'mdi:cash-clock',          val: 'electricity_export_rate_next_pence',  category: 'diagnostic' },
+            { id: 'electricity_export_rate_next_from',   name: 'Electricity Export Rate Next From',   class: 'timestamp', icon: 'mdi:calendar-clock', val: 'electricity_export_rate_next_from',  category: 'diagnostic' },
+            { id: 'electricity_export_rate_error',       name: 'Electricity Export Rate Error',       icon: 'mdi:alert-circle', val: 'electricity_export_rate_error', category: 'diagnostic' },
+
+            // --- Gas (main) ---
+            { id: 'gas_standing_charge',    name: 'Gas Standing Charge',  unit: 'p/day', icon: 'mdi:cash',              val: 'gas_standing_charge' },
+            { id: 'gas_consumption_kwh',    name: 'Gas Consumption',      unit: 'kWh',   class: 'energy',               val: 'gas_consumption_kwh' },
+            // --- Gas (config) ---
+            { id: 'gas_unit_rate',          name: 'Gas Unit Rate',         unit: 'p/kWh', icon: 'mdi:fire',              val: 'gas_unit_rate' },
+            { id: 'gas_tariff_code',        name: 'Gas Tariff Code',                      icon: 'mdi:tag',               val: 'gas_tariff_code' },
+            { id: 'gas_valid_from',         name: 'Gas Tariff Valid From', class: 'timestamp', icon: 'mdi:calendar-start', val: 'gas_valid_from' },
+            { id: 'gas_valid_to',           name: 'Gas Tariff Valid To',   class: 'timestamp', icon: 'mdi:calendar-end',   val: 'gas_valid_to' },
+            // --- Gas (diagnostic) ---
+            { id: 'gas_consumption_from',   name: 'Gas Consumption From',  class: 'timestamp', icon: 'mdi:calendar-clock', val: 'gas_consumption_from',  category: 'diagnostic' },
+            { id: 'gas_consumption_to',     name: 'Gas Consumption To',    class: 'timestamp', icon: 'mdi:calendar-clock', val: 'gas_consumption_to',    category: 'diagnostic' },
+            { id: 'gas_rates_error',        name: 'Gas Rates Error',                       icon: 'mdi:alert-circle',      val: 'gas_rates_error',        category: 'diagnostic' },
+            { id: 'gas_consumption_error',  name: 'Gas Consumption Error',                 icon: 'mdi:alert-circle',      val: 'gas_consumption_error',  category: 'diagnostic' },
+
+            // --- Applicable Rates (main) ---
+            { id: 'applicable_rates_current_pence', name: 'Current Electricity Rate',       unit: 'p/kWh',    icon: 'mdi:cash-clock', val: 'applicable_rates_current_pence' },
+            { id: 'applicable_rates_current_gbp',   name: 'Electricity Rate',               unit: 'GBP/kWh',  icon: 'mdi:cash-clock', stateClass: 'measurement', val: 'applicable_rates_current_gbp' },
+            // --- Applicable Rates (diagnostic) ---
+            { id: 'applicable_rates_count', name: 'Applicable Rates Slots', icon: 'mdi:format-list-numbered', val: 'applicable_rates_count', category: 'diagnostic' },
+            { id: 'applicable_rates_error', name: 'Applicable Rates Error', icon: 'mdi:alert-circle',          val: 'applicable_rates_error', category: 'diagnostic' },
+
+            // --- Account (main) ---
+            { id: 'account_balance_pounds', name: 'Account Balance',        unit: '£',  icon: 'mdi:cash-multiple', val: 'account_balance_pounds' },
+            // --- Account (diagnostic) ---
+            { id: 'account_balance_pence',  name: 'Account Balance (Pence)', unit: 'p', icon: 'mdi:cash',          val: 'account_balance_pence',  category: 'diagnostic' },
+            { id: 'account_error',          name: 'Account Error',                      icon: 'mdi:alert-circle',  val: 'account_error',          category: 'diagnostic' },
+
+            // --- Octoplus (config) ---
+            // octoplus_enrolled and octoplus_loyalty_points_user are booleans — published as
+            // binary_sensor entities further down. Leaving them out of this array.
+            { id: 'octoplus_enrollment_status',   name: 'Octoplus Status',         icon: 'mdi:star-circle-outline', val: 'octoplus_enrollment_status' },
+            // --- Octoplus (diagnostic) ---
+            { id: 'octoplus_error', name: 'Octoplus Error', icon: 'mdi:alert-circle', val: 'octoplus_error', category: 'diagnostic' },
+
+            // --- Wheel of Fortune (main) ---
+            { id: 'wheel_of_fortune_electricity_spins', name: 'WoF Electricity Spins', icon: 'mdi:star-circle', val: 'wheel_of_fortune_electricity_spins' },
+            { id: 'wheel_of_fortune_gas_spins',         name: 'WoF Gas Spins',         icon: 'mdi:star-circle', val: 'wheel_of_fortune_gas_spins' },
+            // --- Wheel of Fortune (diagnostic) ---
+            { id: 'wheel_of_fortune_electricity_max',   name: 'WoF Electricity Max',   icon: 'mdi:star-outline', val: 'wheel_of_fortune_electricity_max',  category: 'diagnostic' },
+            { id: 'wheel_of_fortune_electricity_used',  name: 'WoF Electricity Used',  icon: 'mdi:star-outline', val: 'wheel_of_fortune_electricity_used', category: 'diagnostic' },
+            { id: 'wheel_of_fortune_gas_max',           name: 'WoF Gas Max',           icon: 'mdi:star-outline', val: 'wheel_of_fortune_gas_max',          category: 'diagnostic' },
+            { id: 'wheel_of_fortune_gas_used',          name: 'WoF Gas Used',          icon: 'mdi:star-outline', val: 'wheel_of_fortune_gas_used',         category: 'diagnostic' },
+            { id: 'wheel_of_fortune_error',             name: 'WoF Error',             icon: 'mdi:alert-circle', val: 'wheel_of_fortune_error',            category: 'diagnostic' },
+
+            // --- Home Mini (main) ---
+            { id: 'mini_demand_kw',             name: 'Home Mini Demand',             unit: 'kW',  class: 'power',  icon: 'mdi:home-lightning-bolt', val: 'mini_demand_kw' },
+            { id: 'mini_consumption_delta_kwh', name: 'Home Mini Period Consumption', unit: 'kWh', class: 'energy', icon: 'mdi:home-lightning-bolt', val: 'mini_consumption_delta_kwh' },
+            // --- Home Mini (diagnostic) ---
+            { id: 'mini_read_at',    name: 'Home Mini Reading Time', class: 'timestamp', icon: 'mdi:clock-outline', val: 'mini_read_at',    category: 'diagnostic' },
+            { id: 'home_mini_error', name: 'Home Mini Error',                            icon: 'mdi:alert-circle',  val: 'home_mini_error', category: 'diagnostic' },
+
+            // --- Saving Sessions (main) ---
+            { id: 'saving_session_joined', name: 'Saving Session Joined', icon: 'mdi:lightning-bolt-circle', val: 'saving_session_joined' },
+            { id: 'saving_session_points', name: 'Octopus Points',        icon: 'mdi:star',                  val: 'saving_session_points' },
+            // --- Saving Sessions (config) ---
+            { id: 'saving_session_start', name: 'Saving Session Start', class: 'timestamp', icon: 'mdi:calendar-clock', val: 'saving_session_start' },
+            { id: 'saving_session_end',   name: 'Saving Session End',   class: 'timestamp', icon: 'mdi:calendar-clock', val: 'saving_session_end' },
+            // --- Saving Sessions (diagnostic) ---
+            { id: 'saving_sessions_error', name: 'Saving Sessions Error', icon: 'mdi:alert-circle', val: 'saving_sessions_error', category: 'diagnostic' },
+
+            // --- Free Electricity (config) ---
+            { id: 'free_electricity_start', name: 'Free Electricity Start', class: 'timestamp', icon: 'mdi:flash-circle', val: 'free_electricity_start' },
+            { id: 'free_electricity_end',   name: 'Free Electricity End',   class: 'timestamp', icon: 'mdi:flash-circle', val: 'free_electricity_end' },
+            // --- Free Electricity (diagnostic) ---
+            { id: 'free_electricity_error', name: 'Free Electricity Error', icon: 'mdi:alert-circle', val: 'free_electricity_error', category: 'diagnostic' },
+
+            // --- Dispatches (main) ---
+            { id: 'completed_dispatches_count',    name: 'Completed Dispatches',    icon: 'mdi:history',               val: 'completed_dispatches_count' },
+            { id: 'flex_planned_dispatches_count', name: 'Flex Planned Dispatches', icon: 'mdi:lightning-bolt-circle', val: 'flex_planned_dispatches_count' },
+            // --- Dispatches (diagnostic) ---
+            { id: 'completed_dispatches_error',    name: 'Completed Dispatches Error',    icon: 'mdi:alert-circle', val: 'completed_dispatches_error',    category: 'diagnostic' },
+            { id: 'flex_planned_dispatches_error', name: 'Flex Planned Dispatches Error', icon: 'mdi:alert-circle', val: 'flex_planned_dispatches_error', category: 'diagnostic' },
+            { id: 'intelligent_error',             name: 'Intelligent Error',             icon: 'mdi:alert-circle', val: 'intelligent_error',             category: 'diagnostic' },
         ];
-
-        // 3. Timezone Helpers
-        function convertToTimezone(dateStr, tz) {
-            if (!dateStr || typeof dateStr !== 'string') return dateStr;
-            try {
-                const date = new Date(dateStr.replace(' ', 'T'));
-                if (isNaN(date.getTime())) return dateStr;
-
-                const parts = new Intl.DateTimeFormat('en-CA', {
-                    timeZone: tz,
-                    year: 'numeric', month: '2-digit', day: '2-digit',
-                    hour: '2-digit', minute: '2-digit', second: '2-digit',
-                    hour12: false, hourCycle: 'h23'
-                }).formatToParts(date);
-
-                const get = (type) => (parts.find(p => p.type === type) || {}).value || '00';
-                const y = get('year');
-                const mo = get('month');
-                const d = get('day');
-                const h = get('hour');
-                const mi = get('minute');
-                const s = get('second');
-
-                const localAsUtc = Date.UTC(
-                    parseInt(y, 10), parseInt(mo, 10) - 1, parseInt(d, 10),
-                    parseInt(h, 10), parseInt(mi, 10), parseInt(s, 10)
-                );
-                const offsetMins = Math.round((localAsUtc - date.getTime()) / 60000);
-                const sign = offsetMins >= 0 ? '+' : '-';
-                const absMin = Math.abs(offsetMins);
-                const offsetStr = `${sign}${String(Math.floor(absMin / 60)).padStart(2, '0')}:${String(absMin % 60).padStart(2, '0')}`;
-
-                return `${y}-${mo}-${d} ${h}:${mi}:${s}${offsetStr}`;
-            } catch (e) {
-                node.warn(`Invalid timezone: ${tz}, falling back to auto-detected`);
-                return dateStr;
-            }
-        }
-
-        function resolveTimezone(nd) {
-            try {
-                const persisted = nd.context().get('timezone');
-                if (persisted && typeof persisted === 'string' && persisted.trim().length > 0) {
-                    return persisted.trim();
-                }
-            } catch (e) {}
-
-            const override = nd.timezoneOverride;
-            if (override && typeof override === 'string' && override.trim().length > 0) {
-                return override.trim();
-            }
-
-            try {
-                return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-            } catch (e) {
-                return 'UTC';
-            }
-        }
 
         // 4. Helper: Announce Controls (Write-Enabled)
         function announceControls() {
@@ -187,7 +223,7 @@ module.exports = function (RED) {
                 name: "Octopus Intelligent",
                 manufacturer: "Octopus Energy",
                 model: "Intelligent Octopus Go",
-                sw_version: "1.0.0",
+                sw_version: "2.0.0",
                 suggested_area: "Energy",
                 configuration_url: "https://octopus.energy/intelligent/"
             };
@@ -278,6 +314,76 @@ module.exports = function (RED) {
             };
             node.broker.client.publish(`${mqttPrefix}/binary_sensor/${uniqueIdPrefix}_charging_now/config`, JSON.stringify(chargingNowBinarySensor), { retain: true });
 
+            // G2. Saving Session Available Binary Sensor
+            const savingSessionBinarySensor = {
+                name: "Octopus Saving Session Available",
+                unique_id: `${uniqueIdPrefix}_saving_session_available`,
+                state_topic: stateTopic,
+                value_template: "{{ value_json.saving_session_available }}",
+                payload_on: "True",
+                payload_off: "False",
+                icon: "mdi:lightning-bolt-circle",
+                device: device
+            };
+            node.broker.client.publish(`${mqttPrefix}/binary_sensor/${uniqueIdPrefix}_saving_session_available/config`, JSON.stringify(savingSessionBinarySensor), { retain: true });
+
+            // G3. Free Electricity Active Binary Sensor
+            const freeElectricityActiveSensor = {
+                name: "Octopus Free Electricity Active",
+                unique_id: `${uniqueIdPrefix}_free_electricity_active`,
+                state_topic: stateTopic,
+                value_template: "{{ value_json.free_electricity_active }}",
+                payload_on: "True",
+                payload_off: "False",
+                icon: "mdi:flash-circle",
+                device: device
+            };
+            node.broker.client.publish(`${mqttPrefix}/binary_sensor/${uniqueIdPrefix}_free_electricity_active/config`, JSON.stringify(freeElectricityActiveSensor), { retain: true });
+
+            // G4. Free Electricity Available Binary Sensor
+            const freeElectricityAvailableSensor = {
+                name: "Octopus Free Electricity Available",
+                unique_id: `${uniqueIdPrefix}_free_electricity_available`,
+                state_topic: stateTopic,
+                value_template: "{{ value_json.free_electricity_available }}",
+                payload_on: "True",
+                payload_off: "False",
+                icon: "mdi:flash-circle-outline",
+                device: device
+            };
+            node.broker.client.publish(`${mqttPrefix}/binary_sensor/${uniqueIdPrefix}_free_electricity_available/config`, JSON.stringify(freeElectricityAvailableSensor), { retain: true });
+
+            // G5. Octoplus Enrolled Binary Sensor
+            // Published as binary_sensor (not sensor) because the value is a boolean —
+            // HA's sensor domain rejects booleans without a device_class, leaving the
+            // entity unregistered.
+            const octoplusEnrolledBinarySensor = {
+                name: "Octopus Octoplus Enrolled",
+                unique_id: `${uniqueIdPrefix}_octoplus_enrolled`,
+                state_topic: stateTopic,
+                value_template: "{{ value_json.octoplus_enrolled }}",
+                payload_on: "True",
+                payload_off: "False",
+                icon: "mdi:star-circle",
+                entity_category: "config",
+                device: device
+            };
+            node.broker.client.publish(`${mqttPrefix}/binary_sensor/${uniqueIdPrefix}_octoplus_enrolled/config`, JSON.stringify(octoplusEnrolledBinarySensor), { retain: true });
+
+            // G6. Octoplus Loyalty Points (boolean) Binary Sensor
+            const octoplusLoyaltyBinarySensor = {
+                name: "Octopus Octoplus Loyalty Points",
+                unique_id: `${uniqueIdPrefix}_octoplus_loyalty_points_user`,
+                state_topic: stateTopic,
+                value_template: "{{ value_json.octoplus_loyalty_points_user }}",
+                payload_on: "True",
+                payload_off: "False",
+                icon: "mdi:star",
+                entity_category: "config",
+                device: device
+            };
+            node.broker.client.publish(`${mqttPrefix}/binary_sensor/${uniqueIdPrefix}_octoplus_loyalty_points_user/config`, JSON.stringify(octoplusLoyaltyBinarySensor), { retain: true });
+
             // H. Announce Read-Only Sensors
             sensors.forEach(sensor => {
                 const payload = {
@@ -289,14 +395,11 @@ module.exports = function (RED) {
                 };
                 if (sensor.class) payload.device_class = sensor.class;
                 if (sensor.unit) payload.unit_of_measurement = sensor.unit;
+                if (sensor.stateClass) payload.state_class = sensor.stateClass;
                 if (sensor.icon) payload.icon = sensor.icon;
 
-                // Mark raw sensors, refresh timestamp, API metrics, and timezone diagnostics as diagnostic
-                if (sensor.id.includes('_raw') ||
-                    sensor.id === 'refresh_available_at' ||
-                    sensor.id.startsWith('api_') ||
-                    sensor.id.startsWith('timezone_')) {
-                    payload.entity_category = "diagnostic";
+                if (sensor.category) {
+                    payload.entity_category = sensor.category;
                 }
 
                 node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_${sensor.id}/config`, JSON.stringify(payload), { retain: true });
@@ -379,14 +482,14 @@ module.exports = function (RED) {
         // Polling metrics
         let nextPollTime = null;         // ISO timestamp of next scheduled poll
         let pollIntervalHandle = null;   // Reference to setInterval handle
-        let pollHistory = [];            // Array of {timestamp, complexity} for last 60 min
+        const metrics = createApiMetrics();
 
         // API Complexity Tracking
         // Octopus Energy API does not return actual complexity values in headers or extensions,
         // so we use estimated complexity based on query types:
         // - Regular poll (auth + data query): ~300
         // - Mutation (auth + setPreferences): ~250
-        // - Pre-validation (auth + plannedDispatches only): ~200
+        // - Pre-validation (auth + flexPlannedDispatches only): ~200
 
         // Smart charging state (fetched once at startup)
         let krakenflexDeviceId = null;
@@ -394,7 +497,201 @@ module.exports = function (RED) {
         let smartChargingRetryTimeouts = [];
 
         // Last known full state - prevents sensors going unknown when controls change
-        let lastKnownState = buildDefaultPayload();
+        let lastKnownState = buildDefaultPayload({ confirmedLimit, confirmedTime, pendingLimit, pendingTime, chargingNow, smartChargingSuspended });
+
+        // V2 category registry — populated after discovery
+        let categories = [];
+
+        async function initCategories(discovered) {
+            categories = [];
+
+            const electricityEnabled = config.electricityEnabled !== false;
+            const gasEnabled = config.gasEnabled !== false;
+
+            if (discovered.hasElectricity && electricityEnabled) {
+                const ratesMs = (config.electricityRatesInterval || 60) * 60 * 1000;
+                const consumptionMs = (config.electricityConsumptionInterval || 60) * 60 * 1000;
+                categories.push({
+                    id: 'electricity_rates',
+                    enabled: true,
+                    intervalMs: ratesMs,
+                    lastPolled: 0,
+                    queryFn: () => electricityCategory.buildRatesQuery(account),
+                    parseFn: d => electricityCategory.parseRatesResponse(d)
+                });
+                categories.push({
+                    id: 'electricity_consumption',
+                    enabled: true,
+                    intervalMs: consumptionMs,
+                    lastPolled: 0,
+                    queryFn: () => electricityCategory.buildConsumptionQuery(account, config.timezoneOverride || 'UTC'),
+                    parseFn: d => electricityCategory.parseConsumptionResponse(d, discovered.electricityMpan, discovered.electricityExportMpan)
+                });
+            }
+
+            if (discovered.hasGas && gasEnabled) {
+                const ratesMs = (config.gasRatesInterval || 60) * 60 * 1000;
+                const consumptionMs = (config.gasConsumptionInterval || 60) * 60 * 1000;
+                categories.push({
+                    id: 'gas_rates',
+                    enabled: true,
+                    intervalMs: ratesMs,
+                    lastPolled: 0,
+                    queryFn: () => gasCategory.buildRatesQuery(account),
+                    parseFn: d => gasCategory.parseRatesResponse(d)
+                });
+                categories.push({
+                    id: 'gas_consumption',
+                    enabled: true,
+                    intervalMs: consumptionMs,
+                    lastPolled: 0,
+                    queryFn: () => gasCategory.buildConsumptionQuery(account, config.timezoneOverride || 'UTC'),
+                    parseFn: d => gasCategory.parseConsumptionResponse(d)
+                });
+            }
+
+            categories.push({
+                id: 'wheel_of_fortune',
+                enabled: config.enableWheelOfFortune || false,
+                intervalMs: (config.wheelOfFortuneInterval || 60) * 60 * 1000,
+                lastPolled: 0,
+                queryFn: () => wheelOfFortuneCategory.buildQuery(account),
+                parseFn: d => wheelOfFortuneCategory.parseResponse(d)
+            });
+            if (discovered.smartMeterDeviceId) {
+                categories.push({
+                    id: 'home_mini',
+                    enabled: config.enableHomeMini || false,
+                    intervalMs: (config.homeMiniInterval || 1) * 60 * 1000,
+                    lastPolled: 0,
+                    queryFn: () => homeMiniCategory.buildQuery(discovered.smartMeterDeviceId),
+                    parseFn: d => homeMiniCategory.parseResponse(d)
+                });
+            }
+            categories.push({
+                id: 'saving_sessions',
+                enabled: true,
+                intervalMs: (config.savingSessionsInterval || 60) * 60 * 1000,
+                lastPolled: 0,
+                queryFn: () => savingSessionsCategory.buildQuery(account),
+                parseFn: d => savingSessionsCategory.parseResponse(d)
+            });
+
+            if (discovered.hasIntelligent) {
+                categories.push({
+                    id: 'completed_dispatches',
+                    enabled: true,
+                    intervalMs: 60 * 60 * 1000,
+                    lastPolled: 0,
+                    queryFn: () => completedDispatchesCategory.buildQuery(account),
+                    parseFn: d => completedDispatchesCategory.parseResponse(d)
+                });
+                if (discovered.deviceId) {
+                    categories.push({
+                        id: 'flex_planned_dispatches',
+                        enabled: true,
+                        intervalMs: (config.refreshInterval || 5) * 60 * 1000,
+                        lastPolled: 0,
+                        queryFn: () => flexPlannedDispatchesCategory.buildQuery(discovered.deviceId),
+                        parseFn: d => flexPlannedDispatchesCategory.parseResponse(d)
+                    });
+                }
+            }
+
+            if (discovered.hasElectricity && discovered.electricityMpan) {
+                categories.push({
+                    id: 'applicable_rates',
+                    enabled: true,
+                    intervalMs: (config.electricityRatesInterval || 60) * 60 * 1000,
+                    lastPolled: 0,
+                    queryFn: () => applicableRatesCategory.buildQuery(account, discovered.electricityMpan),
+                    parseFn: d => applicableRatesCategory.parseResponse(d)
+                });
+            }
+
+            // Export applicable rates — second query with the export MPAN. Same parser,
+            // different field prefix so the output keys don't collide with import.
+            if (discovered.hasElectricity && discovered.electricityExportMpan) {
+                categories.push({
+                    id: 'applicable_rates_export',
+                    enabled: true,
+                    intervalMs: (config.electricityRatesInterval || 60) * 60 * 1000,
+                    lastPolled: 0,
+                    queryFn: () => applicableRatesCategory.buildQuery(account, discovered.electricityExportMpan),
+                    parseFn: d => applicableRatesCategory.parseResponse(d, { fieldPrefix: 'electricity_export_rate' })
+                });
+            }
+
+            if (discovered.hasElectricity && discovered.electricityMpan) {
+                categories.push({
+                    id: 'free_electricity',
+                    enabled: true,
+                    intervalMs: 30 * 60 * 1000,  // 30 minutes
+                    lastPolled: 0,
+                    queryFn: () => freeElectricityCategory.buildQuery(account, discovered.electricityMpan),
+                    parseFn: d => freeElectricityCategory.parseResponse(d)
+                });
+            }
+
+            categories.push({
+                id: 'account',
+                enabled: true,
+                intervalMs: 60 * 60 * 1000,
+                lastPolled: 0,
+                queryFn: () => accountCategory.buildQuery(account),
+                parseFn: d => accountCategory.parseResponse(d)
+            });
+
+            categories.push({
+                id: 'octoplus',
+                enabled: true,
+                intervalMs: 60 * 60 * 1000,
+                lastPolled: 0,
+                queryFn: () => octoplusCategory.buildQuery(account),
+                parseFn: d => octoplusCategory.parseResponse(d)
+            });
+        }
+
+        async function pollDueCategories() {
+            const { isDue } = require('./lib/scheduler');
+            const due = categories.filter(c => c.enabled && isDue(c));
+            if (due.length === 0) return;
+
+            let token;
+            try {
+                const response = await graphqlPost({
+                    query: `mutation obtainToken($input: ObtainJSONWebTokenInput!) { obtainKrakenToken(input: $input) { token } }`,
+                    variables: { input: { APIKey: apiKey } }
+                });
+                if (!response.data.data || !response.data.data.obtainKrakenToken) {
+                    throw new Error('Auth response missing token');
+                }
+                token = response.data.data.obtainKrakenToken.token;
+            } catch (e) {
+                node.warn(`V2 category poll: auth failed: ${e.message}`);
+                return;
+            }
+
+            for (const cat of due) {
+                try {
+                    const { query, variables, hostname } = cat.queryFn();
+                    const response = await graphqlPost({ query, variables }, token, hostname);
+                    if (response.data.errors) throw new Error(JSON.stringify(response.data.errors));
+                    if (!response.data.data) throw new Error('Response missing data');
+                    const parsed = cat.parseFn(response.data.data);
+                    lastKnownState = mergePayload(lastKnownState, parsed);
+                    cat.lastPolled = Date.now();
+                } catch (e) {
+                    cat.enabled = false;
+                    node.warn(`V2 category ${cat.id} failed (disabled until redeploy): ${e.message}`);
+                }
+            }
+
+            if (enableMqtt && node.broker && node.broker.client) {
+                node.broker.client.publish(stateTopic, JSON.stringify(lastKnownState), { retain: true });
+            }
+            node.send({ payload: lastKnownState });
+        }
 
         async function setPreferences(newLimit, newTime) {
             // Validation
@@ -475,7 +772,7 @@ module.exports = function (RED) {
 
                 // Record mutation API usage (auth + mutation = ~250 complexity)
                 const ESTIMATED_MUTATION_COMPLEXITY = 250;
-                recordPoll(ESTIMATED_MUTATION_COMPLEXITY);
+                metrics.recordPoll(ESTIMATED_MUTATION_COMPLEXITY);
 
                 // C. Start exponential backoff validation
                 expectedLimit = limit;
@@ -577,7 +874,7 @@ module.exports = function (RED) {
 
                 // Record mutation API usage (auth + mutation = ~250 complexity)
                 const ESTIMATED_MUTATION_COMPLEXITY = 250;
-                recordPoll(ESTIMATED_MUTATION_COMPLEXITY);
+                metrics.recordPoll(ESTIMATED_MUTATION_COMPLEXITY);
 
                 // Optimistically update cached state
                 const expectedSuspended = !enable;
@@ -643,7 +940,7 @@ module.exports = function (RED) {
 
                     // Record verification API usage (auth + device query = ~200 complexity)
                     const ESTIMATED_VERIFICATION_COMPLEXITY = 200;
-                    recordPoll(ESTIMATED_VERIFICATION_COMPLEXITY);
+                    metrics.recordPoll(ESTIMATED_VERIFICATION_COMPLEXITY);
 
                     const actualSuspended = evDevice.status.isSuspended;
                     if (actualSuspended === expectedSuspended) {
@@ -668,7 +965,7 @@ module.exports = function (RED) {
         async function fetchData(validationMode = false) {
             // Estimated complexity per poll:
             // - Auth mutation: ~100 complexity
-            // - Data query (plannedDispatches + vehicleChargingPreferences): ~200 complexity
+            // - Data query (devices + flexPlannedDispatches — two sequential calls): ~400 complexity
             // - Total: ~300 complexity per poll
             const ESTIMATED_POLL_COMPLEXITY = 300;
 
@@ -687,7 +984,7 @@ module.exports = function (RED) {
                 debugInfo.step = "validation";
                 node.status({ fill: "red", shape: "ring", text: "Config Missing" });
                 node.send({
-                    payload: buildDefaultPayload(),
+                    payload: getDefaultPayload(),
                     debug: debugInfo
                 });
                 return { validated: false };
@@ -730,76 +1027,100 @@ module.exports = function (RED) {
                 debugInfo.apiCalls[0].tokenObtained = !!token;
                 debugInfo.apiCalls[0].tokenPrefix = token ? token.substring(0, 20) + "..." : null;
 
-                // STEP 2: Fetch Data
-                debugInfo.step = "fetching_data";
+                // STEP 2a: Fetch devices (preferences + device ID)
+                debugInfo.step = "fetching_devices";
                 node.status({ fill: "yellow", shape: "ring", text: "Fetching data..." });
 
-                // Note: rateLimitInfo query may not be available on all API versions
-                // If it fails, we'll use fallback estimated complexity
-                const masterQuery = `
-                query getData($account: String!) {
-                    plannedDispatches(accountNumber: $account) { startDt endDt deltaKwh meta { source } }
-                    vehicleChargingPreferences(accountNumber: $account) { weekdayTargetSoc weekdayTargetTime }
-                }`;
-
-                const dataResponse = await graphqlPost({
-                    query: masterQuery,
-                    variables: { account: account }
-                }, token);
+                const { query: devicesQuery, variables: devicesVars } = intelligentCategory.buildDevicesQuery(account);
+                const devicesResponse = await graphqlPost({ query: devicesQuery, variables: devicesVars }, token);
 
                 debugInfo.apiCalls.push({
                     step: 2,
-                    name: "data_query",
+                    name: "devices_query",
                     url: "https://api.octopus.energy/v1/graphql/",
                     accountNumber: account,
-                    authHeaderFormat: "Raw token (no Bearer/JWT prefix)",
-                    statusCode: dataResponse.status,
-                    hasErrors: !!(dataResponse.data.errors),
-                    errors: dataResponse.data.errors || null,
-                    hasData: !!(dataResponse.data.data),
-                    // Capture response headers for rate limit analysis
-                    responseHeaders: dataResponse.headers || {}
+                    statusCode: devicesResponse.status,
+                    hasErrors: !!(devicesResponse.data.errors),
+                    errors: devicesResponse.data.errors || null,
+                    hasData: !!(devicesResponse.data.data),
+                    responseHeaders: devicesResponse.headers || {}
                 });
 
-                // Validate data response
-                if (dataResponse.data.errors) {
-                    throw new Error(`Data query failed: ${JSON.stringify(dataResponse.data.errors)}`);
+                if (devicesResponse.data.errors) {
+                    throw new Error(`Devices query failed: ${JSON.stringify(devicesResponse.data.errors)}`);
                 }
-                if (!dataResponse.data.data) {
-                    throw new Error(`Data response missing data field. Response: ${JSON.stringify(dataResponse.data)}`);
+                if (!devicesResponse.data.data) {
+                    throw new Error(`Devices response missing data. Response: ${JSON.stringify(devicesResponse.data)}`);
+                }
+
+                const devicesData = devicesResponse.data.data;
+                const evDevice = intelligentCategory.extractEvDevice(devicesData.devices);
+                if (!evDevice) {
+                    throw new Error('No ELECTRIC_VEHICLES device found on account');
+                }
+                krakenflexDeviceId = evDevice.id;
+
+                // STEP 2b: Fetch planned dispatches using device ID
+                debugInfo.step = "fetching_dispatches";
+                const { query: dispatchQuery, variables: dispatchVars } = intelligentCategory.buildDispatchQuery(evDevice.id);
+                const dispatchResponse = await graphqlPost({ query: dispatchQuery, variables: dispatchVars }, token);
+
+                debugInfo.apiCalls.push({
+                    step: 3,
+                    name: "dispatches_query",
+                    url: "https://api.octopus.energy/v1/graphql/",
+                    deviceId: evDevice.id,
+                    statusCode: dispatchResponse.status,
+                    hasErrors: !!(dispatchResponse.data.errors),
+                    errors: dispatchResponse.data.errors || null,
+                    hasData: !!(dispatchResponse.data.data),
+                    responseHeaders: dispatchResponse.headers || {}
+                });
+
+                if (dispatchResponse.data.errors) {
+                    throw new Error(`Dispatches query failed: ${JSON.stringify(dispatchResponse.data.errors)}`);
+                }
+                if (!dispatchResponse.data.data) {
+                    throw new Error(`Dispatches response missing data. Response: ${JSON.stringify(dispatchResponse.data)}`);
                 }
 
                 // STEP 3: Extract and Process
                 debugInfo.step = "processing";
-                const data = dataResponse.data.data || {};
-                const slots = data.plannedDispatches || [];
-                const prefs = data.vehicleChargingPreferences || {};
+                const data = {
+                    devices: devicesData.devices,
+                    flexPlannedDispatches: dispatchResponse.data.data.flexPlannedDispatches || []
+                };
+                const slots = data.flexPlannedDispatches;
 
-                // Check for GraphQL extensions (may contain complexity/rate limit info)
+                // Check for GraphQL extensions on the dispatches response
                 let actualComplexity = null;
-                if (dataResponse.data.extensions) {
-                    debugInfo.apiCalls[1].extensions = dataResponse.data.extensions;
-                    // Try to extract complexity if available
-                    actualComplexity = dataResponse.data.extensions.complexity ||
-                                      dataResponse.data.extensions.cost ||
+                if (dispatchResponse.data.extensions) {
+                    debugInfo.apiCalls[2].extensions = dispatchResponse.data.extensions;
+                    actualComplexity = dispatchResponse.data.extensions.complexity ||
+                                      dispatchResponse.data.extensions.cost ||
                                       null;
                 }
 
                 // Record poll with estimated or actual complexity
-                recordPoll(actualComplexity || ESTIMATED_POLL_COMPLEXITY);
+                metrics.recordPoll(actualComplexity || ESTIMATED_POLL_COMPLEXITY);
 
-                debugInfo.apiCalls[1].slotsFound = slots.length;
-                debugInfo.apiCalls[1].preferencesFound = !!(prefs.weekdayTargetSoc);
-                debugInfo.apiCalls[1].slotDetails = slots.map(s => ({
-                    start: s.startDt,
-                    end: s.endDt,
-                    kwh: s.deltaKwh,
-                    source: s.meta?.source
+                debugInfo.apiCalls[2].slotsFound = slots.length;
+                debugInfo.apiCalls[2].slotDetails = slots.map(s => ({
+                    start: s.start,
+                    end: s.end,
+                    kwh: s.energyAddedKwh,
+                    type: s.type
                 }));
 
-                // Update Confirmed State (from API)
-                confirmedLimit = prefs.weekdayTargetSoc || confirmedLimit;
-                confirmedTime = prefs.weekdayTargetTime || confirmedTime;
+                // Parse response via intelligent category module
+                const appliedTz = resolveTimezone(node);
+                const serverTz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch(e) { return 'UTC'; } })();
+                const catResult = intelligentCategory.parseResponse(data, { tz: appliedTz, serverTz });
+                const { _activeSlots, ...catPublic } = catResult;
+
+                // Update Confirmed State (from catResult)
+                confirmedLimit = catResult.confirmed_limit ?? confirmedLimit;
+                confirmedTime = catResult.confirmed_time || confirmedTime;
 
                 // On successful fetch, sync pending to confirmed if not in validation mode
                 if (!validationMode) {
@@ -807,20 +1128,11 @@ module.exports = function (RED) {
                     pendingTime = confirmedTime;
                 }
 
-                // Process slots
-                const now = new Date();
-                // Include active slots (endDt in future) and future slots
-                const activeAndFutureSlots = slots.filter(s => new Date(s.endDt) > now);
-                const nextSlot = activeAndFutureSlots[0] || null;
-
-                // Total energy for all active/future slots
-                const totalEnergy = activeAndFutureSlots.reduce((sum, s) => sum + (s.deltaKwh || 0), 0);
-
-                debugInfo.apiCalls[1].activeAndFutureSlots = activeAndFutureSlots.length;
-                debugInfo.processingTime = now.toISOString();
+                debugInfo.apiCalls[1].activeAndFutureSlots = _activeSlots.length;
+                debugInfo.processingTime = new Date().toISOString();
 
                 // Setup charging timers (always update charging state)
-                setupChargingTimers(activeAndFutureSlots);
+                setupChargingTimers(_activeSlots);
 
                 // Start reconciliation loop on first successful data fetch (only in non-validation mode)
                 if (!validationMode && !stateCheckInterval) {
@@ -831,68 +1143,24 @@ module.exports = function (RED) {
                 updateNextPollTime();
 
                 // Get API metrics for inclusion in payload
-                const apiMetrics = getApiMetrics();
+                const apiMetrics = metrics.getMetrics();
 
-                // Build Payload
-                const serverTz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch(e) { return 'UTC'; } })();
-                const appliedTz = resolveTimezone(node);
-                const statusPayload = {
-                    next_start: nextSlot ? convertToTimezone(nextSlot.startDt, appliedTz) : null,
-                    total_energy: parseFloat(totalEnergy.toFixed(2)),
-                    next_kwh: nextSlot ? nextSlot.deltaKwh.toFixed(2) : "0",
-                    next_source: nextSlot && nextSlot.meta ? nextSlot.meta.source : "unknown",
-                    // Confirmed values (from API)
-                    confirmed_limit: confirmedLimit,
-                    confirmed_time: confirmedTime,
-                    // Pending values (user's current selections)
+                // Build Payload — merge catResult into lastKnownState, then add orchestrator-owned fields
+                const statusPayload = Object.assign({}, lastKnownState, catPublic, {
+                    // Orchestrator-owned state fields (not in intelligentCategory)
                     pending_limit: pendingLimit,
                     pending_time: pendingTime,
-                    // Charging Now state
                     charging_now: chargingNow,
-                    // Next poll time
                     next_poll: nextPollTime,
                     next_poll_raw: nextPollTime,
-                    // Refresh available timestamp (null = ready, ISO timestamp = counting down)
                     refresh_available_at: getRefreshAvailableAt(),
-                    // API complexity metrics
                     api_requests_hour: apiMetrics.requests_last_hour,
                     api_complexity_hour: apiMetrics.complexity_last_hour,
                     api_complexity_percent: parseFloat(apiMetrics.complexity_percent),
-                    // Individual slots (first 3 active/future) — timezone-converted (appliedTz)
-                    slot1_start: activeAndFutureSlots[0] ? convertToTimezone(activeAndFutureSlots[0].startDt, appliedTz) : null,
-                    slot1_end: activeAndFutureSlots[0] ? convertToTimezone(activeAndFutureSlots[0].endDt, appliedTz) : null,
-                    slot2_start: activeAndFutureSlots[1] ? convertToTimezone(activeAndFutureSlots[1].startDt, appliedTz) : null,
-                    slot2_end: activeAndFutureSlots[1] ? convertToTimezone(activeAndFutureSlots[1].endDt, appliedTz) : null,
-                    slot3_start: activeAndFutureSlots[2] ? convertToTimezone(activeAndFutureSlots[2].startDt, appliedTz) : null,
-                    slot3_end: activeAndFutureSlots[2] ? convertToTimezone(activeAndFutureSlots[2].endDt, appliedTz) : null,
-                    // Overall window (first start to last end) — timezone-converted (appliedTz)
-                    window_start: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[0].startDt, appliedTz) : null,
-                    window_end: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt, appliedTz) : null,
-                    // Raw timestamp strings (exact API output)
-                    next_start_raw: nextSlot ? nextSlot.startDt : null,
-                    slot1_start_raw: activeAndFutureSlots[0] ? activeAndFutureSlots[0].startDt : null,
-                    slot1_end_raw: activeAndFutureSlots[0] ? activeAndFutureSlots[0].endDt : null,
-                    slot2_start_raw: activeAndFutureSlots[1] ? activeAndFutureSlots[1].startDt : null,
-                    slot2_end_raw: activeAndFutureSlots[1] ? activeAndFutureSlots[1].endDt : null,
-                    slot3_start_raw: activeAndFutureSlots[2] ? activeAndFutureSlots[2].startDt : null,
-                    slot3_end_raw: activeAndFutureSlots[2] ? activeAndFutureSlots[2].endDt : null,
-                    window_start_raw: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[0].startDt : null,
-                    window_end_raw: activeAndFutureSlots.length > 0 ? activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt : null,
-                    // Timezone metadata
                     timezone_detected: serverTz,
                     timezone_applied: appliedTz,
-                    // Locale timestamps — always server auto-detected timezone (never overridden)
-                    next_start_locale: nextSlot ? convertToTimezone(nextSlot.startDt, serverTz) : null,
-                    slot1_start_locale: activeAndFutureSlots[0] ? convertToTimezone(activeAndFutureSlots[0].startDt, serverTz) : null,
-                    slot1_end_locale: activeAndFutureSlots[0] ? convertToTimezone(activeAndFutureSlots[0].endDt, serverTz) : null,
-                    slot2_start_locale: activeAndFutureSlots[1] ? convertToTimezone(activeAndFutureSlots[1].startDt, serverTz) : null,
-                    slot2_end_locale: activeAndFutureSlots[1] ? convertToTimezone(activeAndFutureSlots[1].endDt, serverTz) : null,
-                    slot3_start_locale: activeAndFutureSlots[2] ? convertToTimezone(activeAndFutureSlots[2].startDt, serverTz) : null,
-                    slot3_end_locale: activeAndFutureSlots[2] ? convertToTimezone(activeAndFutureSlots[2].endDt, serverTz) : null,
-                    window_start_locale: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[0].startDt, serverTz) : null,
-                    window_end_locale: activeAndFutureSlots.length > 0 ? convertToTimezone(activeAndFutureSlots[activeAndFutureSlots.length - 1].endDt, serverTz) : null,
                     smart_charging: smartChargingSuspended === null ? null : !smartChargingSuspended
-                };
+                });
 
                 // Success!
                 debugInfo.success = true;
@@ -975,7 +1243,7 @@ module.exports = function (RED) {
 
                     // Send default payload with debug info
                     node.send({
-                        payload: buildDefaultPayload(),
+                        payload: getDefaultPayload(),
                         debug: debugInfo
                     });
                 }
@@ -985,55 +1253,9 @@ module.exports = function (RED) {
             }
         }
 
-        // Helper: Build default payload when errors occur
-        function buildDefaultPayload() {
-            return {
-                next_start: null,
-                total_energy: 0,
-                next_kwh: "0",
-                next_source: "unknown",
-                confirmed_limit: confirmedLimit,
-                confirmed_time: confirmedTime,
-                pending_limit: pendingLimit,
-                pending_time: pendingTime,
-                charging_now: chargingNow,
-                refresh_available_at: null,
-                api_requests_hour: 0,
-                api_complexity_hour: 0,
-                api_complexity_percent: 0,
-                slot1_start: null,
-                slot1_end: null,
-                slot2_start: null,
-                slot2_end: null,
-                slot3_start: null,
-                slot3_end: null,
-                window_start: null,
-                window_end: null,
-                // Raw timestamp strings
-                next_start_raw: null,
-                slot1_start_raw: null,
-                slot1_end_raw: null,
-                slot2_start_raw: null,
-                slot2_end_raw: null,
-                slot3_start_raw: null,
-                slot3_end_raw: null,
-                window_start_raw: null,
-                window_end_raw: null,
-                // Timezone metadata
-                timezone_detected: null,
-                timezone_applied: null,
-                // Locale timestamps
-                next_start_locale: null,
-                slot1_start_locale: null,
-                slot1_end_locale: null,
-                slot2_start_locale: null,
-                slot2_end_locale: null,
-                slot3_start_locale: null,
-                slot3_end_locale: null,
-                window_start_locale: null,
-                window_end_locale: null,
-                smart_charging: smartChargingSuspended === null ? null : !smartChargingSuspended
-            };
+        // Helper: Build default payload when errors occur — delegates to lib/payload.js
+        function getDefaultPayload() {
+            return buildDefaultPayload({ confirmedLimit, confirmedTime, pendingLimit, pendingTime, chargingNow, smartChargingSuspended });
         }
 
         // Helper: Fetch device ID and initial smart charging state (called once at startup)
@@ -1086,8 +1308,8 @@ module.exports = function (RED) {
 
             // Check if we should be charging RIGHT NOW based on cached slots
             const shouldBeCharging = cachedSlots.some(slot => {
-                const start = new Date(slot.startDt);
-                const end = new Date(slot.endDt);
+                const start = new Date(slot.start);
+                const end = new Date(slot.end);
                 return start <= now && end > now;
             });
 
@@ -1175,35 +1397,6 @@ module.exports = function (RED) {
             nextPollTime = new Date(Date.now() + refreshRate).toISOString();
         }
 
-        function recordPoll(complexity = null) {
-            const now = Date.now();
-            pollHistory.push({
-                timestamp: now,
-                complexity: complexity || null
-            });
-
-            // Remove entries older than 60 minutes
-            const sixtyMinAgo = now - (60 * 60 * 1000);
-            pollHistory = pollHistory.filter(entry => entry.timestamp > sixtyMinAgo);
-        }
-
-        function getApiMetrics() {
-            // Clean up old entries first
-            const now = Date.now();
-            const sixtyMinAgo = now - (60 * 60 * 1000);
-            pollHistory = pollHistory.filter(entry => entry.timestamp > sixtyMinAgo);
-
-            const requestCount = pollHistory.length;
-            const totalComplexity = pollHistory.reduce((sum, entry) => sum + (entry.complexity || 0), 0);
-            const percentUsed = requestCount > 0 && totalComplexity > 0 ? (totalComplexity / 50000) * 100 : 0;
-
-            return {
-                requests_last_hour: requestCount,
-                complexity_last_hour: totalComplexity,
-                complexity_percent: percentUsed.toFixed(1)
-            };
-        }
-
         // Publish charging state to MQTT and Node-RED
         function publishChargingState(state) {
             chargingNow = state;
@@ -1242,7 +1435,7 @@ module.exports = function (RED) {
         // Setup pre-validation timer (30s before slot starts)
         function setupPreValidationTimer(nextSlot) {
             const now = new Date();
-            const slotStart = new Date(nextSlot.startDt);
+            const slotStart = new Date(nextSlot.start);
             const preValidationTime = slotStart.getTime() - 30000; // 30s before
             const msUntilPreValidation = preValidationTime - now.getTime();
 
@@ -1250,7 +1443,10 @@ module.exports = function (RED) {
                 preValidationTimer = setTimeout(async () => {
                     node.warn("Pre-validating slot data (30s before start)");
                     try {
-                        // Fetch fresh data from API
+                        if (!krakenflexDeviceId) {
+                            throw new Error("Device ID not available for pre-validation");
+                        }
+
                         const authResponse = await graphqlPost({
                             query: `mutation obtainToken($input: ObtainJSONWebTokenInput!) { obtainKrakenToken(input: $input) { token } }`,
                             variables: { input: { APIKey: apiKey } }
@@ -1262,25 +1458,23 @@ module.exports = function (RED) {
 
                         const token = authResponse.data.data.obtainKrakenToken.token;
 
-                        const dataResponse = await graphqlPost({
-                            query: `query getData($account: String!) { plannedDispatches(accountNumber: $account) { startDt endDt deltaKwh meta { source } } }`,
-                            variables: { account: account }
-                        }, token);
+                        const { query: dq, variables: dv } = intelligentCategory.buildDispatchQuery(krakenflexDeviceId);
+                        const dataResponse = await graphqlPost({ query: dq, variables: dv }, token);
 
-                        if (dataResponse.data.data && dataResponse.data.data.plannedDispatches) {
-                            cachedSlots = dataResponse.data.data.plannedDispatches;
+                        if (dataResponse.data.data && dataResponse.data.data.flexPlannedDispatches) {
+                            cachedSlots = dataResponse.data.data.flexPlannedDispatches;
 
                             // Record pre-validation API usage (auth + simple query = ~200 complexity)
                             const ESTIMATED_PREVALIDATION_COMPLEXITY = 200;
-                            recordPoll(ESTIMATED_PREVALIDATION_COMPLEXITY);
+                            metrics.recordPoll(ESTIMATED_PREVALIDATION_COMPLEXITY);
 
                             // Check if slot still exists (within 1 minute tolerance)
                             const stillExists = cachedSlots.find(s =>
-                                Math.abs(new Date(s.startDt).getTime() - slotStart.getTime()) < 60000
+                                Math.abs(new Date(s.start).getTime() - slotStart.getTime()) < 60000
                             );
 
                             if (stillExists) {
-                                node.warn(`Slot confirmed at ${stillExists.startDt}`);
+                                node.warn(`Slot confirmed at ${stillExists.start}`);
                                 setupSlotStartTimer(stillExists);
                             } else {
                                 node.warn("Slot was cancelled or modified - not setting start timer");
@@ -1301,21 +1495,21 @@ module.exports = function (RED) {
         // Setup slot start timer (exact start time)
         function setupSlotStartTimer(slot) {
             const now = new Date();
-            const slotStart = new Date(slot.startDt);
+            const slotStart = new Date(slot.start);
             const msUntilStart = slotStart.getTime() - now.getTime();
 
             if (msUntilStart > 0 && msUntilStart < 24 * 60 * 60 * 1000) { // Within 24 hours
                 slotStartTimer = setTimeout(() => {
                     publishChargingState(true);
-                    node.warn(`Charging slot started at ${slot.startDt}`);
+                    node.warn(`Charging slot started at ${slot.start}`);
                     setupSlotEndTimer(slot);
                 }, msUntilStart);
 
                 const secondsUntil = Math.round(msUntilStart / 1000);
-                node.log(`Slot start timer set for ${secondsUntil}s (${slot.startDt})`);
+                node.log(`Slot start timer set for ${secondsUntil}s (${slot.start})`);
             } else if (msUntilStart <= 0) {
                 // Slot already started, check if it's still active
-                const slotEnd = new Date(slot.endDt);
+                const slotEnd = new Date(slot.end);
                 if (slotEnd > now) {
                     publishChargingState(true);
                     setupSlotEndTimer(slot);
@@ -1326,18 +1520,18 @@ module.exports = function (RED) {
         // Setup slot end timer (exact end time)
         function setupSlotEndTimer(slot) {
             const now = new Date();
-            const slotEnd = new Date(slot.endDt);
+            const slotEnd = new Date(slot.end);
             const msUntilEnd = slotEnd.getTime() - now.getTime();
 
             if (msUntilEnd > 0 && msUntilEnd < 24 * 60 * 60 * 1000) { // Within 24 hours
                 slotEndTimer = setTimeout(() => {
-                    node.warn(`Charging slot ended at ${slot.endDt}`);
+                    node.warn(`Charging slot ended at ${slot.end}`);
 
                     // Check if another slot starts immediately (within cached data)
                     const now = new Date();
                     const immediateNextSlot = cachedSlots.find(s => {
-                        const start = new Date(s.startDt);
-                        const end = new Date(s.endDt);
+                        const start = new Date(s.start);
+                        const end = new Date(s.end);
                         return start <= now && end > now;
                     });
 
@@ -1351,7 +1545,7 @@ module.exports = function (RED) {
                 }, msUntilEnd);
 
                 const minutesUntil = Math.round(msUntilEnd / 60000);
-                node.log(`Slot end timer set for ${minutesUntil} min (${slot.endDt})`);
+                node.log(`Slot end timer set for ${minutesUntil} min (${slot.end})`);
             }
         }
 
@@ -1367,8 +1561,8 @@ module.exports = function (RED) {
 
             // Check if currently in a charging slot
             const activeSlot = slots.find(s => {
-                const start = new Date(s.startDt);
-                const end = new Date(s.endDt);
+                const start = new Date(s.start);
+                const end = new Date(s.end);
                 return start <= now && end > now;
             });
 
@@ -1388,11 +1582,11 @@ module.exports = function (RED) {
                 }
 
                 // Find next future slot
-                const nextSlot = slots.find(s => new Date(s.startDt) > now);
+                const nextSlot = slots.find(s => new Date(s.start) > now);
 
                 if (nextSlot) {
                     setupPreValidationTimer(nextSlot);
-                    node.log(`Next slot at ${nextSlot.startDt}`);
+                    node.log(`Next slot at ${nextSlot.start}`);
                 }
             }
         }
@@ -1555,6 +1749,25 @@ module.exports = function (RED) {
         updateNextPollTime();  // Set initial next poll time
         setTimeout(fetchData, 1000);
         setTimeout(fetchDeviceId, 1500);
+
+        // V2 category discovery and scheduler
+        setTimeout(async () => {
+            try {
+                const discovered = await discoverProducts(apiKey, account);
+                if (discovered.deviceSuspended !== null && discovered.deviceSuspended !== undefined) {
+                    smartChargingSuspended = discovered.deviceSuspended;
+                    lastKnownState = mergePayload(lastKnownState, { smart_charging: !discovered.deviceSuspended });
+                }
+                await initCategories(discovered);
+                node.log(`V2 discovery: electricity=${discovered.hasElectricity}, gas=${discovered.hasGas}, intelligent=${discovered.hasIntelligent}, suspended=${discovered.deviceSuspended}`);
+                const v2Scheduler = createScheduler(pollDueCategories);
+                v2Scheduler.start();
+                node._v2Scheduler = v2Scheduler;
+            } catch (e) {
+                node.warn(`V2 discovery failed: ${e.message}. New categories unavailable.`);
+            }
+        }, 2000);
+
         node.on('close', () => {
             clearInterval(pollIntervalHandle);
             // Clear any pending retry timeouts
@@ -1570,6 +1783,7 @@ module.exports = function (RED) {
                 clearTimeout(cooldownExpiryTimer);
                 cooldownExpiryTimer = null;
             }
+            if (node._v2Scheduler) node._v2Scheduler.stop();
             if (node.broker) node.broker.unsubscribe(cmdTopicLimit, cmdTopicTime, cmdTopicSubmit, cmdTopicRefresh, cmdTopicTimezone, cmdTopicSmartCharging);
         });
     }

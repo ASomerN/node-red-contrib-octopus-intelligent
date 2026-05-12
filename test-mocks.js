@@ -42,7 +42,7 @@ const mockAuthFailure = {
 };
 
 // ============================================================================
-// 2. DATA QUERY RESPONSES (plannedDispatches + vehicleChargingPreferences)
+// 2. DATA QUERY RESPONSES (flexPlannedDispatches + devices)
 // ============================================================================
 
 /**
@@ -53,30 +53,35 @@ const mockDataWithSlots = {
   status: 200,
   data: {
     data: {
-      plannedDispatches: [
+      flexPlannedDispatches: [
         {
-          startDt: "2025-11-29 21:30:00+00:00",
-          endDt: "2025-11-29 22:00:00+00:00",
-          deltaKwh: 0,
-          meta: {
-            source: "smart-charge"
-          }
+          start: "2025-11-29 21:30:00+00:00",
+          end: "2025-11-29 22:00:00+00:00",
+          energyAddedKwh: 0,
+          type: "SMART"
         },
         {
-          startDt: "2025-11-29 23:00:00+00:00",
-          endDt: "2025-11-30 04:00:00+00:00",
-          deltaKwh: -12,
-          meta: {
-            source: "smart-charge"
-          }
+          start: "2025-11-29 23:00:00+00:00",
+          end: "2025-11-30 04:00:00+00:00",
+          energyAddedKwh: 12,
+          type: "SMART"
         }
       ],
-      vehicleChargingPreferences: {
-        weekdayTargetSoc: 80,
-        weekdayTargetTime: "04:00",
-        weekendTargetSoc: 80,
-        weekendTargetTime: "04:00"
-      }
+      devices: [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: {
+          schedules: [
+            { dayOfWeek: 'MONDAY',    time: '04:00:00', max: 80 },
+            { dayOfWeek: 'TUESDAY',   time: '04:00:00', max: 80 },
+            { dayOfWeek: 'WEDNESDAY', time: '04:00:00', max: 80 },
+            { dayOfWeek: 'THURSDAY',  time: '04:00:00', max: 80 },
+            { dayOfWeek: 'FRIDAY',    time: '04:00:00', max: 80 },
+            { dayOfWeek: 'SATURDAY',  time: '04:00:00', max: 80 },
+            { dayOfWeek: 'SUNDAY',    time: '04:00:00', max: 80 },
+          ]
+        }
+      }]
     }
   }
 };
@@ -84,28 +89,34 @@ const mockDataWithSlots = {
 /**
  * Data query with active slot (currently charging)
  * Scenario: One slot currently active, started 30 minutes ago
- * NOTE: This is legacy mock data, see mockRealApiResponse_* below for real API structure
  */
 const mockDataWithActiveSlot = {
   status: 200,
   data: {
     data: {
-      plannedDispatches: [
+      flexPlannedDispatches: [
         {
-          startDt: "2025-11-29 01:30:00+00:00",
-          endDt: "2025-11-29 05:30:00+00:00",
-          deltaKwh: -15.5,
-          meta: {
-            source: "smart-charge"
-          }
+          start: "2025-11-29 01:30:00+00:00",
+          end: "2025-11-29 05:30:00+00:00",
+          energyAddedKwh: 15.5,
+          type: "SMART"
         }
       ],
-      vehicleChargingPreferences: {
-        weekdayTargetSoc: 80,
-        weekdayTargetTime: "08:00",
-        weekendTargetSoc: 80,
-        weekendTargetTime: "08:00"
-      }
+      devices: [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: {
+          schedules: [
+            { dayOfWeek: 'MONDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'TUESDAY',   time: '08:00:00', max: 80 },
+            { dayOfWeek: 'WEDNESDAY', time: '08:00:00', max: 80 },
+            { dayOfWeek: 'THURSDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'FRIDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SATURDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SUNDAY',    time: '08:00:00', max: 80 },
+          ]
+        }
+      }]
     }
   }
 };
@@ -124,20 +135,29 @@ const mockRealApiResponse_1Slot_Active = {
   status: 200,
   data: {
     data: {
-      plannedDispatches: [
+      flexPlannedDispatches: [
         {
-          startDt: "2025-12-10 03:00:00+00:00",
-          endDt: "2025-12-10 03:30:00+00:00",
-          deltaKwh: -1,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 03:00:00+00:00",
+          end: "2025-12-10 03:30:00+00:00",
+          energyAddedKwh: 1,
+          type: "SMART"
         }
       ],
-      vehicleChargingPreferences: {
-        weekdayTargetSoc: 80,
-        weekdayTargetTime: "08:00",
-        weekendTargetSoc: 80,
-        weekendTargetTime: "08:00"
-      }
+      devices: [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: {
+          schedules: [
+            { dayOfWeek: 'MONDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'TUESDAY',   time: '08:00:00', max: 80 },
+            { dayOfWeek: 'WEDNESDAY', time: '08:00:00', max: 80 },
+            { dayOfWeek: 'THURSDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'FRIDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SATURDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SUNDAY',    time: '08:00:00', max: 80 },
+          ]
+        }
+      }]
     }
   },
   testTime: "2025-12-10T03:15:00Z", // 15 minutes into the slot
@@ -154,20 +174,29 @@ const mockRealApiResponse_1Slot_Future = {
   status: 200,
   data: {
     data: {
-      plannedDispatches: [
+      flexPlannedDispatches: [
         {
-          startDt: "2025-12-10 03:00:00+00:00",
-          endDt: "2025-12-10 03:30:00+00:00",
-          deltaKwh: -1,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 03:00:00+00:00",
+          end: "2025-12-10 03:30:00+00:00",
+          energyAddedKwh: 1,
+          type: "SMART"
         }
       ],
-      vehicleChargingPreferences: {
-        weekdayTargetSoc: 80,
-        weekdayTargetTime: "08:00",
-        weekendTargetSoc: 80,
-        weekendTargetTime: "08:00"
-      }
+      devices: [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: {
+          schedules: [
+            { dayOfWeek: 'MONDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'TUESDAY',   time: '08:00:00', max: 80 },
+            { dayOfWeek: 'WEDNESDAY', time: '08:00:00', max: 80 },
+            { dayOfWeek: 'THURSDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'FRIDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SATURDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SUNDAY',    time: '08:00:00', max: 80 },
+          ]
+        }
+      }]
     }
   },
   testTime: "2025-12-10T02:00:00Z", // 1 hour before slot starts
@@ -186,32 +215,41 @@ const mockRealApiResponse_3Slots_FirstActive = {
   status: 200,
   data: {
     data: {
-      plannedDispatches: [
+      flexPlannedDispatches: [
         {
-          startDt: "2025-12-10 01:00:00+00:00",
-          endDt: "2025-12-10 02:00:00+00:00",
-          deltaKwh: -5,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 01:00:00+00:00",
+          end: "2025-12-10 02:00:00+00:00",
+          energyAddedKwh: 5,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 03:00:00+00:00",
-          endDt: "2025-12-10 04:00:00+00:00",
-          deltaKwh: -5,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 03:00:00+00:00",
+          end: "2025-12-10 04:00:00+00:00",
+          energyAddedKwh: 5,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 05:00:00+00:00",
-          endDt: "2025-12-10 06:00:00+00:00",
-          deltaKwh: -5,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 05:00:00+00:00",
+          end: "2025-12-10 06:00:00+00:00",
+          energyAddedKwh: 5,
+          type: "SMART"
         }
       ],
-      vehicleChargingPreferences: {
-        weekdayTargetSoc: 80,
-        weekdayTargetTime: "08:00",
-        weekendTargetSoc: 80,
-        weekendTargetTime: "08:00"
-      }
+      devices: [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: {
+          schedules: [
+            { dayOfWeek: 'MONDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'TUESDAY',   time: '08:00:00', max: 80 },
+            { dayOfWeek: 'WEDNESDAY', time: '08:00:00', max: 80 },
+            { dayOfWeek: 'THURSDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'FRIDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SATURDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SUNDAY',    time: '08:00:00', max: 80 },
+          ]
+        }
+      }]
     }
   },
   testTime: "2025-12-10T01:15:00Z", // 15 minutes into first slot
@@ -230,32 +268,41 @@ const mockRealApiResponse_3Slots_MiddleActive = {
   status: 200,
   data: {
     data: {
-      plannedDispatches: [
+      flexPlannedDispatches: [
         {
-          startDt: "2025-12-10 01:00:00+00:00",
-          endDt: "2025-12-10 02:00:00+00:00",
-          deltaKwh: -5,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 01:00:00+00:00",
+          end: "2025-12-10 02:00:00+00:00",
+          energyAddedKwh: 5,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 03:00:00+00:00",
-          endDt: "2025-12-10 04:00:00+00:00",
-          deltaKwh: -5,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 03:00:00+00:00",
+          end: "2025-12-10 04:00:00+00:00",
+          energyAddedKwh: 5,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 05:00:00+00:00",
-          endDt: "2025-12-10 06:00:00+00:00",
-          deltaKwh: -5,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 05:00:00+00:00",
+          end: "2025-12-10 06:00:00+00:00",
+          energyAddedKwh: 5,
+          type: "SMART"
         }
       ],
-      vehicleChargingPreferences: {
-        weekdayTargetSoc: 80,
-        weekdayTargetTime: "08:00",
-        weekendTargetSoc: 80,
-        weekendTargetTime: "08:00"
-      }
+      devices: [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: {
+          schedules: [
+            { dayOfWeek: 'MONDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'TUESDAY',   time: '08:00:00', max: 80 },
+            { dayOfWeek: 'WEDNESDAY', time: '08:00:00', max: 80 },
+            { dayOfWeek: 'THURSDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'FRIDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SATURDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SUNDAY',    time: '08:00:00', max: 80 },
+          ]
+        }
+      }]
     }
   },
   testTime: "2025-12-10T03:30:00Z", // 30 minutes into middle slot
@@ -274,32 +321,41 @@ const mockRealApiResponse_3Slots_LastActive = {
   status: 200,
   data: {
     data: {
-      plannedDispatches: [
+      flexPlannedDispatches: [
         {
-          startDt: "2025-12-10 01:00:00+00:00",
-          endDt: "2025-12-10 02:00:00+00:00",
-          deltaKwh: -5,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 01:00:00+00:00",
+          end: "2025-12-10 02:00:00+00:00",
+          energyAddedKwh: 5,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 03:00:00+00:00",
-          endDt: "2025-12-10 04:00:00+00:00",
-          deltaKwh: -5,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 03:00:00+00:00",
+          end: "2025-12-10 04:00:00+00:00",
+          energyAddedKwh: 5,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 05:00:00+00:00",
-          endDt: "2025-12-10 06:00:00+00:00",
-          deltaKwh: -5,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 05:00:00+00:00",
+          end: "2025-12-10 06:00:00+00:00",
+          energyAddedKwh: 5,
+          type: "SMART"
         }
       ],
-      vehicleChargingPreferences: {
-        weekdayTargetSoc: 80,
-        weekdayTargetTime: "08:00",
-        weekendTargetSoc: 80,
-        weekendTargetTime: "08:00"
-      }
+      devices: [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: {
+          schedules: [
+            { dayOfWeek: 'MONDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'TUESDAY',   time: '08:00:00', max: 80 },
+            { dayOfWeek: 'WEDNESDAY', time: '08:00:00', max: 80 },
+            { dayOfWeek: 'THURSDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'FRIDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SATURDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SUNDAY',    time: '08:00:00', max: 80 },
+          ]
+        }
+      }]
     }
   },
   testTime: "2025-12-10T05:45:00Z", // 45 minutes into last slot
@@ -318,32 +374,41 @@ const mockRealApiResponse_3Slots_NoneActive = {
   status: 200,
   data: {
     data: {
-      plannedDispatches: [
+      flexPlannedDispatches: [
         {
-          startDt: "2025-12-10 01:00:00+00:00",
-          endDt: "2025-12-10 02:00:00+00:00",
-          deltaKwh: -5,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 01:00:00+00:00",
+          end: "2025-12-10 02:00:00+00:00",
+          energyAddedKwh: 5,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 03:00:00+00:00",
-          endDt: "2025-12-10 04:00:00+00:00",
-          deltaKwh: -5,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 03:00:00+00:00",
+          end: "2025-12-10 04:00:00+00:00",
+          energyAddedKwh: 5,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 05:00:00+00:00",
-          endDt: "2025-12-10 06:00:00+00:00",
-          deltaKwh: -5,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 05:00:00+00:00",
+          end: "2025-12-10 06:00:00+00:00",
+          energyAddedKwh: 5,
+          type: "SMART"
         }
       ],
-      vehicleChargingPreferences: {
-        weekdayTargetSoc: 80,
-        weekdayTargetTime: "08:00",
-        weekendTargetSoc: 80,
-        weekendTargetTime: "08:00"
-      }
+      devices: [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: {
+          schedules: [
+            { dayOfWeek: 'MONDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'TUESDAY',   time: '08:00:00', max: 80 },
+            { dayOfWeek: 'WEDNESDAY', time: '08:00:00', max: 80 },
+            { dayOfWeek: 'THURSDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'FRIDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SATURDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SUNDAY',    time: '08:00:00', max: 80 },
+          ]
+        }
+      }]
     }
   },
   testTime: "2025-12-10T02:30:00Z", // Between slot 1 and slot 2
@@ -359,50 +424,59 @@ const mockRealApiResponse_6Slots_FirstActive = {
   status: 200,
   data: {
     data: {
-      plannedDispatches: [
+      flexPlannedDispatches: [
         {
-          startDt: "2025-12-10 00:00:00+00:00",
-          endDt: "2025-12-10 01:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 00:00:00+00:00",
+          end: "2025-12-10 01:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 02:00:00+00:00",
-          endDt: "2025-12-10 03:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 02:00:00+00:00",
+          end: "2025-12-10 03:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 04:00:00+00:00",
-          endDt: "2025-12-10 05:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 04:00:00+00:00",
+          end: "2025-12-10 05:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 06:00:00+00:00",
-          endDt: "2025-12-10 07:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 06:00:00+00:00",
+          end: "2025-12-10 07:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 08:00:00+00:00",
-          endDt: "2025-12-10 09:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 08:00:00+00:00",
+          end: "2025-12-10 09:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 10:00:00+00:00",
-          endDt: "2025-12-10 11:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "bump-charge" }
+          start: "2025-12-10 10:00:00+00:00",
+          end: "2025-12-10 11:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "BOOST"
         }
       ],
-      vehicleChargingPreferences: {
-        weekdayTargetSoc: 90,
-        weekdayTargetTime: "07:00",
-        weekendTargetSoc: 90,
-        weekendTargetTime: "07:00"
-      }
+      devices: [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: {
+          schedules: [
+            { dayOfWeek: 'MONDAY',    time: '07:00:00', max: 90 },
+            { dayOfWeek: 'TUESDAY',   time: '07:00:00', max: 90 },
+            { dayOfWeek: 'WEDNESDAY', time: '07:00:00', max: 90 },
+            { dayOfWeek: 'THURSDAY',  time: '07:00:00', max: 90 },
+            { dayOfWeek: 'FRIDAY',    time: '07:00:00', max: 90 },
+            { dayOfWeek: 'SATURDAY',  time: '07:00:00', max: 90 },
+            { dayOfWeek: 'SUNDAY',    time: '07:00:00', max: 90 },
+          ]
+        }
+      }]
     }
   },
   testTime: "2025-12-10T00:30:00Z", // 30 minutes into first slot
@@ -418,50 +492,59 @@ const mockRealApiResponse_6Slots_ThirdActive = {
   status: 200,
   data: {
     data: {
-      plannedDispatches: [
+      flexPlannedDispatches: [
         {
-          startDt: "2025-12-10 00:00:00+00:00",
-          endDt: "2025-12-10 01:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 00:00:00+00:00",
+          end: "2025-12-10 01:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 02:00:00+00:00",
-          endDt: "2025-12-10 03:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 02:00:00+00:00",
+          end: "2025-12-10 03:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 04:00:00+00:00",
-          endDt: "2025-12-10 05:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 04:00:00+00:00",
+          end: "2025-12-10 05:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 06:00:00+00:00",
-          endDt: "2025-12-10 07:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 06:00:00+00:00",
+          end: "2025-12-10 07:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 08:00:00+00:00",
-          endDt: "2025-12-10 09:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 08:00:00+00:00",
+          end: "2025-12-10 09:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 10:00:00+00:00",
-          endDt: "2025-12-10 11:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "bump-charge" }
+          start: "2025-12-10 10:00:00+00:00",
+          end: "2025-12-10 11:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "BOOST"
         }
       ],
-      vehicleChargingPreferences: {
-        weekdayTargetSoc: 90,
-        weekdayTargetTime: "07:00",
-        weekendTargetSoc: 90,
-        weekendTargetTime: "07:00"
-      }
+      devices: [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: {
+          schedules: [
+            { dayOfWeek: 'MONDAY',    time: '07:00:00', max: 90 },
+            { dayOfWeek: 'TUESDAY',   time: '07:00:00', max: 90 },
+            { dayOfWeek: 'WEDNESDAY', time: '07:00:00', max: 90 },
+            { dayOfWeek: 'THURSDAY',  time: '07:00:00', max: 90 },
+            { dayOfWeek: 'FRIDAY',    time: '07:00:00', max: 90 },
+            { dayOfWeek: 'SATURDAY',  time: '07:00:00', max: 90 },
+            { dayOfWeek: 'SUNDAY',    time: '07:00:00', max: 90 },
+          ]
+        }
+      }]
     }
   },
   testTime: "2025-12-10T04:30:00Z", // 30 minutes into third slot
@@ -477,50 +560,59 @@ const mockRealApiResponse_6Slots_LastActive = {
   status: 200,
   data: {
     data: {
-      plannedDispatches: [
+      flexPlannedDispatches: [
         {
-          startDt: "2025-12-10 00:00:00+00:00",
-          endDt: "2025-12-10 01:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 00:00:00+00:00",
+          end: "2025-12-10 01:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 02:00:00+00:00",
-          endDt: "2025-12-10 03:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 02:00:00+00:00",
+          end: "2025-12-10 03:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 04:00:00+00:00",
-          endDt: "2025-12-10 05:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 04:00:00+00:00",
+          end: "2025-12-10 05:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 06:00:00+00:00",
-          endDt: "2025-12-10 07:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 06:00:00+00:00",
+          end: "2025-12-10 07:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 08:00:00+00:00",
-          endDt: "2025-12-10 09:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 08:00:00+00:00",
+          end: "2025-12-10 09:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 10:00:00+00:00",
-          endDt: "2025-12-10 11:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "bump-charge" }
+          start: "2025-12-10 10:00:00+00:00",
+          end: "2025-12-10 11:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "BOOST"
         }
       ],
-      vehicleChargingPreferences: {
-        weekdayTargetSoc: 90,
-        weekdayTargetTime: "07:00",
-        weekendTargetSoc: 90,
-        weekendTargetTime: "07:00"
-      }
+      devices: [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: {
+          schedules: [
+            { dayOfWeek: 'MONDAY',    time: '07:00:00', max: 90 },
+            { dayOfWeek: 'TUESDAY',   time: '07:00:00', max: 90 },
+            { dayOfWeek: 'WEDNESDAY', time: '07:00:00', max: 90 },
+            { dayOfWeek: 'THURSDAY',  time: '07:00:00', max: 90 },
+            { dayOfWeek: 'FRIDAY',    time: '07:00:00', max: 90 },
+            { dayOfWeek: 'SATURDAY',  time: '07:00:00', max: 90 },
+            { dayOfWeek: 'SUNDAY',    time: '07:00:00', max: 90 },
+          ]
+        }
+      }]
     }
   },
   testTime: "2025-12-10T10:45:00Z", // 45 minutes into last slot
@@ -536,50 +628,59 @@ const mockRealApiResponse_6Slots_NoneActive = {
   status: 200,
   data: {
     data: {
-      plannedDispatches: [
+      flexPlannedDispatches: [
         {
-          startDt: "2025-12-10 00:00:00+00:00",
-          endDt: "2025-12-10 01:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 00:00:00+00:00",
+          end: "2025-12-10 01:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 02:00:00+00:00",
-          endDt: "2025-12-10 03:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 02:00:00+00:00",
+          end: "2025-12-10 03:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 04:00:00+00:00",
-          endDt: "2025-12-10 05:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 04:00:00+00:00",
+          end: "2025-12-10 05:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 06:00:00+00:00",
-          endDt: "2025-12-10 07:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 06:00:00+00:00",
+          end: "2025-12-10 07:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 08:00:00+00:00",
-          endDt: "2025-12-10 09:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "smart-charge" }
+          start: "2025-12-10 08:00:00+00:00",
+          end: "2025-12-10 09:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "SMART"
         },
         {
-          startDt: "2025-12-10 10:00:00+00:00",
-          endDt: "2025-12-10 11:00:00+00:00",
-          deltaKwh: -3,
-          meta: { source: "bump-charge" }
+          start: "2025-12-10 10:00:00+00:00",
+          end: "2025-12-10 11:00:00+00:00",
+          energyAddedKwh: 3,
+          type: "BOOST"
         }
       ],
-      vehicleChargingPreferences: {
-        weekdayTargetSoc: 90,
-        weekdayTargetTime: "07:00",
-        weekendTargetSoc: 90,
-        weekendTargetTime: "07:00"
-      }
+      devices: [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: {
+          schedules: [
+            { dayOfWeek: 'MONDAY',    time: '07:00:00', max: 90 },
+            { dayOfWeek: 'TUESDAY',   time: '07:00:00', max: 90 },
+            { dayOfWeek: 'WEDNESDAY', time: '07:00:00', max: 90 },
+            { dayOfWeek: 'THURSDAY',  time: '07:00:00', max: 90 },
+            { dayOfWeek: 'FRIDAY',    time: '07:00:00', max: 90 },
+            { dayOfWeek: 'SATURDAY',  time: '07:00:00', max: 90 },
+            { dayOfWeek: 'SUNDAY',    time: '07:00:00', max: 90 },
+          ]
+        }
+      }]
     }
   },
   testTime: "2025-12-10T03:30:00Z", // Between slot 2 and slot 3
@@ -589,63 +690,74 @@ const mockRealApiResponse_6Slots_NoneActive = {
 /**
  * Data query with no slots
  * Scenario: Car not plugged in or no charging scheduled
- * TODO: Update with actual API response structure when available
  */
 const mockDataNoSlots = {
   status: 200,
   data: {
     data: {
-      plannedDispatches: [],
-      vehicleChargingPreferences: {
-        weekdayTargetSoc: 80,
-        weekdayTargetTime: "08:00",
-        weekendTargetSoc: 80,
-        weekendTargetTime: "08:00"
-      }
+      flexPlannedDispatches: [],
+      devices: [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: {
+          schedules: [
+            { dayOfWeek: 'MONDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'TUESDAY',   time: '08:00:00', max: 80 },
+            { dayOfWeek: 'WEDNESDAY', time: '08:00:00', max: 80 },
+            { dayOfWeek: 'THURSDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'FRIDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SATURDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SUNDAY',    time: '08:00:00', max: 80 },
+          ]
+        }
+      }]
     }
   }
 };
 
 /**
  * Data query with 3 slots (testing multiple slot handling)
- * Scenario: Complex charging schedule with bump charge
+ * Scenario: Complex charging schedule with boost charge
  */
 const mockDataWithThreeSlots = {
   status: 200,
   data: {
     data: {
-      plannedDispatches: [
+      flexPlannedDispatches: [
         {
-          startDt: "2025-11-29 01:30:00+00:00",
-          endDt: "2025-11-29 03:30:00+00:00",
-          deltaKwh: -10.2,
-          meta: {
-            source: "smart-charge"
-          }
+          start: "2025-11-29 01:30:00+00:00",
+          end: "2025-11-29 03:30:00+00:00",
+          energyAddedKwh: 10.2,
+          type: "SMART"
         },
         {
-          startDt: "2025-11-29 12:00:00+00:00",
-          endDt: "2025-11-29 13:00:00+00:00",
-          deltaKwh: -5.5,
-          meta: {
-            source: "bump-charge"
-          }
+          start: "2025-11-29 12:00:00+00:00",
+          end: "2025-11-29 13:00:00+00:00",
+          energyAddedKwh: 5.5,
+          type: "BOOST"
         },
         {
-          startDt: "2025-11-30 02:00:00+00:00",
-          endDt: "2025-11-30 05:30:00+00:00",
-          deltaKwh: -18.7,
-          meta: {
-            source: "smart-charge"
-          }
+          start: "2025-11-30 02:00:00+00:00",
+          end: "2025-11-30 05:30:00+00:00",
+          energyAddedKwh: 18.7,
+          type: "SMART"
         }
       ],
-      vehicleChargingPreferences: {
-        weekdayTargetSoc: 90,
-        weekdayTargetTime: "07:00",
-        weekendTargetSoc: 90,
-        weekendTargetTime: "07:00"
-      }
+      devices: [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: {
+          schedules: [
+            { dayOfWeek: 'MONDAY',    time: '07:00:00', max: 90 },
+            { dayOfWeek: 'TUESDAY',   time: '07:00:00', max: 90 },
+            { dayOfWeek: 'WEDNESDAY', time: '07:00:00', max: 90 },
+            { dayOfWeek: 'THURSDAY',  time: '07:00:00', max: 90 },
+            { dayOfWeek: 'FRIDAY',    time: '07:00:00', max: 90 },
+            { dayOfWeek: 'SATURDAY',  time: '07:00:00', max: 90 },
+            { dayOfWeek: 'SUNDAY',    time: '07:00:00', max: 90 },
+          ]
+        }
+      }]
     }
   }
 };
@@ -658,22 +770,29 @@ const mockDataWithPastSlots = {
   status: 200,
   data: {
     data: {
-      plannedDispatches: [
+      flexPlannedDispatches: [
         {
-          startDt: "2025-11-28 01:30:00+00:00",
-          endDt: "2025-11-28 05:30:00+00:00",
-          deltaKwh: -12,
-          meta: {
-            source: "smart-charge"
-          }
+          start: "2025-11-28 01:30:00+00:00",
+          end: "2025-11-28 05:30:00+00:00",
+          energyAddedKwh: 12,
+          type: "SMART"
         }
       ],
-      vehicleChargingPreferences: {
-        weekdayTargetSoc: 80,
-        weekdayTargetTime: "08:00",
-        weekendTargetSoc: 80,
-        weekendTargetTime: "08:00"
-      }
+      devices: [{
+        id: 'test-device',
+        deviceType: 'ELECTRIC_VEHICLES',
+        preferences: {
+          schedules: [
+            { dayOfWeek: 'MONDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'TUESDAY',   time: '08:00:00', max: 80 },
+            { dayOfWeek: 'WEDNESDAY', time: '08:00:00', max: 80 },
+            { dayOfWeek: 'THURSDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'FRIDAY',    time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SATURDAY',  time: '08:00:00', max: 80 },
+            { dayOfWeek: 'SUNDAY',    time: '08:00:00', max: 80 },
+          ]
+        }
+      }]
     }
   }
 };
@@ -682,25 +801,18 @@ const mockDataWithPastSlots = {
 // 3. PREFERENCE MUTATION RESPONSES
 // ============================================================================
 
-/**
- * Successful preference mutation
- * TODO: Update with actual API response structure when available
- */
+// NOTE: mock shape must be validated against a real setDevicePreferences API response.
 const mockMutationSuccess = {
   status: 200,
   data: {
     data: {
-      setVehicleChargePreferences: {
-        __typename: "VehicleChargingPreferences"
+      setDevicePreferences: {
+        __typename: "SmartFlexDevicePreferences"
       }
     }
   }
 };
 
-/**
- * Preference mutation failure
- * TODO: Update with actual API response structure when available
- */
 const mockMutationFailure = {
   status: 200,
   data: {
@@ -708,7 +820,7 @@ const mockMutationFailure = {
       {
         message: "Failed to update preferences",
         locations: [{ line: 1, column: 1 }],
-        path: ["setVehicleChargePreferences"]
+        path: ["setDevicePreferences"]
       }
     ]
   }
@@ -763,9 +875,9 @@ const mockRateLimitError = {
  */
 const expectedPayloadTwoSlots = {
   next_start: "2025-11-29 21:30:00+00:00",
-  total_energy: -12,
+  total_energy: 12,
   next_kwh: "0.00",
-  next_source: "smart-charge",
+  next_source: "smart",
   confirmed_limit: 80,
   confirmed_time: "04:00",
   pending_limit: 80,
@@ -796,9 +908,9 @@ const expectedPayloadTwoSlots = {
  */
 const expectedPayloadActiveSlot = {
   next_start: "2025-11-29 01:30:00+00:00",
-  total_energy: -15.5,
-  next_kwh: "-15.50",
-  next_source: "smart-charge",
+  total_energy: 15.5,
+  next_kwh: "15.50",
+  next_source: "smart",
   confirmed_limit: 80,
   confirmed_time: "08:00",
   pending_limit: 80,
@@ -935,20 +1047,29 @@ function generateMockDataWithActiveSlot() {
     status: 200,
     data: {
       data: {
-        plannedDispatches: [
+        flexPlannedDispatches: [
           {
-            startDt: startTime.toISOString().replace('T', ' ').replace('Z', '+00:00'),
-            endDt: endTime.toISOString().replace('T', ' ').replace('Z', '+00:00'),
-            deltaKwh: -15.5,
-            meta: { source: "smart-charge" }
+            start: startTime.toISOString().replace('T', ' ').replace('Z', '+00:00'),
+            end: endTime.toISOString().replace('T', ' ').replace('Z', '+00:00'),
+            energyAddedKwh: 15.5,
+            type: "SMART"
           }
         ],
-        vehicleChargingPreferences: {
-          weekdayTargetSoc: 80,
-          weekdayTargetTime: "08:00",
-          weekendTargetSoc: 80,
-          weekendTargetTime: "08:00"
-        }
+        devices: [{
+          id: 'test-device',
+          deviceType: 'ELECTRIC_VEHICLES',
+          preferences: {
+            schedules: [
+              { dayOfWeek: 'MONDAY',    time: '08:00:00', max: 80 },
+              { dayOfWeek: 'TUESDAY',   time: '08:00:00', max: 80 },
+              { dayOfWeek: 'WEDNESDAY', time: '08:00:00', max: 80 },
+              { dayOfWeek: 'THURSDAY',  time: '08:00:00', max: 80 },
+              { dayOfWeek: 'FRIDAY',    time: '08:00:00', max: 80 },
+              { dayOfWeek: 'SATURDAY',  time: '08:00:00', max: 80 },
+              { dayOfWeek: 'SUNDAY',    time: '08:00:00', max: 80 },
+            ]
+          }
+        }]
       }
     }
   };
@@ -968,24 +1089,198 @@ function generateMockDataWithFutureSlot() {
     status: 200,
     data: {
       data: {
-        plannedDispatches: [
+        flexPlannedDispatches: [
           {
-            startDt: startTime.toISOString().replace('T', ' ').replace('Z', '+00:00'),
-            endDt: endTime.toISOString().replace('T', ' ').replace('Z', '+00:00'),
-            deltaKwh: -15.5,
-            meta: { source: "smart-charge" }
+            start: startTime.toISOString().replace('T', ' ').replace('Z', '+00:00'),
+            end: endTime.toISOString().replace('T', ' ').replace('Z', '+00:00'),
+            energyAddedKwh: 15.5,
+            type: "SMART"
           }
         ],
-        vehicleChargingPreferences: {
-          weekdayTargetSoc: 80,
-          weekdayTargetTime: "08:00",
-          weekendTargetSoc: 80,
-          weekendTargetTime: "08:00"
-        }
+        devices: [{
+          id: 'test-device',
+          deviceType: 'ELECTRIC_VEHICLES',
+          preferences: {
+            schedules: [
+              { dayOfWeek: 'MONDAY',    time: '08:00:00', max: 80 },
+              { dayOfWeek: 'TUESDAY',   time: '08:00:00', max: 80 },
+              { dayOfWeek: 'WEDNESDAY', time: '08:00:00', max: 80 },
+              { dayOfWeek: 'THURSDAY',  time: '08:00:00', max: 80 },
+              { dayOfWeek: 'FRIDAY',    time: '08:00:00', max: 80 },
+              { dayOfWeek: 'SATURDAY',  time: '08:00:00', max: 80 },
+              { dayOfWeek: 'SUNDAY',    time: '08:00:00', max: 80 },
+            ]
+          }
+        }]
       }
     }
   };
 }
+
+// ============================================================================
+// V2 CATEGORY MOCK RESPONSES
+// ============================================================================
+
+// Mirrors a live response: one import + one export agreement (Agile Outgoing — no unitRate).
+const mockElectricityRatesResponse = {
+    status: 200,
+    data: {
+        data: {
+            account: {
+                electricityAgreements: [
+                    {
+                        validFrom: '2024-10-01T00:00:00Z',
+                        validTo: null,
+                        tariff: {
+                            productCode: 'INTELLI-VAR-22-10-14',
+                            standingCharge: 53.37,
+                            unitRate: 24.50
+                        }
+                    },
+                    {
+                        validFrom: '2024-09-01T00:00:00Z',
+                        validTo: null,
+                        tariff: {
+                            productCode: 'AGILE-OUTGOING-19-05-13',
+                            standingCharge: 0
+                        }
+                    }
+                ]
+            }
+        }
+    }
+};
+
+// Mirrors live shape: one import meter point + one export meter point, each
+// with its own consumption value.
+const mockElectricityConsumptionResponse = {
+    status: 200,
+    data: {
+        data: {
+            account: {
+                properties: [{
+                    electricityMeterPoints: [
+                        {
+                            mpan: '1610000000001',
+                            meters: [{
+                                consumption: {
+                                    edges: [{
+                                        node: {
+                                            startAt: '2026-04-26T23:00:00Z',
+                                            endAt: '2026-04-27T23:00:00Z',
+                                            value: 12.5,
+                                            unit: 'kWh'
+                                        }
+                                    }]
+                                }
+                            }]
+                        },
+                        {
+                            mpan: '1650000000002',
+                            meters: [{
+                                consumption: {
+                                    edges: [{
+                                        node: {
+                                            startAt: '2026-04-26T23:00:00Z',
+                                            endAt: '2026-04-27T23:00:00Z',
+                                            value: 4.2,
+                                            unit: 'kWh'
+                                        }
+                                    }]
+                                }
+                            }]
+                        }
+                    ]
+                }]
+            }
+        }
+    }
+};
+
+const mockGasRatesResponse = {
+    status: 200,
+    data: {
+        data: {
+            account: {
+                gasAgreements: [{
+                    validFrom: '2024-10-01T00:00:00Z',
+                    validTo: null,
+                    tariff: {
+                        productCode: 'VAR-22-11-01',
+                        standingCharge: 29.50,
+                        unitRate: 6.24
+                    }
+                }]
+            }
+        }
+    }
+};
+
+const mockGasConsumptionResponse = {
+    status: 200,
+    data: {
+        data: {
+            account: {
+                properties: [{
+                    gasMeterPoints: [{
+                        meters: [{
+                            consumption: {
+                                edges: [{
+                                    node: {
+                                        startAt: '2026-04-26T23:00:00Z',
+                                        endAt: '2026-04-27T23:00:00Z',
+                                        value: '8.3'
+                                    }
+                                }]
+                            }
+                        }]
+                    }]
+                }]
+            }
+        }
+    }
+};
+
+// Mirrors live response from api.backend.octopus.energy 2026-05-11
+const mockWheelOfFortuneResponse = {
+    status: 200,
+    data: {
+        data: {
+            electricity: { spinsAllowed: 2 },
+            gas: { spinsAllowed: 0 }
+        }
+    }
+};
+
+const mockHomeMiniResponse = {
+    status: 200,
+    data: {
+        data: {
+            account: {
+                properties: [{
+                    electricityMeterPoints: [{
+                        currentConsumption: {
+                            demand: 1.24,
+                            startAt: '2026-04-27T10:00:00Z'
+                        },
+                        currentAccumulativeConsumption: {
+                            startAt: '2026-04-27T00:00:00Z',
+                            endAt: '2026-04-27T10:00:00Z',
+                            usage: 8.7
+                        },
+                        currentAccumulativeConsumptionCost: {
+                            startAt: '2026-04-27T00:00:00Z',
+                            endAt: '2026-04-27T10:00:00Z',
+                            cost: 213.15,
+                            offPeakCost: 85.50,
+                            standardCost: 127.65
+                        }
+                    }]
+                }]
+            }
+        }
+    }
+};
 
 // ============================================================================
 // EXPORTS
@@ -1028,6 +1323,14 @@ module.exports = {
   expectedPayloadTwoSlots,
   expectedPayloadActiveSlot,
   expectedPayloadNoSlots,
+
+  // V2 Category mock responses
+  mockElectricityRatesResponse,
+  mockElectricityConsumptionResponse,
+  mockGasRatesResponse,
+  mockGasConsumptionResponse,
+  mockWheelOfFortuneResponse,
+  mockHomeMiniResponse,
 
   // Helper functions
   createMockAxios,

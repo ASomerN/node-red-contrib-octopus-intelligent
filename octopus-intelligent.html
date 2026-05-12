@@ -5,10 +5,24 @@
         defaults: {
             name: { value: "Octopus Intelligent" },
             accountNumber: { value: "", required: true },
-            broker: { type: "mqtt-broker", required: false }, // Optional MQTT
+            broker: { type: "mqtt-broker", required: false },
             refreshInterval: { value: 5, validate: RED.validators.number() },
             enableMqtt: { value: true },
-            timezoneOverride: { value: "" }
+            timezoneOverride: { value: "" },
+            // Electricity
+            electricityEnabled: { value: true },
+            electricityRatesInterval: { value: 60, validate: RED.validators.number() },
+            electricityConsumptionInterval: { value: 60, validate: RED.validators.number() },
+            // Gas
+            gasEnabled: { value: true },
+            gasRatesInterval: { value: 60, validate: RED.validators.number() },
+            gasConsumptionInterval: { value: 60, validate: RED.validators.number() },
+            // Wheel of Fortune
+            enableWheelOfFortune: { value: false },
+            wheelOfFortuneInterval: { value: 60, validate: RED.validators.number() },
+            // Home Mini
+            enableHomeMini: { value: false },
+            homeMiniInterval: { value: 1, validate: RED.validators.number() }
         },
         credentials: {
             apiKey: { type: "password" }
@@ -39,8 +53,9 @@
     <hr>
 
     <div class="form-row">
-        <label for="node-input-refreshInterval"><i class="fa fa-clock-o"></i> Refresh (Min)</label>
-        <input type="number" id="node-input-refreshInterval" placeholder="5">
+        <label for="node-input-refreshInterval"><i class="fa fa-bolt"></i> Intelligent (Min)</label>
+        <input type="number" id="node-input-refreshInterval" placeholder="5" style="width:70px;">
+        <span style="margin-left:6px;font-size:0.85em;color:#888;">Charging slots poll interval</span>
     </div>
 
     <div class="form-row">
@@ -62,6 +77,58 @@
     <div class="form-row">
         <label for="node-input-broker"><i class="fa fa-globe"></i> MQTT Broker</label>
         <input type="text" id="node-input-broker">
+    </div>
+
+    <hr>
+
+    <div class="form-row">
+        <label style="width:100%;font-weight:bold;color:#555;margin-bottom:2px;">
+            <i class="fa fa-clock-o"></i> API Polling Intervals (minutes)
+        </label>
+    </div>
+
+    <div class="form-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">
+        <label for="node-input-electricityEnabled" style="width:120px;flex-shrink:0;">
+            <i class="fa fa-bolt"></i> Electricity
+        </label>
+        <input type="checkbox" id="node-input-electricityEnabled" style="width:auto;">
+        <span style="font-size:0.85em;color:#555;margin-left:6px;">Rates:</span>
+        <input type="number" id="node-input-electricityRatesInterval" style="width:55px;" placeholder="60">
+        <span style="font-size:0.85em;color:#555;">Consumption:</span>
+        <input type="number" id="node-input-electricityConsumptionInterval" style="width:55px;" placeholder="60">
+    </div>
+
+    <div class="form-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">
+        <label for="node-input-gasEnabled" style="width:120px;flex-shrink:0;">
+            <i class="fa fa-fire"></i> Gas
+        </label>
+        <input type="checkbox" id="node-input-gasEnabled" style="width:auto;">
+        <span style="font-size:0.85em;color:#555;margin-left:6px;">Rates:</span>
+        <input type="number" id="node-input-gasRatesInterval" style="width:55px;" placeholder="60">
+        <span style="font-size:0.85em;color:#555;">Consumption:</span>
+        <input type="number" id="node-input-gasConsumptionInterval" style="width:55px;" placeholder="60">
+    </div>
+
+    <div class="form-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">
+        <label for="node-input-enableWheelOfFortune" style="width:120px;flex-shrink:0;">
+            <i class="fa fa-star"></i> Wheel of Fortune
+        </label>
+        <input type="checkbox" id="node-input-enableWheelOfFortune" style="width:auto;">
+        <span style="font-size:0.85em;color:#666;margin-left:4px;">Octoplus only</span>
+        <span style="font-size:0.85em;color:#555;margin-left:6px;">Every:</span>
+        <input type="number" id="node-input-wheelOfFortuneInterval" style="width:55px;" placeholder="60">
+        <span style="font-size:0.85em;color:#888;">min</span>
+    </div>
+
+    <div class="form-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">
+        <label for="node-input-enableHomeMini" style="width:120px;flex-shrink:0;">
+            <i class="fa fa-home"></i> Home Mini
+        </label>
+        <input type="checkbox" id="node-input-enableHomeMini" style="width:auto;">
+        <span style="font-size:0.85em;color:#666;margin-left:4px;">requires hardware</span>
+        <span style="font-size:0.85em;color:#555;margin-left:6px;">Every:</span>
+        <input type="number" id="node-input-homeMiniInterval" style="width:55px;" placeholder="1">
+        <span style="font-size:0.85em;color:#888;">min</span>
     </div>
 </script>
 

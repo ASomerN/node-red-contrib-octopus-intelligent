@@ -5,6 +5,89 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-05-12
+
+Major additive release covering the full Octopus Energy consumer read surface. No breaking changes to v1.2.x payload fields, entity IDs, MQTT topics, input commands, or node config fields. All v1.2.x automations and dashboards continue to work unchanged.
+
+### Added — Electricity (import)
+- `electricity_standing_charge` — daily standing charge (p/day)
+- `electricity_unit_rate` — fixed unit rate (p/kWh); `null` on half-hourly tariffs
+- `electricity_tariff_code`, `electricity_valid_from`, `electricity_valid_to`
+- `electricity_consumption_kwh` — previous day import consumption
+- `electricity_consumption_from`, `electricity_consumption_to` — period boundaries
+- `applicable_rates`, `applicable_rates_count` — full 48-slot half-hourly schedule
+- `applicable_rates_current_pence`, `applicable_rates_current_gbp` — live rate (use these on half-hourly tariffs)
+- `applicable_rates_prev_pence/_gbp/_to`, `applicable_rates_next_pence/_gbp/_from` — adjacent slot rates and transition timestamps (payload-only; not currently exposed as MQTT entities — see README)
+
+### Added — Electricity (export)
+- `electricity_export_standing_charge` — typically `0` for Agile Outgoing
+- `electricity_export_unit_rate` — fixed; `null` on half-hourly export tariffs
+- `electricity_export_tariff_code` (e.g. `AGILE-OUTGOING-19-05-13`), `electricity_export_valid_from`, `electricity_export_valid_to`
+- `electricity_export_consumption_kwh`, `_from`, `_to` — previous day export from the export meter
+- `electricity_export_rate`, `electricity_export_rate_count` — full 48-slot half-hourly export schedule
+- `electricity_export_rate_current_pence/_gbp` — live export rate
+- `electricity_export_rate_prev_pence/_to`, `electricity_export_rate_next_pence/_from` — adjacent export slot rates
+
+### Added — Gas
+- `gas_standing_charge`, `gas_unit_rate`, `gas_tariff_code`, `gas_valid_from`, `gas_valid_to`
+- `gas_consumption_kwh`, `gas_consumption_from`, `gas_consumption_to`
+
+### Added — Home Mini
+- `mini_demand_kw` (kW, numeric) — real-time grid demand
+- `mini_consumption_delta_kwh` (kWh, numeric) — half-hour period consumption
+- `mini_read_at` — timestamp of most recent telemetry
+- Opt-in via "Enable Home Mini" checkbox in node config
+
+### Added — Rewards
+- `saving_session_available` (binary), `saving_session_start`, `saving_session_end`, `saving_session_joined`
+- `free_electricity_active` (binary), `free_electricity_available` (binary), `free_electricity_start`, `free_electricity_end`
+- `wheel_of_fortune_electricity_spins`, `wheel_of_fortune_gas_spins` — opt-in via node config checkbox
+- `octoplus_enrolled` (binary sensor), `octoplus_enrollment_status` (string), `octoplus_loyalty_points_user` (binary sensor)
+
+### Added — Account & dispatches
+- `account_balance_pounds`, `account_balance_pence`
+- `completed_dispatches` (array), `completed_dispatches_count` — completed intelligent dispatch history
+- `flex_planned_dispatches` (array), `flex_planned_dispatches_count` — upcoming flex dispatches (replaces deprecated `plannedDispatches`)
+
+### Added — Infrastructure
+- **Account discovery** — automatic product detection at startup; categories auto-enable based on registered products and discover both import and export meter points by `direction`, not array position
+- **Per-category poll intervals** — configurable in node editor for each data source
+- **1-second clock-aligned category scheduler** — independent polling; one slow category doesn't block others
+
+### Changed
+- **Octopus `wheelOfFortuneSpins` migrated to `wheelOfFortuneSpinsAllowed`** on `api.backend.octopus.energy` — the old field was deprecated and scheduled for removal 2026-04-20
+- **Octopus `savingSessions` migrated to `api.backend.octopus.energy`** endpoint — the field was removed from the main endpoint
+- **`octoplus_enrolled` and `octoplus_loyalty_points_user` now publish as `binary_sensor` instead of `sensor`** — these are boolean values and HA's sensor domain rejects raw booleans. **HA-side breaking change for users referencing the old `sensor.*` entity IDs**: update automations and dashboards to use `binary_sensor.*`. Payload field names (`msg.payload.octoplus_enrolled`, `msg.payload.octoplus_loyalty_points_user`) are unchanged.
+- **`entity_category: config` removed** from read-only tariff/validity sensors (`electricity_unit_rate`, `electricity_tariff_code`, `electricity_valid_from/to`, `gas_*`, `electricity_export_*`, `saving_session_start/end`, `free_electricity_start/end`, `octoplus_enrollment_status`). These now appear in the main device entity list rather than a separate Configuration section. HA's `entity_category: config` is intended for user-configurable entities (switches, numbers, selects) — applying it to read-only sensors caused state to stick at "unavailable" on some installs.
+
+### Fixed
+- **Import/export meter point selection** — discovery now selects meter points by the `direction` field (`IMPORT` or `EXPORT`), not array position. Earlier dev builds on accounts with both meters could surface export data as import (live "current rate" showing the export Agile rate instead of the import tariff). No stable v1.x release was affected; caught and fixed before v1.3.0 ship.
+- **MQTT transport headers** — `lib/graphql.js` now sends `User-Agent: node-red-contrib-octopus-intelligent/<version>` on every request. Without it, `api.backend.octopus.energy` returns 403 at the edge — which previously surfaced as "WoF returns HTML" and silently broken saving sessions.
+- **MQTT auth format** — uses raw JWT in the Authorization header (no `JWT ` prefix). Main endpoint accepts both; backend endpoint sub-resolvers require the raw form.
+- **Saving sessions schema migration** — removed deprecated `octopoints` field from `SavingSessionsAccountType` query (Octopus moved loyalty points to the Octoplus query).
+- **Gas tariff query fragments** — `GasTariffType` is an object type, not a union — removed inline fragments that caused "Fragment cannot be spread here" errors.
+
+### Unchanged (no breaking changes)
+- All v1.2.x payload field names in `msg.payload`
+- All v1.2.x MQTT topics, `unique_id` values, and HA entity IDs (except the Octoplus domain change noted above)
+- All v1.2.x input commands: `set_limit`, `set_time`, `set_smart_charging`, `set_timezone`
+- All v1.2.x node config fields: `accountNumber`, `apiKey`, `broker`, `enableMqtt`, `name`, `refreshInterval`, `timezoneOverride`
+- Intelligent Octopus Go charging schedule, smart charging toggle, charging preferences
+
+---
+
+## [1.2.1] — 2026-04-29
+
+### Fixed
+- **Deprecated API migration** — moved smart-charging verification from the deprecated `registeredKrakenflexDevice` query to the current `devices` query
+- **Mutation migration** — `setVehicleChargePreferences` (deprecated) replaced with `setDevicePreferences` using the 7-day schedule input
+- **Startup device fetch** — uses the current `devices` query instead of deprecated `registeredKrakenflexDevice`
+
+### Unchanged
+- All v1.2.0 payload fields, MQTT topics, and entity IDs preserved
+
+---
+
 ## [1.2.0] - 2026-04-26
 
 ### Added

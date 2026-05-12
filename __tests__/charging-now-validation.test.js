@@ -73,8 +73,8 @@ describe('Charging Now - Real API Data Tests', () => {
     const now = new Date();
 
     const activeSlot = slots.find(s => {
-      const start = new Date(s.startDt);
-      const end = new Date(s.endDt);
+      const start = new Date(s.start);
+      const end = new Date(s.end);
       return start <= now && end > now;
     });
 
@@ -121,7 +121,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_1Slot_Active;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       setupChargingTimers(slots);
@@ -134,7 +134,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_1Slot_Future;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       setupChargingTimers(slots);
@@ -153,7 +153,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_3Slots_FirstActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       setupChargingTimers(slots);
@@ -166,7 +166,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_3Slots_MiddleActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       setupChargingTimers(slots);
@@ -179,7 +179,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_3Slots_LastActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       setupChargingTimers(slots);
@@ -192,7 +192,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_3Slots_NoneActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       setupChargingTimers(slots);
@@ -211,7 +211,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_6Slots_FirstActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       setupChargingTimers(slots);
@@ -224,7 +224,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_6Slots_ThirdActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       setupChargingTimers(slots);
@@ -237,7 +237,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_6Slots_LastActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       setupChargingTimers(slots);
@@ -250,7 +250,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_6Slots_NoneActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       setupChargingTimers(slots);
@@ -269,7 +269,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_3Slots_MiddleActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       // Process in validation mode with BUGGY version
@@ -288,7 +288,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_3Slots_MiddleActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       // Process in NORMAL mode
@@ -307,7 +307,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_1Slot_Active;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       const payload = processDataWithBug(slots, true);
@@ -319,7 +319,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_6Slots_LastActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       const payload = processDataWithBug(slots, true);
@@ -337,7 +337,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_1Slot_Active;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       const payload = processDataFixed(slots, true);
@@ -354,7 +354,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_3Slots_FirstActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       const payload = processDataFixed(slots, true);
@@ -366,7 +366,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_3Slots_MiddleActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       const payload = processDataFixed(slots, true);
@@ -378,7 +378,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_3Slots_LastActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       const payload = processDataFixed(slots, true);
@@ -390,7 +390,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_6Slots_FirstActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       const payload = processDataFixed(slots, true);
@@ -402,7 +402,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_6Slots_ThirdActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       const payload = processDataFixed(slots, true);
@@ -414,7 +414,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_6Slots_LastActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       const payload = processDataFixed(slots, true);
@@ -426,7 +426,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_3Slots_NoneActive;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       chargingNow = false;
 
       const payload = processDataFixed(slots, true);
@@ -438,7 +438,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_1Slot_Active;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       stateCheckInterval = null;
 
       processDataFixed(slots, true);
@@ -450,7 +450,7 @@ describe('Charging Now - Real API Data Tests', () => {
       const mock = mockRealApiResponse_1Slot_Active;
       jest.setSystemTime(new Date(mock.testTime));
 
-      const slots = mock.data.data.plannedDispatches;
+      const slots = mock.data.data.flexPlannedDispatches;
       stateCheckInterval = null;
 
       processDataFixed(slots, false);
@@ -480,7 +480,7 @@ describe('Charging Now - Real API Data Tests', () => {
 
       scenarios.forEach(scenario => {
         jest.setSystemTime(new Date(scenario.mock.testTime));
-        const slots = scenario.mock.data.data.plannedDispatches;
+        const slots = scenario.mock.data.data.flexPlannedDispatches;
         chargingNow = false;
 
         setupChargingTimers(slots);

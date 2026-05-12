@@ -1,5 +1,4 @@
 node_modules/
-.claude/
 .worktrees/
 
 # Development and planning documentation
@@ -8,9 +7,11 @@ docs/
 # Build artifacts
 builds/
 *.tgz
+coverage/
 
 # Utility scripts
 utilities/
+scripts/
 
 # Sensitive files — never commit
 .env
