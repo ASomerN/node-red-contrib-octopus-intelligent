@@ -55,6 +55,30 @@ describe('electricity category', () => {
             expect(result.electricity_export_tariff_code).toBeNull();
         });
 
+        // Kraken Float scalars can arrive as JSON strings (see feedback_kraken_numeric_fields).
+        // Passthrough emits the string verbatim; HA monetary device classes reject string values.
+        test('coerces string unitRate and standingCharge on import tariff to Number', () => {
+            const data = { account: { electricityAgreements: [{
+                validFrom: '2024-10-01T00:00:00Z', validTo: null,
+                tariff: { productCode: 'INTELLI-VAR-22-10-14', standingCharge: '53.37', unitRate: '24.50' }
+            }] } };
+            const result = electricity.parseRatesResponse(data);
+            expect(typeof result.electricity_unit_rate).toBe('number');
+            expect(result.electricity_unit_rate).toBe(24.50);
+            expect(typeof result.electricity_standing_charge).toBe('number');
+            expect(result.electricity_standing_charge).toBe(53.37);
+        });
+
+        test('coerces string standingCharge on export tariff to Number', () => {
+            const data = { account: { electricityAgreements: [{
+                validFrom: '2024-09-01T00:00:00Z', validTo: null,
+                tariff: { productCode: 'AGILE-OUTGOING-19-05-13', standingCharge: '0', unitRate: null }
+            }] } };
+            const result = electricity.parseRatesResponse(data);
+            expect(typeof result.electricity_export_standing_charge).toBe('number');
+            expect(result.electricity_export_standing_charge).toBe(0);
+        });
+
         test('returns export nulls when account has only an import agreement', () => {
             const data = { account: { electricityAgreements: [{
                 validFrom: '2024-10-01T00:00:00Z', validTo: null,

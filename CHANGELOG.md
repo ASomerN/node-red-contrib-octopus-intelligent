@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] — 2026-05-14
+
+Defensive hardening pass following the v1.3.1 hotfix audit. No user-facing behaviour change against the current live Kraken API — every affected field already arrives as a JSON number today. The fix forecloses the same latent crash class (`TypeError: ...toFixed is not a function`) if Kraken ever serialises these scalars as strings, matching how `energyAddedKwh` is already returned.
+
+### Fixed
+- `lib/categories/electricity.js` — `tariff.unitRate` and `tariff.standingCharge` (both import and export branches) now coerce via `parseFloat()` before emitting. Prevents string passthrough that would (a) break `device_class: monetary` sensors in HA and (b) crash any downstream arithmetic.
+- `lib/categories/gas.js` — same treatment for `tariff.unitRate` and `tariff.standingCharge`.
+- `lib/categories/account.js` — `balance` (pence) now coerces via `parseFloat()` before emitting `account_balance_pence`. JavaScript's `/` operator was already coercing for `account_balance_pounds`, so this only tightens type consistency on the integer pence field.
+
+### Tests
+- Added string-input regression tests for each coerced field, asserting `typeof === 'number'`. 4 new tests, 237 total (was 233).
+
 ## [1.3.1] — 2026-05-14
 
 Critical hotfix for v1.3.0. Users on 1.3.0 should upgrade immediately.

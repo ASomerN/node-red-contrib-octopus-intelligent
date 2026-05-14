@@ -24,6 +24,19 @@ describe('gas category', () => {
         expect(result.gas_consumption_error).toBeNull();
     });
 
+    // Kraken Float scalars can arrive as JSON strings (see feedback_kraken_numeric_fields).
+    test('parseRatesResponse coerces string unitRate and standingCharge to Number', () => {
+        const data = { account: { gasAgreements: [{
+            validFrom: '2026-02-21T00:00:00+00:00', validTo: null,
+            tariff: { productCode: 'SILVER-25-09-02', standingCharge: '33.475365', unitRate: '6.615' }
+        }] } };
+        const result = gas.parseRatesResponse(data);
+        expect(typeof result.gas_unit_rate).toBe('number');
+        expect(result.gas_unit_rate).toBe(6.615);
+        expect(typeof result.gas_standing_charge).toBe('number');
+        expect(result.gas_standing_charge).toBe(33.475365);
+    });
+
     test('defaultData covers every field that parseRatesResponse and parseConsumptionResponse can emit', () => {
         const ratesKeys = Object.keys(gas.parseRatesResponse({ account: { gasAgreements: [] } }));
         const ratesPopulatedKeys = Object.keys(gas.parseRatesResponse(mockGasRatesResponse.data.data));

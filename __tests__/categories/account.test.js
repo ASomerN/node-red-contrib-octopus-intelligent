@@ -41,4 +41,14 @@ describe('account category', () => {
             expect(account.defaultData).toHaveProperty(key);
         }
     });
+
+    // Kraken Float scalars can arrive as JSON strings (see feedback_kraken_numeric_fields).
+    // Even though `/` coerces, the pence field is passthrough and would emit a string.
+    test('parseResponse coerces string balance to Number', () => {
+        const result = account.parseResponse({ account: { balance: '10900' } });
+        expect(typeof result.account_balance_pence).toBe('number');
+        expect(result.account_balance_pence).toBe(10900);
+        expect(typeof result.account_balance_pounds).toBe('number');
+        expect(result.account_balance_pounds).toBe(109.00);
+    });
 });
