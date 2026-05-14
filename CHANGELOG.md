@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] — 2026-05-14
+
+Critical hotfix for v1.3.0. Users on 1.3.0 should upgrade immediately.
+
+### Fixed
+- **Intelligent category crash on numeric string inputs** — `flexPlannedDispatches.energyAddedKwh` is returned by the live Kraken API as a string. The intelligent category's reduce accumulator concatenated strings instead of summing, then called `.toFixed()` on the resulting string, raising `TypeError: totalEnergy.toFixed is not a function`. Whole intelligent payload section fell back to `defaultData` (null slot times, `total_energy: 0`, `next_kwh: "0"`), which surfaced in Home Assistant as "Error updating entity" for every intelligent sensor. Fixed by coercing `energyAddedKwh` via `parseFloat()` before arithmetic and formatting in `lib/categories/intelligent.js`, matching the pattern already used in `lib/categories/flex-planned-dispatches.js`. Added regression tests covering both positive and negative (export dispatch) string inputs.
+- `next_kwh` now consistently formats with two decimal places (e.g. `"5.50"`, `"15.20"`) per the documented contract in README, HTML help, and `test-mocks.js`. The v1.3.0 path stripped trailing zeros via `String(parseFloat(...))` — that branch is unreachable now because it always crashed before reaching it, but the format is corrected for completeness.
+
 ## [1.3.0] — 2026-05-12
 
 Major additive release covering the full Octopus Energy consumer read surface. No breaking changes to v1.2.x payload fields, entity IDs, MQTT topics, input commands, or node config fields. All v1.2.x automations and dashboards continue to work unchanged.

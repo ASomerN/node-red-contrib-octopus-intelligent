@@ -90,6 +90,38 @@ describe('intelligent category', () => {
         expect(result.next_kwh).toBe('0');
     });
 
+    // Live API returns energyAddedKwh as a string (verified empirically — see flex-planned-dispatches mock).
+    // Naive `sum + (s.energyAddedKwh || 0)` would concatenate, producing a string with no .toFixed().
+    test('parseResponse handles string energyAddedKwh from live API', () => {
+        const result = intelligent.parseResponse(
+            {
+                devices: mockDevices,
+                flexPlannedDispatches: [
+                    { start: '2099-12-10T02:00:00+00:00', end: '2099-12-10T03:00:00+00:00', energyAddedKwh: '5.5', type: 'SMART' },
+                    { start: '2099-12-10T05:00:00+00:00', end: '2099-12-10T06:00:00+00:00', energyAddedKwh: '4.5', type: 'SMART' }
+                ]
+            },
+            { tz: 'UTC', serverTz: 'UTC' }
+        );
+        expect(result.total_energy).toBe(10);
+        expect(result.next_kwh).toBe('5.50');
+    });
+
+    test('parseResponse handles negative string energyAddedKwh (export dispatch)', () => {
+        const result = intelligent.parseResponse(
+            {
+                devices: mockDevices,
+                flexPlannedDispatches: [
+                    { start: '2099-12-10T02:00:00+00:00', end: '2099-12-10T03:00:00+00:00', energyAddedKwh: '-1.86375', type: 'SMART' },
+                    { start: '2099-12-10T05:00:00+00:00', end: '2099-12-10T06:00:00+00:00', energyAddedKwh: '-2.2195', type: 'SMART' }
+                ]
+            },
+            { tz: 'UTC', serverTz: 'UTC' }
+        );
+        expect(result.total_energy).toBeCloseTo(-4.08, 2);
+        expect(result.next_kwh).toBe('-1.86');
+    });
+
     test('parseResponse handles no EV device gracefully (defaults)', () => {
         const result = intelligent.parseResponse(
             { devices: [], flexPlannedDispatches: mockDispatches },
