@@ -290,11 +290,15 @@ sections:
         entities:
           - entity: binary_sensor.octopus_intelligent_octopus_saving_session_available
             name: Next session available
+          - entity: binary_sensor.octopus_intelligent_octopus_saving_session_window_active
+            name: Session window active
+          - entity: binary_sensor.octopus_intelligent_octopus_saving_session_active
+            name: Session active (joined)
           - entity: sensor.octopus_intelligent_octopus_saving_session_start
             name: Next session — starts
           - entity: sensor.octopus_intelligent_octopus_saving_session_end
             name: Next session — ends
-          - entity: sensor.octopus_intelligent_octopus_saving_session_joined
+          - entity: binary_sensor.octopus_intelligent_octopus_saving_session_joined
             name: Joined
 
   - type: grid
@@ -317,23 +321,35 @@ sections:
       - type: glance
         title: Wheel of Fortune
         entities:
-          - entity: sensor.octopus_intelligent_octopus_wheel_of_fortune_electricity_spins
+          - entity: sensor.octopus_intelligent_octopus_wof_electricity_spins
             name: Elec spins
-          - entity: sensor.octopus_intelligent_octopus_wheel_of_fortune_gas_spins
+          - entity: sensor.octopus_intelligent_octopus_wof_gas_spins
             name: Gas spins
 
   - type: grid
     cards:
-      - type: gauge
-        entity: sensor.octopus_intelligent_octopus_home_mini_demand
-        name: Home Mini — live demand
-        unit: kW
-        min: 0
-        max: 10
-        severity:
-          green: 0
-          yellow: 3
-          red: 6
+      # Conditional wrapper: the gauge card errors with "Entity is non-numeric"
+      # on accounts without a Home Mini (mini_demand_kw is null). Hide it until
+      # the entity reports a real value.
+      - type: conditional
+        conditions:
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_home_mini_demand
+            state_not: unknown
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_home_mini_demand
+            state_not: unavailable
+        card:
+          type: gauge
+          entity: sensor.octopus_intelligent_octopus_home_mini_demand
+          name: Home Mini — live demand
+          unit: kW
+          min: 0
+          max: 10
+          severity:
+            green: 0
+            yellow: 3
+            red: 6
 
   - type: grid
     cards:

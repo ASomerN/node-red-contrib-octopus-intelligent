@@ -1,4 +1,5 @@
 node_modules/
+.claude/
 .worktrees/
 
 # Development and planning documentation
@@ -20,9 +21,12 @@ scripts/
 *.key
 *.cert
 local-test/
+.mcp.json
+settings.local.json
 
 # Specific files to ignore
 images/IMAGES_NEEDED.md
 __tests__/TEST-SUMMARY.md
 npm-support-email.txt
 todo.md
+CLAUDE.local.md

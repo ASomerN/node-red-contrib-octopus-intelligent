@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] — 2026-05-22
+
+### Fixed
+- **Saving Sessions card showed a 2-year-old session as "next"** — the category was emitting `events[0]` with no filter/sort, so stale historical events surfaced in `saving_session_start/end` and `saving_session_available` was effectively true forever. Now matches the `free-electricity` pattern: filter out ended events, sort earliest-first, take the first. `saving_session_available` now means "an upcoming session exists" as originally intended.
+- **Octoplus "Enrolled" and "Loyalty points user" stuck at "unavailable"** — both binary sensors were published with `entity_category: config`, which makes read-only sensor state stick at "unavailable" on some HA installs. Removed — same fix as the v1.3.0 tariff-sensor cleanup. Entity IDs are unchanged; not a breaking change.
+- **Example dashboard — Wheel of Fortune cards showed "Entity not found"** — `examples/ha-dashboard.yaml` referenced `..._wheel_of_fortune_*_spins`, but the entities are named "WoF …" so HA generates `..._wof_*_spins`. Corrected.
+- **Example dashboard — Home Mini gauge showed "Entity is non-numeric"** on accounts with no Home Mini — the gauge is now wrapped in a conditional card that hides until the entity reports a value.
+
+### Added
+- `saving_session_window_active` (binary sensor) — true when an upcoming session window is currently happening, regardless of whether you joined.
+- `saving_session_active` (binary sensor) — true only when you have joined the current session AND we are inside its window. Use this to drive automations that should only run when there is a payoff.
+
+### Changed (HA-side breaking)
+- `saving_session_joined` now publishes as `binary_sensor` instead of `sensor` — fixes the "False" display anomaly caused by HA's sensor domain rejecting raw booleans. **Update automations and dashboards referencing `sensor.saving_session_joined` to use `binary_sensor.saving_session_joined`.** Payload field name (`msg.payload.saving_session_joined`) is unchanged. Mirror of the v1.3.0 `octoplus_enrolled` migration. The plugin publishes an empty config to the old `sensor/.../config` topic on startup to clean the orphan from HA.
+
 ## [1.3.2] — 2026-05-14
 
 Defensive hardening pass following the v1.3.1 hotfix audit. No user-facing behaviour change against the current live Kraken API — every affected field already arrives as a JSON number today. The fix forecloses the same latent crash class (`TypeError: ...toFixed is not a function`) if Kraken ever serialises these scalars as strings, matching how `energyAddedKwh` is already returned.

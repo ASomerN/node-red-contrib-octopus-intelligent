@@ -190,7 +190,6 @@ module.exports = function (RED) {
             { id: 'home_mini_error', name: 'Home Mini Error',                            icon: 'mdi:alert-circle',  val: 'home_mini_error', category: 'diagnostic' },
 
             // --- Saving Sessions (main) ---
-            { id: 'saving_session_joined', name: 'Saving Session Joined', icon: 'mdi:lightning-bolt-circle', val: 'saving_session_joined' },
             { id: 'saving_session_points', name: 'Octopus Points',        icon: 'mdi:star',                  val: 'saving_session_points' },
             // --- Saving Sessions (config) ---
             { id: 'saving_session_start', name: 'Saving Session Start', class: 'timestamp', icon: 'mdi:calendar-clock', val: 'saving_session_start' },
@@ -327,6 +326,51 @@ module.exports = function (RED) {
             };
             node.broker.client.publish(`${mqttPrefix}/binary_sensor/${uniqueIdPrefix}_saving_session_available/config`, JSON.stringify(savingSessionBinarySensor), { retain: true });
 
+            // G2a. Saving Session Window Active Binary Sensor (v1.3.3)
+            const savingSessionWindowActiveSensor = {
+                name: "Octopus Saving Session Window Active",
+                unique_id: `${uniqueIdPrefix}_saving_session_window_active`,
+                state_topic: stateTopic,
+                value_template: "{{ value_json.saving_session_window_active }}",
+                payload_on: "True",
+                payload_off: "False",
+                icon: "mdi:clock-check-outline",
+                device: device
+            };
+            node.broker.client.publish(`${mqttPrefix}/binary_sensor/${uniqueIdPrefix}_saving_session_window_active/config`, JSON.stringify(savingSessionWindowActiveSensor), { retain: true });
+
+            // G2b. Saving Session Active Binary Sensor (v1.3.3) — joined AND in window
+            const savingSessionActiveSensor = {
+                name: "Octopus Saving Session Active",
+                unique_id: `${uniqueIdPrefix}_saving_session_active`,
+                state_topic: stateTopic,
+                value_template: "{{ value_json.saving_session_active }}",
+                payload_on: "True",
+                payload_off: "False",
+                icon: "mdi:home-export-outline",
+                device: device
+            };
+            node.broker.client.publish(`${mqttPrefix}/binary_sensor/${uniqueIdPrefix}_saving_session_active/config`, JSON.stringify(savingSessionActiveSensor), { retain: true });
+
+            // G2c. v1.3.3 migration: delete the deprecated sensor.saving_session_joined
+            // entity. HA's sensor domain doesn't render booleans cleanly. Empty
+            // payload on the discovery topic with retain tells HA the entity no
+            // longer exists. Safe to keep across releases.
+            node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_saving_session_joined/config`, "", { retain: true });
+
+            // G2d. Saving Session Joined Binary Sensor (v1.3.3 migration)
+            const savingSessionJoinedSensor = {
+                name: "Octopus Saving Session Joined",
+                unique_id: `${uniqueIdPrefix}_saving_session_joined`,
+                state_topic: stateTopic,
+                value_template: "{{ value_json.saving_session_joined }}",
+                payload_on: "True",
+                payload_off: "False",
+                icon: "mdi:account-check",
+                device: device
+            };
+            node.broker.client.publish(`${mqttPrefix}/binary_sensor/${uniqueIdPrefix}_saving_session_joined/config`, JSON.stringify(savingSessionJoinedSensor), { retain: true });
+
             // G3. Free Electricity Active Binary Sensor
             const freeElectricityActiveSensor = {
                 name: "Octopus Free Electricity Active",
@@ -356,7 +400,9 @@ module.exports = function (RED) {
             // G5. Octoplus Enrolled Binary Sensor
             // Published as binary_sensor (not sensor) because the value is a boolean —
             // HA's sensor domain rejects booleans without a device_class, leaving the
-            // entity unregistered.
+            // entity unregistered. No entity_category: 'config' on a read-only sensor
+            // makes its state stick at "unavailable" on some HA installs (same fix as
+            // the v1.3.0 tariff-sensor cleanup — see CHANGELOG).
             const octoplusEnrolledBinarySensor = {
                 name: "Octopus Octoplus Enrolled",
                 unique_id: `${uniqueIdPrefix}_octoplus_enrolled`,
@@ -365,12 +411,12 @@ module.exports = function (RED) {
                 payload_on: "True",
                 payload_off: "False",
                 icon: "mdi:star-circle",
-                entity_category: "config",
                 device: device
             };
             node.broker.client.publish(`${mqttPrefix}/binary_sensor/${uniqueIdPrefix}_octoplus_enrolled/config`, JSON.stringify(octoplusEnrolledBinarySensor), { retain: true });
 
             // G6. Octoplus Loyalty Points (boolean) Binary Sensor
+            // No entity_category — see G5.
             const octoplusLoyaltyBinarySensor = {
                 name: "Octopus Octoplus Loyalty Points",
                 unique_id: `${uniqueIdPrefix}_octoplus_loyalty_points_user`,
@@ -379,7 +425,6 @@ module.exports = function (RED) {
                 payload_on: "True",
                 payload_off: "False",
                 icon: "mdi:star",
-                entity_category: "config",
                 device: device
             };
             node.broker.client.publish(`${mqttPrefix}/binary_sensor/${uniqueIdPrefix}_octoplus_loyalty_points_user/config`, JSON.stringify(octoplusLoyaltyBinarySensor), { retain: true });
