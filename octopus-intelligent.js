@@ -5,6 +5,7 @@ const { createApiMetrics } = require('./lib/api-metrics');
 const intelligentCategory = require('./lib/categories/intelligent');
 const { buildDefaultPayload } = require('./lib/payload');
 const { createScheduler } = require('./lib/scheduler');
+const { simplePoll, runTick } = require('./lib/poll-tick');
 const { discoverProducts } = require('./lib/discovery');
 const { mergePayload } = require('./lib/payload');
 const electricityCategory = require('./lib/categories/electricity');
@@ -503,6 +504,7 @@ module.exports = function (RED) {
         let retryTimeouts = []; // Track pending retry timeouts
         let expectedLimit = null;
         let expectedTime = null;
+        let validationMode = false;
 
         // Pending vs Confirmed state
         let pendingLimit = 80;
@@ -526,7 +528,6 @@ module.exports = function (RED) {
 
         // Polling metrics
         let nextPollTime = null;         // ISO timestamp of next scheduled poll
-        let pollIntervalHandle = null;   // Reference to setInterval handle
         const metrics = createApiMetrics();
 
         // API Complexity Tracking
@@ -547,8 +548,24 @@ module.exports = function (RED) {
         // V2 category registry — populated after discovery
         let categories = [];
 
+        // Lifecycle tracking — init setTimeouts must be clearable on close, and async
+        // callbacks inside them must short-circuit if the node was closed mid-await,
+        // otherwise a redeploy during the 2s warmup leaves an orphan V2 scheduler.
+        let initTimeoutHandles = [];
+        let nodeClosed = false;
+
         async function initCategories(discovered) {
             categories = [];
+
+            if (discovered.hasIntelligent) {
+                categories.push({
+                    id: 'intelligent',
+                    enabled: true,
+                    intervalMs: (config.refreshInterval || 5) * 60 * 1000,
+                    lastPolled: 0,
+                    poll: intelligentPoll,
+                });
+            }
 
             const electricityEnabled = config.electricityEnabled !== false;
             const gasEnabled = config.gasEnabled !== false;
@@ -562,7 +579,12 @@ module.exports = function (RED) {
                     intervalMs: ratesMs,
                     lastPolled: 0,
                     queryFn: () => electricityCategory.buildRatesQuery(account),
-                    parseFn: d => electricityCategory.parseRatesResponse(d)
+                    parseFn: d => electricityCategory.parseRatesResponse(d),
+                    poll: simplePoll(
+                        () => electricityCategory.buildRatesQuery(account),
+                        d => electricityCategory.parseRatesResponse(d),
+                        graphqlPost
+                    ),
                 });
                 categories.push({
                     id: 'electricity_consumption',
@@ -570,7 +592,12 @@ module.exports = function (RED) {
                     intervalMs: consumptionMs,
                     lastPolled: 0,
                     queryFn: () => electricityCategory.buildConsumptionQuery(account, config.timezoneOverride || 'UTC'),
-                    parseFn: d => electricityCategory.parseConsumptionResponse(d, discovered.electricityMpan, discovered.electricityExportMpan)
+                    parseFn: d => electricityCategory.parseConsumptionResponse(d, discovered.electricityMpan, discovered.electricityExportMpan),
+                    poll: simplePoll(
+                        () => electricityCategory.buildConsumptionQuery(account, config.timezoneOverride || 'UTC'),
+                        d => electricityCategory.parseConsumptionResponse(d, discovered.electricityMpan, discovered.electricityExportMpan),
+                        graphqlPost
+                    ),
                 });
             }
 
@@ -583,7 +610,12 @@ module.exports = function (RED) {
                     intervalMs: ratesMs,
                     lastPolled: 0,
                     queryFn: () => gasCategory.buildRatesQuery(account),
-                    parseFn: d => gasCategory.parseRatesResponse(d)
+                    parseFn: d => gasCategory.parseRatesResponse(d),
+                    poll: simplePoll(
+                        () => gasCategory.buildRatesQuery(account),
+                        d => gasCategory.parseRatesResponse(d),
+                        graphqlPost
+                    ),
                 });
                 categories.push({
                     id: 'gas_consumption',
@@ -591,7 +623,12 @@ module.exports = function (RED) {
                     intervalMs: consumptionMs,
                     lastPolled: 0,
                     queryFn: () => gasCategory.buildConsumptionQuery(account, config.timezoneOverride || 'UTC'),
-                    parseFn: d => gasCategory.parseConsumptionResponse(d)
+                    parseFn: d => gasCategory.parseConsumptionResponse(d),
+                    poll: simplePoll(
+                        () => gasCategory.buildConsumptionQuery(account, config.timezoneOverride || 'UTC'),
+                        d => gasCategory.parseConsumptionResponse(d),
+                        graphqlPost
+                    ),
                 });
             }
 
@@ -601,7 +638,12 @@ module.exports = function (RED) {
                 intervalMs: (config.wheelOfFortuneInterval || 60) * 60 * 1000,
                 lastPolled: 0,
                 queryFn: () => wheelOfFortuneCategory.buildQuery(account),
-                parseFn: d => wheelOfFortuneCategory.parseResponse(d)
+                parseFn: d => wheelOfFortuneCategory.parseResponse(d),
+                poll: simplePoll(
+                    () => wheelOfFortuneCategory.buildQuery(account),
+                    d => wheelOfFortuneCategory.parseResponse(d),
+                    graphqlPost
+                ),
             });
             if (discovered.smartMeterDeviceId) {
                 categories.push({
@@ -610,7 +652,12 @@ module.exports = function (RED) {
                     intervalMs: (config.homeMiniInterval || 1) * 60 * 1000,
                     lastPolled: 0,
                     queryFn: () => homeMiniCategory.buildQuery(discovered.smartMeterDeviceId),
-                    parseFn: d => homeMiniCategory.parseResponse(d)
+                    parseFn: d => homeMiniCategory.parseResponse(d),
+                    poll: simplePoll(
+                        () => homeMiniCategory.buildQuery(discovered.smartMeterDeviceId),
+                        d => homeMiniCategory.parseResponse(d),
+                        graphqlPost
+                    ),
                 });
             }
             categories.push({
@@ -619,7 +666,12 @@ module.exports = function (RED) {
                 intervalMs: (config.savingSessionsInterval || 60) * 60 * 1000,
                 lastPolled: 0,
                 queryFn: () => savingSessionsCategory.buildQuery(account),
-                parseFn: d => savingSessionsCategory.parseResponse(d)
+                parseFn: d => savingSessionsCategory.parseResponse(d),
+                poll: simplePoll(
+                    () => savingSessionsCategory.buildQuery(account),
+                    d => savingSessionsCategory.parseResponse(d),
+                    graphqlPost
+                ),
             });
 
             if (discovered.hasIntelligent) {
@@ -629,18 +681,13 @@ module.exports = function (RED) {
                     intervalMs: 60 * 60 * 1000,
                     lastPolled: 0,
                     queryFn: () => completedDispatchesCategory.buildQuery(account),
-                    parseFn: d => completedDispatchesCategory.parseResponse(d)
+                    parseFn: d => completedDispatchesCategory.parseResponse(d),
+                    poll: simplePoll(
+                        () => completedDispatchesCategory.buildQuery(account),
+                        d => completedDispatchesCategory.parseResponse(d),
+                        graphqlPost
+                    ),
                 });
-                if (discovered.deviceId) {
-                    categories.push({
-                        id: 'flex_planned_dispatches',
-                        enabled: true,
-                        intervalMs: (config.refreshInterval || 5) * 60 * 1000,
-                        lastPolled: 0,
-                        queryFn: () => flexPlannedDispatchesCategory.buildQuery(discovered.deviceId),
-                        parseFn: d => flexPlannedDispatchesCategory.parseResponse(d)
-                    });
-                }
             }
 
             if (discovered.hasElectricity && discovered.electricityMpan) {
@@ -650,7 +697,12 @@ module.exports = function (RED) {
                     intervalMs: (config.electricityRatesInterval || 60) * 60 * 1000,
                     lastPolled: 0,
                     queryFn: () => applicableRatesCategory.buildQuery(account, discovered.electricityMpan),
-                    parseFn: d => applicableRatesCategory.parseResponse(d)
+                    parseFn: d => applicableRatesCategory.parseResponse(d),
+                    poll: simplePoll(
+                        () => applicableRatesCategory.buildQuery(account, discovered.electricityMpan),
+                        d => applicableRatesCategory.parseResponse(d),
+                        graphqlPost
+                    ),
                 });
             }
 
@@ -663,7 +715,12 @@ module.exports = function (RED) {
                     intervalMs: (config.electricityRatesInterval || 60) * 60 * 1000,
                     lastPolled: 0,
                     queryFn: () => applicableRatesCategory.buildQuery(account, discovered.electricityExportMpan),
-                    parseFn: d => applicableRatesCategory.parseResponse(d, { fieldPrefix: 'electricity_export_rate' })
+                    parseFn: d => applicableRatesCategory.parseResponse(d, { fieldPrefix: 'electricity_export_rate' }),
+                    poll: simplePoll(
+                        () => applicableRatesCategory.buildQuery(account, discovered.electricityExportMpan),
+                        d => applicableRatesCategory.parseResponse(d, { fieldPrefix: 'electricity_export_rate' }),
+                        graphqlPost
+                    ),
                 });
             }
 
@@ -674,7 +731,12 @@ module.exports = function (RED) {
                     intervalMs: 30 * 60 * 1000,  // 30 minutes
                     lastPolled: 0,
                     queryFn: () => freeElectricityCategory.buildQuery(account, discovered.electricityMpan),
-                    parseFn: d => freeElectricityCategory.parseResponse(d)
+                    parseFn: d => freeElectricityCategory.parseResponse(d),
+                    poll: simplePoll(
+                        () => freeElectricityCategory.buildQuery(account, discovered.electricityMpan),
+                        d => freeElectricityCategory.parseResponse(d),
+                        graphqlPost
+                    ),
                 });
             }
 
@@ -684,7 +746,12 @@ module.exports = function (RED) {
                 intervalMs: 60 * 60 * 1000,
                 lastPolled: 0,
                 queryFn: () => accountCategory.buildQuery(account),
-                parseFn: d => accountCategory.parseResponse(d)
+                parseFn: d => accountCategory.parseResponse(d),
+                poll: simplePoll(
+                    () => accountCategory.buildQuery(account),
+                    d => accountCategory.parseResponse(d),
+                    graphqlPost
+                ),
             });
 
             categories.push({
@@ -693,49 +760,50 @@ module.exports = function (RED) {
                 intervalMs: 60 * 60 * 1000,
                 lastPolled: 0,
                 queryFn: () => octoplusCategory.buildQuery(account),
-                parseFn: d => octoplusCategory.parseResponse(d)
+                parseFn: d => octoplusCategory.parseResponse(d),
+                poll: simplePoll(
+                    () => octoplusCategory.buildQuery(account),
+                    d => octoplusCategory.parseResponse(d),
+                    graphqlPost
+                ),
             });
         }
 
         async function pollDueCategories() {
-            const { isDue } = require('./lib/scheduler');
-            const due = categories.filter(c => c.enabled && isDue(c));
-            if (due.length === 0) return;
-
-            let token;
-            try {
-                const response = await graphqlPost({
-                    query: `mutation obtainToken($input: ObtainJSONWebTokenInput!) { obtainKrakenToken(input: $input) { token } }`,
-                    variables: { input: { APIKey: apiKey } }
-                });
-                if (!response.data.data || !response.data.data.obtainKrakenToken) {
-                    throw new Error('Auth response missing token');
-                }
-                token = response.data.data.obtainKrakenToken.token;
-            } catch (e) {
-                node.warn(`V2 category poll: auth failed: ${e.message}`);
-                return;
-            }
-
-            for (const cat of due) {
-                try {
-                    const { query, variables, hostname } = cat.queryFn();
-                    const response = await graphqlPost({ query, variables }, token, hostname);
-                    if (response.data.errors) throw new Error(JSON.stringify(response.data.errors));
-                    if (!response.data.data) throw new Error('Response missing data');
-                    const parsed = cat.parseFn(response.data.data);
-                    lastKnownState = mergePayload(lastKnownState, parsed);
-                    cat.lastPolled = Date.now();
-                } catch (e) {
-                    cat.enabled = false;
-                    node.warn(`V2 category ${cat.id} failed (disabled until redeploy): ${e.message}`);
-                }
-            }
-
+            const result = await runTick({
+                categories,
+                state: lastKnownState,
+                getToken: obtainTickToken,
+            });
+            if (!result.emitted) return;
+            lastKnownState = result.state;
             if (enableMqtt && node.broker && node.broker.client) {
                 node.broker.client.publish(stateTopic, JSON.stringify(lastKnownState), { retain: true });
             }
             node.send({ payload: lastKnownState });
+            if (!validationMode) {
+                if (lastKnownState.intelligent_error) {
+                    node.status({ fill: "red", shape: "ring", text: `Error: ${String(lastKnownState.intelligent_error).slice(0, 40)}` });
+                } else {
+                    node.status({ fill: "green", shape: "dot", text: `Confirmed: ${confirmedLimit}% @ ${confirmedTime}` });
+                }
+            }
+        }
+
+        async function obtainTickToken() {
+            const response = await graphqlPost({
+                query: `mutation obtainToken($input: ObtainJSONWebTokenInput!) { obtainKrakenToken(input: $input) { token } }`,
+                variables: { input: { APIKey: apiKey } },
+            });
+            if (!response.data.data || !response.data.data.obtainKrakenToken) {
+                throw new Error('Auth response missing token: ' + JSON.stringify(response.data.errors || response.data));
+            }
+            return response.data.data.obtainKrakenToken.token;
+        }
+
+        function forceCategoryDue(id) {
+            const cat = categories.find((c) => c.id === id);
+            if (cat) cat.lastPolled = 0;
         }
 
         async function setPreferences(newLimit, newTime) {
@@ -822,6 +890,7 @@ module.exports = function (RED) {
                 // C. Start exponential backoff validation
                 expectedLimit = limit;
                 expectedTime = time;
+                validationMode = true;
                 node.status({ fill: "blue", shape: "ring", text: "Verifying changes..." });
 
                 // Schedule retries with exponential backoff: 15s, 30s, 60s, 120s
@@ -836,6 +905,7 @@ module.exports = function (RED) {
                 node.status({ fill: "red", shape: "ring", text: "Update Failed" });
                 expectedLimit = null;
                 expectedTime = null;
+                validationMode = false;
             }
         }
 
@@ -845,6 +915,7 @@ module.exports = function (RED) {
                 node.status({ fill: "yellow", shape: "dot", text: "Waiting for normal sync..." });
                 expectedLimit = null;
                 expectedTime = null;
+                validationMode = false;
                 return;
             }
 
@@ -857,28 +928,39 @@ module.exports = function (RED) {
 
         async function fetchDataWithValidation(intervals, currentIndex) {
             try {
-                const result = await fetchData(true); // Pass flag to indicate validation mode
+                const token = await obtainTickToken();
+                const partial = await intelligentPoll(token);
+                lastKnownState = Object.assign({}, lastKnownState, partial, { intelligent_error: null });
+                if (enableMqtt && node.broker && node.broker.client) {
+                    node.broker.client.publish(stateTopic, JSON.stringify(lastKnownState), { retain: true });
+                }
+                node.send({ payload: lastKnownState });
 
-                // Check if the data matches our expected values
-                if (result && result.validated) {
-                    // Success! Changes confirmed
-                    node.status({ fill: "green", shape: "dot", text: `Confirmed: ${result.confirmedLimit}% @ ${result.confirmedTime}` });
-                    expectedLimit = null;
-                    expectedTime = null;
-                    // Clear remaining timeouts
-                    retryTimeouts.forEach(timeout => clearTimeout(timeout));
+                const validated = (confirmedLimit === expectedLimit && confirmedTime === expectedTime);
+                if (validated) {
+                    validationMode = false;
+                    retryTimeouts.forEach((t) => clearTimeout(t));
                     retryTimeouts = [];
-                } else {
-                    // Not yet updated, schedule next retry
-                    const attempt = currentIndex + 1;
-                    const totalAttempts = intervals.length;
+                    node.status({ fill: "green", shape: "dot", text: `Confirmed: ${confirmedLimit}% @ ${confirmedTime}` });
+                    return;
+                }
+                const totalAttempts = intervals.length;
+                const attempt = currentIndex + 1;
+                if (currentIndex < intervals.length - 1) {
                     node.status({ fill: "blue", shape: "ring", text: `Retry ${attempt}/${totalAttempts}...` });
                     scheduleRetries(intervals, currentIndex + 1);
+                } else {
+                    validationMode = false;
+                    node.status({ fill: "red", shape: "ring", text: "Validation timed out" });
                 }
             } catch (error) {
-                // Error during fetch, schedule next retry
                 node.warn(`Retry ${currentIndex + 1} failed: ${error.message}`);
-                scheduleRetries(intervals, currentIndex + 1);
+                if (currentIndex < intervals.length - 1) {
+                    scheduleRetries(intervals, currentIndex + 1);
+                } else {
+                    validationMode = false;
+                    node.status({ fill: "red", shape: "ring", text: "Validation failed" });
+                }
             }
         }
 
@@ -1006,302 +1088,63 @@ module.exports = function (RED) {
             smartChargingRetryTimeouts.push(timeout);
         }
 
-        // 6. Logic: Fetch Data (Read)
-        async function fetchData(validationMode = false) {
-            // Estimated complexity per poll:
-            // - Auth mutation: ~100 complexity
-            // - Data query (devices + flexPlannedDispatches — two sequential calls): ~400 complexity
-            // - Total: ~300 complexity per poll
-            const ESTIMATED_POLL_COMPLEXITY = 300;
+        // 6. Logic: Intelligent Poll (single-scheduler bespoke poll)
+        async function intelligentPoll(token) {
+            // 1. devices query
+            const { query: devicesQuery, variables: devicesVars } = intelligentCategory.buildDevicesQuery(account);
+            const devicesResponse = await graphqlPost({ query: devicesQuery, variables: devicesVars }, token);
+            if (devicesResponse.data.errors) throw new Error(`Devices query failed: ${JSON.stringify(devicesResponse.data.errors)}`);
+            if (!devicesResponse.data.data) throw new Error('Devices response missing data');
+            const devicesData = devicesResponse.data.data;
+            const evDevice = intelligentCategory.extractEvDevice(devicesData.devices);
+            if (!evDevice) throw new Error('No ELECTRIC_VEHICLES device found on account');
+            krakenflexDeviceId = evDevice.id;
 
-            // Debug object to track API calls
-            const debugInfo = {
-                timestamp: new Date().toISOString(),
-                step: null,
-                success: false,
-                error: null,
-                apiCalls: [],
-                validationMode: validationMode
-            };
+            // 2. dispatches query (the single one that used to be duplicated by V1 + V2)
+            const { query: dispatchQuery, variables: dispatchVars } = intelligentCategory.buildDispatchQuery(evDevice.id);
+            const dispatchResponse = await graphqlPost({ query: dispatchQuery, variables: dispatchVars }, token);
+            if (dispatchResponse.data.errors) throw new Error(`Dispatches query failed: ${JSON.stringify(dispatchResponse.data.errors)}`);
+            if (!dispatchResponse.data.data) throw new Error('Dispatches response missing data');
 
-            if (!apiKey || !account) {
-                debugInfo.error = "Missing configuration: apiKey or account number not provided";
-                debugInfo.step = "validation";
-                node.status({ fill: "red", shape: "ring", text: "Config Missing" });
-                node.send({
-                    payload: getDefaultPayload(),
-                    debug: debugInfo
-                });
-                return { validated: false };
+            // 3. parse twice — intelligent (slots/window) + flex-planned-dispatches (array/count)
+            const data = { devices: devicesData.devices, flexPlannedDispatches: dispatchResponse.data.data.flexPlannedDispatches || [] };
+            const appliedTz = resolveTimezone(node);
+            const serverTz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; } })();
+            const catResult = intelligentCategory.parseResponse(data, { tz: appliedTz, serverTz });
+            const { _activeSlots, ...catPublic } = catResult;
+            const flexResult = flexPlannedDispatchesCategory.parseResponse(dispatchResponse.data.data);
+
+            // 4. metrics + side effects
+            metrics.recordPoll(300);
+            confirmedLimit = catResult.confirmed_limit ?? confirmedLimit;
+            confirmedTime = catResult.confirmed_time || confirmedTime;
+            if (!validationMode) {
+                pendingLimit = confirmedLimit;
+                pendingTime = confirmedTime;
             }
+            setupChargingTimers(_activeSlots);
+            if (!stateCheckInterval) startStateReconciliation();
+            updateNextPollTime();
 
-            try {
-                // STEP 1: Get Token
-                debugInfo.step = "authentication";
-                node.status({ fill: "yellow", shape: "ring", text: "Authenticating..." });
+            const apiMetrics = metrics.getMetrics();
 
-                const authRequest = {
-                    url: "https://api.octopus.energy/v1/graphql/",
-                    query: `mutation obtainToken($input: ObtainJSONWebTokenInput!) { obtainKrakenToken(input: $input) { token } }`,
-                    variables: { input: { APIKey: apiKey } }
-                };
-
-                const authResponse = await graphqlPost({
-                    query: authRequest.query,
-                    variables: authRequest.variables
-                });
-
-                debugInfo.apiCalls.push({
-                    step: 1,
-                    name: "authentication",
-                    url: authRequest.url,
-                    statusCode: authResponse.status,
-                    hasErrors: !!(authResponse.data.errors),
-                    errors: authResponse.data.errors || null
-                });
-
-                // Validate auth response
-                if (authResponse.data.errors) {
-                    throw new Error(`Auth failed: ${JSON.stringify(authResponse.data.errors)}`);
-                }
-                if (!authResponse.data.data || !authResponse.data.data.obtainKrakenToken) {
-                    throw new Error(`Auth response missing token data. Response: ${JSON.stringify(authResponse.data)}`);
-                }
-
-                const token = authResponse.data.data.obtainKrakenToken.token;
-                debugInfo.apiCalls[0].tokenObtained = !!token;
-                debugInfo.apiCalls[0].tokenPrefix = token ? token.substring(0, 20) + "..." : null;
-
-                // STEP 2a: Fetch devices (preferences + device ID)
-                debugInfo.step = "fetching_devices";
-                node.status({ fill: "yellow", shape: "ring", text: "Fetching data..." });
-
-                const { query: devicesQuery, variables: devicesVars } = intelligentCategory.buildDevicesQuery(account);
-                const devicesResponse = await graphqlPost({ query: devicesQuery, variables: devicesVars }, token);
-
-                debugInfo.apiCalls.push({
-                    step: 2,
-                    name: "devices_query",
-                    url: "https://api.octopus.energy/v1/graphql/",
-                    accountNumber: account,
-                    statusCode: devicesResponse.status,
-                    hasErrors: !!(devicesResponse.data.errors),
-                    errors: devicesResponse.data.errors || null,
-                    hasData: !!(devicesResponse.data.data),
-                    responseHeaders: devicesResponse.headers || {}
-                });
-
-                if (devicesResponse.data.errors) {
-                    throw new Error(`Devices query failed: ${JSON.stringify(devicesResponse.data.errors)}`);
-                }
-                if (!devicesResponse.data.data) {
-                    throw new Error(`Devices response missing data. Response: ${JSON.stringify(devicesResponse.data)}`);
-                }
-
-                const devicesData = devicesResponse.data.data;
-                const evDevice = intelligentCategory.extractEvDevice(devicesData.devices);
-                if (!evDevice) {
-                    throw new Error('No ELECTRIC_VEHICLES device found on account');
-                }
-                krakenflexDeviceId = evDevice.id;
-
-                // STEP 2b: Fetch planned dispatches using device ID
-                debugInfo.step = "fetching_dispatches";
-                const { query: dispatchQuery, variables: dispatchVars } = intelligentCategory.buildDispatchQuery(evDevice.id);
-                const dispatchResponse = await graphqlPost({ query: dispatchQuery, variables: dispatchVars }, token);
-
-                debugInfo.apiCalls.push({
-                    step: 3,
-                    name: "dispatches_query",
-                    url: "https://api.octopus.energy/v1/graphql/",
-                    deviceId: evDevice.id,
-                    statusCode: dispatchResponse.status,
-                    hasErrors: !!(dispatchResponse.data.errors),
-                    errors: dispatchResponse.data.errors || null,
-                    hasData: !!(dispatchResponse.data.data),
-                    responseHeaders: dispatchResponse.headers || {}
-                });
-
-                if (dispatchResponse.data.errors) {
-                    throw new Error(`Dispatches query failed: ${JSON.stringify(dispatchResponse.data.errors)}`);
-                }
-                if (!dispatchResponse.data.data) {
-                    throw new Error(`Dispatches response missing data. Response: ${JSON.stringify(dispatchResponse.data)}`);
-                }
-
-                // STEP 3: Extract and Process
-                debugInfo.step = "processing";
-                const data = {
-                    devices: devicesData.devices,
-                    flexPlannedDispatches: dispatchResponse.data.data.flexPlannedDispatches || []
-                };
-                const slots = data.flexPlannedDispatches;
-
-                // Check for GraphQL extensions on the dispatches response
-                let actualComplexity = null;
-                if (dispatchResponse.data.extensions) {
-                    debugInfo.apiCalls[2].extensions = dispatchResponse.data.extensions;
-                    actualComplexity = dispatchResponse.data.extensions.complexity ||
-                                      dispatchResponse.data.extensions.cost ||
-                                      null;
-                }
-
-                // Record poll with estimated or actual complexity
-                metrics.recordPoll(actualComplexity || ESTIMATED_POLL_COMPLEXITY);
-
-                debugInfo.apiCalls[2].slotsFound = slots.length;
-                debugInfo.apiCalls[2].slotDetails = slots.map(s => ({
-                    start: s.start,
-                    end: s.end,
-                    kwh: s.energyAddedKwh,
-                    type: s.type
-                }));
-
-                // Parse response via intelligent category module
-                const appliedTz = resolveTimezone(node);
-                const serverTz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch(e) { return 'UTC'; } })();
-                const catResult = intelligentCategory.parseResponse(data, { tz: appliedTz, serverTz });
-                const { _activeSlots, ...catPublic } = catResult;
-
-                // Update Confirmed State (from catResult)
-                confirmedLimit = catResult.confirmed_limit ?? confirmedLimit;
-                confirmedTime = catResult.confirmed_time || confirmedTime;
-
-                // On successful fetch, sync pending to confirmed if not in validation mode
-                if (!validationMode) {
-                    pendingLimit = confirmedLimit;
-                    pendingTime = confirmedTime;
-                }
-
-                debugInfo.apiCalls[1].activeAndFutureSlots = _activeSlots.length;
-                debugInfo.processingTime = new Date().toISOString();
-
-                // Setup charging timers (always update charging state)
-                setupChargingTimers(_activeSlots);
-
-                // Start reconciliation loop on first successful data fetch (only in non-validation mode)
-                if (!validationMode && !stateCheckInterval) {
-                    startStateReconciliation();
-                }
-
-                // Update next poll time after successful fetch
-                updateNextPollTime();
-
-                // Get API metrics for inclusion in payload
-                const apiMetrics = metrics.getMetrics();
-
-                // Build Payload — merge catResult into lastKnownState, then add orchestrator-owned fields
-                const statusPayload = Object.assign({}, lastKnownState, catPublic, {
-                    // Orchestrator-owned state fields (not in intelligentCategory)
-                    pending_limit: pendingLimit,
-                    pending_time: pendingTime,
-                    charging_now: chargingNow,
-                    next_poll: nextPollTime,
-                    next_poll_raw: nextPollTime,
-                    refresh_available_at: getRefreshAvailableAt(),
-                    api_requests_hour: apiMetrics.requests_last_hour,
-                    api_complexity_hour: apiMetrics.complexity_last_hour,
-                    api_complexity_percent: parseFloat(apiMetrics.complexity_percent),
-                    timezone_detected: serverTz,
-                    timezone_applied: appliedTz,
-                    smart_charging: smartChargingSuspended === null ? null : !smartChargingSuspended
-                });
-
-                // Success!
-                debugInfo.success = true;
-                debugInfo.step = "complete";
-
-                // Check if we're validating a preference change
-                let isValidated = false;
-                if (validationMode && expectedLimit !== null && expectedTime !== null) {
-                    // Check if the returned values match what we set
-                    isValidated = (confirmedLimit === expectedLimit && confirmedTime === expectedTime);
-                    debugInfo.expectedLimit = expectedLimit;
-                    debugInfo.expectedTime = expectedTime;
-                    debugInfo.receivedLimit = confirmedLimit;
-                    debugInfo.receivedTime = confirmedTime;
-                    debugInfo.validated = isValidated;
-                }
-
-                // Add API usage metrics to debug info (already fetched above)
-                debugInfo.api_usage = {
-                    requests_last_hour: apiMetrics.requests_last_hour,
-                    complexity_last_hour: apiMetrics.complexity_last_hour,
-                    complexity_percent_used: apiMetrics.complexity_percent,
-                    api_limit_hourly: 50000,
-                    request_complexity: actualComplexity || ESTIMATED_POLL_COMPLEXITY,
-                    complexity_source: actualComplexity ? "api" : "estimated"
-                };
-
-                // Store this as the last known full state
-                lastKnownState = statusPayload;
-
-                // ALWAYS publish data to prevent sensors becoming unavailable
-                node.send({
-                    payload: statusPayload,
-                    debug: debugInfo
-                });
-
-                // Update last sent charging state to prevent duplicate messages
-                lastSentChargingState = chargingNow;
-
-                if (enableMqtt && node.broker) {
-                    node.broker.client.publish(stateTopic, JSON.stringify(statusPayload), { retain: true });
-                    // Also publish charging_now state to binary sensor topic
-                    const chargingPayload = chargingNow ? "ON" : "OFF";
-                    node.broker.client.publish(`${stateTopic}/charging_now`, chargingPayload, { retain: true });
-                }
-
-                // Update status (validation mode will override this in fetchDataWithValidation)
-                if (!validationMode) {
-                    node.status({ fill: "green", shape: "dot", text: `Confirmed: ${confirmedLimit}% @ ${confirmedTime}` });
-                }
-
-                // Return validation result
-                return { validated: isValidated || !validationMode, confirmedLimit, confirmedTime };
-
-            } catch (error) {
-                debugInfo.success = false;
-                debugInfo.error = {
-                    message: error.message,
-                    stack: error.stack,
-                    response: error.response ? {
-                        status: error.response.status,
-                        statusText: error.response.statusText,
-                        data: error.response.data
-                    } : null
-                };
-
-                // Log to Node-RED (only if not in validation mode to avoid spam)
-                if (!validationMode) {
-                    node.error(`Octopus API Error at ${debugInfo.step}: ${error.message}`);
-                    if (error.response) {
-                        node.error(`Response: ${JSON.stringify(error.response.data)}`);
-                    }
-
-                    // Update status
-                    node.status({
-                        fill: "red",
-                        shape: "ring",
-                        text: `Error: ${debugInfo.step}`
-                    });
-
-                    // Send default payload with debug info
-                    node.send({
-                        payload: getDefaultPayload(),
-                        debug: debugInfo
-                    });
-                }
-
-                // Return failure for validation
-                return { validated: false };
-            }
+            // 5. merged partial payload
+            return Object.assign({}, catPublic, flexResult, {
+                pending_limit: pendingLimit,
+                pending_time: pendingTime,
+                charging_now: chargingNow,
+                next_poll: nextPollTime,
+                next_poll_raw: nextPollTime,
+                refresh_available_at: getRefreshAvailableAt(),
+                api_requests_hour: apiMetrics.requests_last_hour,
+                api_complexity_hour: apiMetrics.complexity_last_hour,
+                api_complexity_percent: parseFloat(apiMetrics.complexity_percent),
+                timezone_detected: serverTz,
+                timezone_applied: appliedTz,
+                smart_charging: smartChargingSuspended === null ? null : !smartChargingSuspended,
+            });
         }
 
-        // Helper: Build default payload when errors occur — delegates to lib/payload.js
-        function getDefaultPayload() {
-            return buildDefaultPayload({ confirmedLimit, confirmedTime, pendingLimit, pendingTime, chargingNow, smartChargingSuspended });
-        }
 
         // Helper: Fetch device ID and initial smart charging state (called once at startup)
         async function fetchDeviceId() {
@@ -1688,7 +1531,7 @@ module.exports = function (RED) {
             // Update timestamp so HA sees cooldown, but don't block the refresh
             lastManualRefresh = Date.now();
             node.status({ fill: "yellow", shape: "ring", text: "Manual refresh..." });
-            fetchData();
+            forceCategoryDue('intelligent');
         });
 
         // B. Handle MQTT Commands (Home Assistant)
@@ -1746,7 +1589,7 @@ module.exports = function (RED) {
 
                 // Trigger the actual refresh
                 node.status({ fill: "yellow", shape: "ring", text: "Manual refresh..." });
-                fetchData();
+                forceCategoryDue('intelligent');
             });
 
             // Timezone select changed in Home Assistant
@@ -1766,44 +1609,45 @@ module.exports = function (RED) {
                 else if (val === "OFF") setSmartCharging(false);
             });
 
-            setTimeout(announceControls, 2000);
+            initTimeoutHandles.push(setTimeout(announceControls, 2000));
 
             // Republish persisted timezone to HA select on startup
-            setTimeout(() => {
+            initTimeoutHandles.push(setTimeout(() => {
                 try {
                     const persistedTz = node.context().get('timezone');
                     if (persistedTz && node.broker) {
                         node.broker.client.publish(`${stateTopic}/timezone`, persistedTz, { retain: true });
                     }
                 } catch (e) { node.warn('Failed to republish timezone on startup: ' + e.message); }
-            }, 2500);
+            }, 2500));
 
             // Republish smart charging state to HA switch on startup (after fetchDeviceId runs at 1500ms)
-            setTimeout(() => {
+            initTimeoutHandles.push(setTimeout(() => {
                 try {
                     if (smartChargingSuspended !== null && node.broker && node.broker.client) {
                         const stateVal = smartChargingSuspended ? "OFF" : "ON";
                         node.broker.client.publish(`${stateTopic}/smart_charging`, stateVal, { retain: true });
                     }
                 } catch (e) { node.warn('Failed to republish smart charging state on startup: ' + e.message); }
-            }, 3000);
+            }, 3000));
         }
 
         // Init
-        pollIntervalHandle = setInterval(fetchData, refreshRate);
-        updateNextPollTime();  // Set initial next poll time
-        setTimeout(fetchData, 1000);
-        setTimeout(fetchDeviceId, 1500);
+        initTimeoutHandles.push(setTimeout(fetchDeviceId, 1500));
 
-        // V2 category discovery and scheduler
-        setTimeout(async () => {
+        // V2 category discovery and scheduler. Tracked + nodeClosed-guarded so that a
+        // node redeploy during the 2s warmup (or during the async discovery/init) can
+        // never leave an orphan scheduler running.
+        initTimeoutHandles.push(setTimeout(async () => {
             try {
                 const discovered = await discoverProducts(apiKey, account);
+                if (nodeClosed) return;
                 if (discovered.deviceSuspended !== null && discovered.deviceSuspended !== undefined) {
                     smartChargingSuspended = discovered.deviceSuspended;
                     lastKnownState = mergePayload(lastKnownState, { smart_charging: !discovered.deviceSuspended });
                 }
                 await initCategories(discovered);
+                if (nodeClosed) return;
                 node.log(`V2 discovery: electricity=${discovered.hasElectricity}, gas=${discovered.hasGas}, intelligent=${discovered.hasIntelligent}, suspended=${discovered.deviceSuspended}`);
                 const v2Scheduler = createScheduler(pollDueCategories);
                 v2Scheduler.start();
@@ -1811,10 +1655,13 @@ module.exports = function (RED) {
             } catch (e) {
                 node.warn(`V2 discovery failed: ${e.message}. New categories unavailable.`);
             }
-        }, 2000);
+        }, 2000));
 
         node.on('close', () => {
-            clearInterval(pollIntervalHandle);
+            nodeClosed = true;
+            // Clear init setTimeouts so a redeploy during warmup can't leave an orphan scheduler
+            initTimeoutHandles.forEach(h => clearTimeout(h));
+            initTimeoutHandles = [];
             // Clear any pending retry timeouts
             retryTimeouts.forEach(timeout => clearTimeout(timeout));
             retryTimeouts = [];

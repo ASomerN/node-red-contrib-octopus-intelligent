@@ -1,5 +1,5 @@
 'use strict';
-const { isDue, alignedStart } = require('../lib/scheduler');
+const { isDue, alignedStart, wrapWithInFlightGuard } = require('../lib/scheduler');
 
 describe('isDue', () => {
     test('returns false when category is disabled', () => {
@@ -52,5 +52,36 @@ describe('alignedStart', () => {
         const now = 5000; // exactly on second boundary
         const delay = alignedStart(now);
         expect(delay).toBe(1000);
+    });
+});
+
+describe('wrapWithInFlightGuard', () => {
+    it('runs the wrapped function when nothing is in flight', async () => {
+        const fn = jest.fn().mockResolvedValue('ok');
+        const guarded = wrapWithInFlightGuard(fn);
+        await guarded();
+        expect(fn).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips re-entry while a prior call is still pending', async () => {
+        let resolveFirst;
+        const fn = jest.fn().mockImplementation(() => new Promise((r) => { resolveFirst = r; }));
+        const guarded = wrapWithInFlightGuard(fn);
+        const p1 = guarded();
+        const p2 = guarded();
+        expect(fn).toHaveBeenCalledTimes(1);
+        await p2;
+        resolveFirst();
+        await p1;
+        guarded();
+        expect(fn).toHaveBeenCalledTimes(2);
+    });
+
+    it('clears the in-flight flag even if fn throws', async () => {
+        const fn = jest.fn().mockRejectedValueOnce(new Error('boom')).mockResolvedValue('ok');
+        const guarded = wrapWithInFlightGuard(fn);
+        await expect(guarded()).rejects.toThrow('boom');
+        await guarded();
+        expect(fn).toHaveBeenCalledTimes(2);
     });
 });

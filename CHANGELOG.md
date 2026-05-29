@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] — 2026-05-29
+
+Single poll loop. The V1 `setInterval(fetchData)` intelligent loop and the V2 `createScheduler(pollDueCategories)` category loop are merged into one clock-aligned scheduler with one auth and one emit per tick. No HA-side changes.
+
+### Fixed
+- **Intermittent `KT-CT-1199` "Too many requests"** on `flexPlannedDispatches` — the standalone `flex_planned_dispatches` V2 category queried the same endpoint as the V1 intelligent poll, and the two unsynchronised loops phase-drifted into bursts that tripped Kraken's burst limit. The intelligent poll now owns `flexPlannedDispatches`; the standalone category is removed.
+- **Whole payload was nuked on any single-category error**, and `intelligent_error` was never set. Every category now follows one error policy: record `<category>_error`, keep last-good data, retry next interval. No permanent disable.
+- **Slow polls could overlap a tick** — added an in-flight guard around the scheduler.
+
+### Changed (internal architecture; no HA-side breakage)
+- Every category exposes `async poll(token) → partialPayload`. Simple categories use a `simplePoll` factory; the intelligent poll is a bespoke category that owns both the devices and dispatch queries.
+- Tick / poll / error-merge logic moved into `lib/poll-tick.js` and `lib/scheduler.js` for unit-test coverage.
+- Manual refresh, MQTT refresh, and post-mutation validation re-polls all go through the same scheduler / intelligent-poll path.
+
+### Unchanged
+- All payload field names, MQTT topics, `unique_id`s, HA entity IDs, input commands, and node config fields.
+
 ## [1.3.3] — 2026-05-22
 
 ### Fixed
