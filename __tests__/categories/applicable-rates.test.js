@@ -138,3 +138,68 @@ describe('applicable-rates category', () => {
     });
 
 });
+
+describe('applicable-rates stats (v1.5)', () => {
+    const { parseResponse } = require('../../lib/categories/applicable-rates');
+    function edge(from, to, value) {
+        return { node: { validFrom: from, validTo: to, value: String(value) } };
+    }
+    it('computes min/max/median/avg over a 4-slot schedule (even-N median)', () => {
+        const data = { applicableRates: { edges: [
+            edge('2026-06-01T00:00:00Z', '2026-06-01T00:30:00Z', 10),
+            edge('2026-06-01T00:30:00Z', '2026-06-01T01:00:00Z', 20),
+            edge('2026-06-01T01:00:00Z', '2026-06-01T01:30:00Z', 30),
+            edge('2026-06-01T01:30:00Z', '2026-06-01T02:00:00Z', 40),
+        ] } };
+        const r = parseResponse(data);
+        expect(r.applicable_rates_min_pence).toBe(10);
+        expect(r.applicable_rates_max_pence).toBe(40);
+        expect(r.applicable_rates_median_pence).toBe(25); // (20+30)/2
+        expect(r.applicable_rates_avg_pence).toBe(25);
+    });
+    it('odd-N median picks the middle value', () => {
+        const data = { applicableRates: { edges: [
+            edge('2026-06-01T00:00:00Z', '2026-06-01T00:30:00Z', 5),
+            edge('2026-06-01T00:30:00Z', '2026-06-01T01:00:00Z', 15),
+            edge('2026-06-01T01:00:00Z', '2026-06-01T01:30:00Z', 25),
+        ] } };
+        const r = parseResponse(data);
+        expect(r.applicable_rates_median_pence).toBe(15);
+    });
+    it('all-null schedule → all stats null', () => {
+        const data = { applicableRates: { edges: [
+            { node: { validFrom: '2026-06-01T00:00:00Z', validTo: '2026-06-01T00:30:00Z', value: null } },
+            { node: { validFrom: '2026-06-01T00:30:00Z', validTo: '2026-06-01T01:00:00Z', value: null } },
+        ] } };
+        const r = parseResponse(data);
+        expect(r.applicable_rates_min_pence).toBeNull();
+        expect(r.applicable_rates_max_pence).toBeNull();
+        expect(r.applicable_rates_median_pence).toBeNull();
+        expect(r.applicable_rates_avg_pence).toBeNull();
+    });
+    it('empty schedule → all stats null', () => {
+        const r = parseResponse({ applicableRates: { edges: [] } });
+        expect(r.applicable_rates_min_pence).toBeNull();
+    });
+    it('single-slot schedule → min=max=median=avg', () => {
+        const data = { applicableRates: { edges: [
+            edge('2026-06-01T00:00:00Z', '2026-06-01T00:30:00Z', 15.5),
+        ] } };
+        const r = parseResponse(data);
+        expect(r.applicable_rates_min_pence).toBe(15.5);
+        expect(r.applicable_rates_max_pence).toBe(15.5);
+        expect(r.applicable_rates_median_pence).toBe(15.5);
+        expect(r.applicable_rates_avg_pence).toBe(15.5);
+    });
+    it('emits export-side stats under fieldPrefix', () => {
+        const data = { applicableRates: { edges: [
+            edge('2026-06-01T00:00:00Z', '2026-06-01T00:30:00Z', 12),
+            edge('2026-06-01T00:30:00Z', '2026-06-01T01:00:00Z', 18),
+        ] } };
+        const r = parseResponse(data, { fieldPrefix: 'electricity_export_rate' });
+        expect(r.electricity_export_rate_min_pence).toBe(12);
+        expect(r.electricity_export_rate_max_pence).toBe(18);
+        expect(r.electricity_export_rate_median_pence).toBe(15);
+        expect(r.electricity_export_rate_avg_pence).toBe(15);
+    });
+});

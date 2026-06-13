@@ -4,14 +4,16 @@ path: octopus-intelligent
 icon: mdi:lightning-bolt
 max_columns: 4
 # ────────────────────────────────────────────────────────────────────────────────
-# Octopus Intelligent — comprehensive v1.3.0 dashboard
+# Octopus Intelligent — comprehensive v1.5.0 dashboard
 #
 # Each section is a single focused card so the sections view packs them into a
 # uniform grid without big empty gaps. On wide screens HA renders up to 4
 # columns; narrower viewports collapse to fewer columns automatically.
 #
 # Covers every MQTT entity published by node-red-contrib-octopus-intelligent
-# v1.3.0. Fresh install entity-id prefix: octopus_intelligent_octopus_*.
+# v1.5.0 (adds tariff rate bands, 24h schedule stats, the Update entity, and
+# per-category error binary_sensors over the v1.3.0 baseline).
+# Fresh install entity-id prefix: octopus_intelligent_octopus_*.
 # Upgraders from pre-v1.0 may have node_red_octopus_intelligent_octopus_*
 # on carry-over entities (see Dev Tools → States to look up the actual ID).
 # ────────────────────────────────────────────────────────────────────────────────
@@ -129,6 +131,35 @@ sections:
 
   - type: grid
     cards:
+      # Banded-tariff users (Economy 7 / FourRateEv) see this; half-hourly /
+      # Agile users have null bands. A null renders to "None"/unknown (not
+      # "unavailable"), so all three states must be excluded to hide the card.
+      - type: conditional
+        conditions:
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_electricity_day_rate
+            state_not: unavailable
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_electricity_day_rate
+            state_not: unknown
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_electricity_day_rate
+            state_not: "None"
+        card:
+          type: entities
+          title: Tariff rate bands
+          entities:
+            - entity: sensor.octopus_intelligent_octopus_electricity_day_rate
+              name: Day rate
+            - entity: sensor.octopus_intelligent_octopus_electricity_night_rate
+              name: Night rate
+            - entity: sensor.octopus_intelligent_octopus_electricity_ev_off_peak_rate
+              name: EV off-peak rate
+            - entity: sensor.octopus_intelligent_octopus_electricity_ev_peak_rate
+              name: EV peak rate
+
+  - type: grid
+    cards:
       - type: entities
         title: Electricity import — consumption window
         icon: mdi:calendar-clock
@@ -215,44 +246,110 @@ sections:
           - entity: sensor.octopus_intelligent_octopus_electricity_export_rate_next_from
             name: Next from
 
-  # ════════════════════════════════════════════════════════════════════════════
-  # Gas
-  # ════════════════════════════════════════════════════════════════════════════
   - type: grid
     cards:
       - type: glance
-        title: Gas — live
+        title: Import — 24h schedule stats
         entities:
-          - entity: sensor.octopus_intelligent_octopus_gas_unit_rate
-            name: Rate
-          - entity: sensor.octopus_intelligent_octopus_gas_standing_charge
-            name: Standing
-          - entity: sensor.octopus_intelligent_octopus_gas_consumption
-            name: Today (kWh)
+          - entity: sensor.octopus_intelligent_octopus_applicable_rates_min
+            name: Min
+          - entity: sensor.octopus_intelligent_octopus_applicable_rates_median
+            name: Median
+          - entity: sensor.octopus_intelligent_octopus_applicable_rates_avg
+            name: Avg
+          - entity: sensor.octopus_intelligent_octopus_applicable_rates_max
+            name: Max
 
   - type: grid
     cards:
-      - type: entities
-        title: Gas — tariff
-        icon: mdi:fire
+      - type: glance
+        title: Export — 24h schedule stats
         entities:
-          - entity: sensor.octopus_intelligent_octopus_gas_tariff_code
-            name: Tariff code
-          - entity: sensor.octopus_intelligent_octopus_gas_tariff_valid_from
-            name: Valid from
-          - entity: sensor.octopus_intelligent_octopus_gas_tariff_valid_to
-            name: Valid to
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_rate_min
+            name: Min
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_rate_median
+            name: Median
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_rate_avg
+            name: Avg
+          - entity: sensor.octopus_intelligent_octopus_electricity_export_rate_max
+            name: Max
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Gas
+  # ════════════════════════════════════════════════════════════════════════════
+  # Gas cards hidden for electricity-only homes — gated on gas tariff code
+  # being a real value (null → "None"/unknown for no-gas accounts).
+  - type: grid
+    cards:
+      - type: conditional
+        conditions:
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_gas_tariff_code
+            state_not: unavailable
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_gas_tariff_code
+            state_not: unknown
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_gas_tariff_code
+            state_not: "None"
+        card:
+          type: glance
+          title: Gas — live
+          entities:
+            - entity: sensor.octopus_intelligent_octopus_gas_unit_rate
+              name: Rate
+            - entity: sensor.octopus_intelligent_octopus_gas_standing_charge
+              name: Standing
+            - entity: sensor.octopus_intelligent_octopus_gas_consumption
+              name: Today (kWh)
 
   - type: grid
     cards:
-      - type: entities
-        title: Gas — consumption window
-        icon: mdi:calendar-clock
-        entities:
-          - entity: sensor.octopus_intelligent_octopus_gas_consumption_from
-            name: From
-          - entity: sensor.octopus_intelligent_octopus_gas_consumption_to
-            name: To
+      - type: conditional
+        conditions:
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_gas_tariff_code
+            state_not: unavailable
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_gas_tariff_code
+            state_not: unknown
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_gas_tariff_code
+            state_not: "None"
+        card:
+          type: entities
+          title: Gas — tariff
+          icon: mdi:fire
+          entities:
+            - entity: sensor.octopus_intelligent_octopus_gas_tariff_code
+              name: Tariff code
+            - entity: sensor.octopus_intelligent_octopus_gas_tariff_valid_from
+              name: Valid from
+            - entity: sensor.octopus_intelligent_octopus_gas_tariff_valid_to
+              name: Valid to
+
+  - type: grid
+    cards:
+      - type: conditional
+        conditions:
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_gas_tariff_code
+            state_not: unavailable
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_gas_tariff_code
+            state_not: unknown
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_gas_tariff_code
+            state_not: "None"
+        card:
+          type: entities
+          title: Gas — consumption window
+          icon: mdi:calendar-clock
+          entities:
+            - entity: sensor.octopus_intelligent_octopus_gas_consumption_from
+              name: From
+            - entity: sensor.octopus_intelligent_octopus_gas_consumption_to
+              name: To
 
   # ════════════════════════════════════════════════════════════════════════════
   # Account / Octoplus / Rewards / Mini
@@ -344,10 +441,12 @@ sections:
           entity: sensor.octopus_intelligent_octopus_home_mini_demand
           name: Home Mini — live demand
           unit: kW
-          min: 0
+          min: -10
           max: 10
+          # green starts at min so the export (negative-demand) range is
+          # coloured rather than left grey below the 0 threshold.
           severity:
-            green: 0
+            green: -10
             yellow: 3
             red: 6
 
@@ -454,33 +553,47 @@ sections:
         title: Diagnostic — errors
         icon: mdi:alert-circle
         entities:
-          - entity: sensor.octopus_intelligent_octopus_electricity_rates_error
+          - entity: binary_sensor.octopus_intelligent_octopus_electricity_rates_error_state
             name: Electricity rates
-          - entity: sensor.octopus_intelligent_octopus_electricity_consumption_error
+          - entity: binary_sensor.octopus_intelligent_octopus_electricity_consumption_error_state
             name: Electricity consumption
-          - entity: sensor.octopus_intelligent_octopus_gas_rates_error
+          - entity: binary_sensor.octopus_intelligent_octopus_gas_rates_error_state
             name: Gas rates
-          - entity: sensor.octopus_intelligent_octopus_gas_consumption_error
+          - entity: binary_sensor.octopus_intelligent_octopus_gas_consumption_error_state
             name: Gas consumption
-          - entity: sensor.octopus_intelligent_octopus_applicable_rates_error
+          - entity: binary_sensor.octopus_intelligent_octopus_applicable_rates_error_state
             name: Applicable rates
-          - entity: sensor.octopus_intelligent_octopus_electricity_export_rate_error
+          - entity: binary_sensor.octopus_intelligent_octopus_electricity_export_rate_error_state
             name: Applicable rates — export
-          - entity: sensor.octopus_intelligent_octopus_account_error
+          - entity: binary_sensor.octopus_intelligent_octopus_account_error_state
             name: Account
-          - entity: sensor.octopus_intelligent_octopus_octoplus_error
+          - entity: binary_sensor.octopus_intelligent_octopus_octoplus_error_state
             name: Octoplus
-          - entity: sensor.octopus_intelligent_octopus_wof_error
+          - entity: binary_sensor.octopus_intelligent_octopus_wheel_of_fortune_error_state
             name: WoF
-          - entity: sensor.octopus_intelligent_octopus_home_mini_error
+          - entity: binary_sensor.octopus_intelligent_octopus_home_mini_error_state
             name: Home Mini
-          - entity: sensor.octopus_intelligent_octopus_saving_sessions_error
+          - entity: binary_sensor.octopus_intelligent_octopus_saving_sessions_error_state
             name: Saving sessions
-          - entity: sensor.octopus_intelligent_octopus_free_electricity_error
+          - entity: binary_sensor.octopus_intelligent_octopus_free_electricity_error_state
             name: Free electricity
-          - entity: sensor.octopus_intelligent_octopus_intelligent_error
+          - entity: binary_sensor.octopus_intelligent_octopus_intelligent_error_state
             name: Intelligent
-          - entity: sensor.octopus_intelligent_octopus_completed_dispatches_error
+          - entity: binary_sensor.octopus_intelligent_octopus_completed_dispatches_error_state
             name: Completed dispatches
-          - entity: sensor.octopus_intelligent_octopus_flex_planned_dispatches_error
+          - entity: binary_sensor.octopus_intelligent_octopus_flex_planned_dispatches_error_state
             name: Flex planned dispatches
+
+  - type: grid
+    cards:
+      - type: entities
+        title: Update status
+        entities:
+          - entity: update.octopus_intelligent_octopus_intelligent_node
+            name: Update available
+          - entity: sensor.octopus_intelligent_octopus_installed_version
+            name: Installed version
+          - entity: sensor.octopus_intelligent_octopus_latest_version
+            name: Latest version
+          - entity: sensor.octopus_intelligent_octopus_update_check_at
+            name: Last check

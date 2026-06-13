@@ -164,4 +164,58 @@ describe('electricity category', () => {
             }
         });
     });
+
+    describe('electricity rate bands (v1.5)', () => {
+        const { parseRatesResponse } = require('../../lib/categories/electricity');
+
+        it('parses FourRateEvTariff bands', () => {
+            const data = { account: { electricityAgreements: [{
+                validFrom: '2026-01-01T00:00:00Z', validTo: '2027-01-01T00:00:00Z',
+                tariff: {
+                    productCode: 'INTELLI-FIX-12M-26-04-18',
+                    standingCharge: '44.93',
+                    dayRate: '31.19',
+                    nightRate: '7.619',
+                    evDevicePeakRate: '31.19',
+                    evDeviceOffPeakRate: '7.619',
+                },
+            }] } };
+            const r = parseRatesResponse(data);
+            expect(r.electricity_day_rate).toBe(31.19);
+            expect(r.electricity_night_rate).toBe(7.619);
+            expect(r.electricity_ev_peak_rate).toBe(31.19);
+            expect(r.electricity_ev_off_peak_rate).toBe(7.619);
+        });
+
+        it('parses DayNightTariff bands; EV fields null', () => {
+            const data = { account: { electricityAgreements: [{
+                tariff: { productCode: 'E7-DAY-NIGHT', dayRate: '32.5', nightRate: '12.5', standingCharge: '50' },
+            }] } };
+            const r = parseRatesResponse(data);
+            expect(r.electricity_day_rate).toBe(32.5);
+            expect(r.electricity_night_rate).toBe(12.5);
+            expect(r.electricity_ev_peak_rate).toBeNull();
+            expect(r.electricity_ev_off_peak_rate).toBeNull();
+        });
+
+        it('StandardTariff has all band fields null', () => {
+            const data = { account: { electricityAgreements: [{
+                tariff: { productCode: 'STANDARD-VAR', unitRate: '28.5', standingCharge: '50' },
+            }] } };
+            const r = parseRatesResponse(data);
+            expect(r.electricity_day_rate).toBeNull();
+            expect(r.electricity_night_rate).toBeNull();
+            expect(r.electricity_ev_peak_rate).toBeNull();
+            expect(r.electricity_ev_off_peak_rate).toBeNull();
+        });
+
+        it('coerces string band values to numbers', () => {
+            const data = { account: { electricityAgreements: [{
+                tariff: { productCode: 'X', dayRate: '15.5', nightRate: '5.5', standingCharge: '50' },
+            }] } };
+            const r = parseRatesResponse(data);
+            expect(typeof r.electricity_day_rate).toBe('number');
+            expect(typeof r.electricity_night_rate).toBe('number');
+        });
+    });
 });

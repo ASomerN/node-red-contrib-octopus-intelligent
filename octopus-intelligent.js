@@ -19,6 +19,8 @@ const flexPlannedDispatchesCategory = require('./lib/categories/flex-planned-dis
 const applicableRatesCategory = require('./lib/categories/applicable-rates');
 const savingSessionsCategory = require('./lib/categories/saving-sessions');
 const freeElectricityCategory = require('./lib/categories/free-electricity');
+const httpGetJson = require('./lib/http-get-json');
+const { checkUpdate } = require('./lib/update-check');
 
 module.exports = function (RED) {
     function OctopusIntelligentNode(config) {
@@ -107,6 +109,10 @@ module.exports = function (RED) {
             { id: 'electricity_consumption_kwh',   name: 'Electricity Consumption',     unit: 'kWh',   class: 'energy',                      val: 'electricity_consumption_kwh' },
             // --- Electricity (config) ---
             { id: 'electricity_unit_rate',          name: 'Electricity Unit Rate',        unit: 'p/kWh', icon: 'mdi:flash',                    val: 'electricity_unit_rate' },
+            { id: 'electricity_day_rate',         name: 'Electricity Day Rate',         unit: 'p/kWh', icon: 'mdi:weather-sunny',        val: 'electricity_day_rate',         category: 'config' },
+            { id: 'electricity_night_rate',       name: 'Electricity Night Rate',       unit: 'p/kWh', icon: 'mdi:weather-night',        val: 'electricity_night_rate',       category: 'config' },
+            { id: 'electricity_ev_peak_rate',     name: 'Electricity EV Peak Rate',     unit: 'p/kWh', icon: 'mdi:car-electric-outline', val: 'electricity_ev_peak_rate',     category: 'config' },
+            { id: 'electricity_ev_off_peak_rate', name: 'Electricity EV Off-Peak Rate', unit: 'p/kWh', icon: 'mdi:car-electric',         val: 'electricity_ev_off_peak_rate', category: 'config' },
             { id: 'electricity_tariff_code',        name: 'Electricity Tariff Code',                     icon: 'mdi:tag',                      val: 'electricity_tariff_code' },
             { id: 'electricity_valid_from',         name: 'Electricity Tariff Valid From', class: 'timestamp', icon: 'mdi:calendar-start',     val: 'electricity_valid_from' },
             { id: 'electricity_valid_to',           name: 'Electricity Tariff Valid To',   class: 'timestamp', icon: 'mdi:calendar-end',       val: 'electricity_valid_to' },
@@ -137,6 +143,8 @@ module.exports = function (RED) {
             { id: 'electricity_export_rate_prev_to',     name: 'Electricity Export Rate Prev Ends',   class: 'timestamp', icon: 'mdi:calendar-clock', val: 'electricity_export_rate_prev_to',    category: 'diagnostic' },
             { id: 'electricity_export_rate_next_pence',  name: 'Electricity Export Rate Next',        unit: 'p/kWh', icon: 'mdi:cash-clock',          val: 'electricity_export_rate_next_pence',  category: 'diagnostic' },
             { id: 'electricity_export_rate_next_from',   name: 'Electricity Export Rate Next From',   class: 'timestamp', icon: 'mdi:calendar-clock', val: 'electricity_export_rate_next_from',  category: 'diagnostic' },
+            { id: 'electricity_export_rate_prev_gbp',    name: 'Electricity Export Rate Prev (GBP)', unit: 'GBP/kWh', icon: 'mdi:cash-clock', val: 'electricity_export_rate_prev_gbp', stateClass: 'measurement', category: 'diagnostic' },
+            { id: 'electricity_export_rate_next_gbp',    name: 'Electricity Export Rate Next (GBP)', unit: 'GBP/kWh', icon: 'mdi:cash-clock', val: 'electricity_export_rate_next_gbp', stateClass: 'measurement', category: 'diagnostic' },
             { id: 'electricity_export_rate_error',       name: 'Electricity Export Rate Error',       icon: 'mdi:alert-circle', val: 'electricity_export_rate_error', category: 'diagnostic' },
 
             // --- Gas (main) ---
@@ -159,6 +167,21 @@ module.exports = function (RED) {
             // --- Applicable Rates (diagnostic) ---
             { id: 'applicable_rates_count', name: 'Applicable Rates Slots', icon: 'mdi:format-list-numbered', val: 'applicable_rates_count', category: 'diagnostic' },
             { id: 'applicable_rates_error', name: 'Applicable Rates Error', icon: 'mdi:alert-circle',          val: 'applicable_rates_error', category: 'diagnostic' },
+            { id: 'applicable_rates_prev_pence',         name: 'Applicable Rate Prev',        unit: 'p/kWh',    icon: 'mdi:cash-clock',     val: 'applicable_rates_prev_pence',         category: 'diagnostic' },
+            { id: 'applicable_rates_prev_gbp',           name: 'Applicable Rate Prev (GBP)',  unit: 'GBP/kWh',  icon: 'mdi:cash-clock',     val: 'applicable_rates_prev_gbp', stateClass: 'measurement', category: 'diagnostic' },
+            { id: 'applicable_rates_prev_to',            name: 'Applicable Rate Prev Ends',   class: 'timestamp', icon: 'mdi:calendar-clock', val: 'applicable_rates_prev_to',           category: 'diagnostic' },
+            { id: 'applicable_rates_next_pence',         name: 'Applicable Rate Next',        unit: 'p/kWh',    icon: 'mdi:cash-clock',     val: 'applicable_rates_next_pence',         category: 'diagnostic' },
+            { id: 'applicable_rates_next_gbp',           name: 'Applicable Rate Next (GBP)',  unit: 'GBP/kWh',  icon: 'mdi:cash-clock',     val: 'applicable_rates_next_gbp', stateClass: 'measurement', category: 'diagnostic' },
+            { id: 'applicable_rates_next_from',          name: 'Applicable Rate Next From',   class: 'timestamp', icon: 'mdi:calendar-clock', val: 'applicable_rates_next_from',         category: 'diagnostic' },
+            // Applicable rates — 24h schedule stats (v1.5)
+            { id: 'applicable_rates_min_pence',           name: 'Applicable Rates Min',     unit: 'p/kWh', icon: 'mdi:arrow-down',         val: 'applicable_rates_min_pence',    category: 'diagnostic' },
+            { id: 'applicable_rates_max_pence',           name: 'Applicable Rates Max',     unit: 'p/kWh', icon: 'mdi:arrow-up',           val: 'applicable_rates_max_pence',    category: 'diagnostic' },
+            { id: 'applicable_rates_median_pence',        name: 'Applicable Rates Median',  unit: 'p/kWh', icon: 'mdi:approximately-equal', val: 'applicable_rates_median_pence', category: 'diagnostic' },
+            { id: 'applicable_rates_avg_pence',           name: 'Applicable Rates Avg',     unit: 'p/kWh', icon: 'mdi:chart-line',         val: 'applicable_rates_avg_pence',    category: 'diagnostic' },
+            { id: 'electricity_export_rate_min_pence',    name: 'Electricity Export Rate Min',    unit: 'p/kWh', icon: 'mdi:arrow-down',         val: 'electricity_export_rate_min_pence',    category: 'diagnostic' },
+            { id: 'electricity_export_rate_max_pence',    name: 'Electricity Export Rate Max',    unit: 'p/kWh', icon: 'mdi:arrow-up',           val: 'electricity_export_rate_max_pence',    category: 'diagnostic' },
+            { id: 'electricity_export_rate_median_pence', name: 'Electricity Export Rate Median', unit: 'p/kWh', icon: 'mdi:approximately-equal', val: 'electricity_export_rate_median_pence', category: 'diagnostic' },
+            { id: 'electricity_export_rate_avg_pence',    name: 'Electricity Export Rate Avg',    unit: 'p/kWh', icon: 'mdi:chart-line',         val: 'electricity_export_rate_avg_pence',    category: 'diagnostic' },
 
             // --- Account (main) ---
             { id: 'account_balance_pounds', name: 'Account Balance',        unit: '£',  icon: 'mdi:cash-multiple', val: 'account_balance_pounds' },
@@ -211,6 +234,33 @@ module.exports = function (RED) {
             { id: 'completed_dispatches_error',    name: 'Completed Dispatches Error',    icon: 'mdi:alert-circle', val: 'completed_dispatches_error',    category: 'diagnostic' },
             { id: 'flex_planned_dispatches_error', name: 'Flex Planned Dispatches Error', icon: 'mdi:alert-circle', val: 'flex_planned_dispatches_error', category: 'diagnostic' },
             { id: 'intelligent_error',             name: 'Intelligent Error',             icon: 'mdi:alert-circle', val: 'intelligent_error',             category: 'diagnostic' },
+
+            // v1.5 — update check (MQTT Update entity itself lands in Task 21)
+            { id: 'installed_version',  name: 'Installed Version',  icon: 'mdi:package-variant',             val: 'installed_version',  category: 'diagnostic' },
+            { id: 'latest_version',     name: 'Latest Version',     icon: 'mdi:package-variant-closed-plus', val: 'latest_version',     category: 'diagnostic' },
+            { id: 'update_check_at',    name: 'Update Check At',    class: 'timestamp', icon: 'mdi:clock-check-outline', val: 'update_check_at',    category: 'diagnostic' },
+            { id: 'update_check_error', name: 'Update Check Error', icon: 'mdi:alert-circle',                val: 'update_check_error', category: 'diagnostic' },
+        ];
+
+        // v1.5 — derived binary_sensors for the unified <category>_error fields.
+        // OFF when the underlying field is null/empty (healthy), ON when populated.
+        // The string sensors stay; these are additional indicators.
+        const errorSensors = [
+            { id: 'intelligent_error_state',             name: 'Intelligent Error State',             val: 'intelligent_error' },
+            { id: 'electricity_rates_error_state',       name: 'Electricity Rates Error State',       val: 'electricity_rates_error' },
+            { id: 'electricity_consumption_error_state', name: 'Electricity Consumption Error State', val: 'electricity_consumption_error' },
+            { id: 'electricity_export_rate_error_state', name: 'Electricity Export Rate Error State', val: 'electricity_export_rate_error' },
+            { id: 'gas_rates_error_state',               name: 'Gas Rates Error State',               val: 'gas_rates_error' },
+            { id: 'gas_consumption_error_state',         name: 'Gas Consumption Error State',         val: 'gas_consumption_error' },
+            { id: 'applicable_rates_error_state',        name: 'Applicable Rates Error State',        val: 'applicable_rates_error' },
+            { id: 'account_error_state',                 name: 'Account Error State',                 val: 'account_error' },
+            { id: 'octoplus_error_state',                name: 'Octoplus Error State',                val: 'octoplus_error' },
+            { id: 'wheel_of_fortune_error_state',        name: 'Wheel of Fortune Error State',        val: 'wheel_of_fortune_error' },
+            { id: 'home_mini_error_state',               name: 'Home Mini Error State',               val: 'home_mini_error' },
+            { id: 'saving_sessions_error_state',         name: 'Saving Sessions Error State',         val: 'saving_sessions_error' },
+            { id: 'free_electricity_error_state',        name: 'Free Electricity Error State',        val: 'free_electricity_error' },
+            { id: 'completed_dispatches_error_state',    name: 'Completed Dispatches Error State',    val: 'completed_dispatches_error' },
+            { id: 'flex_planned_dispatches_error_state', name: 'Flex Planned Dispatches Error State', val: 'flex_planned_dispatches_error' },
         ];
 
         // 4. Helper: Announce Controls (Write-Enabled)
@@ -448,7 +498,31 @@ module.exports = function (RED) {
                     payload.entity_category = sensor.category;
                 }
 
+                if (sensor.id === 'applicable_rates_count') {
+                    payload.json_attributes_topic = stateTopic;
+                    payload.json_attributes_template = '{ "rates": {{ value_json.applicable_rates | tojson }} }';
+                } else if (sensor.id === 'electricity_export_rate_count') {
+                    payload.json_attributes_topic = stateTopic;
+                    payload.json_attributes_template = '{ "rates": {{ value_json.electricity_export_rate | tojson }} }';
+                }
+
                 node.broker.client.publish(`${mqttPrefix}/sensor/${uniqueIdPrefix}_${sensor.id}/config`, JSON.stringify(payload), { retain: true });
+            });
+
+            // H2. v1.5 — error binary_sensors (device_class: problem)
+            errorSensors.forEach(e => {
+                const payload = {
+                    name: `Octopus ${e.name}`,
+                    unique_id: `${uniqueIdPrefix}_${e.id}`,
+                    state_topic: stateTopic,
+                    value_template: `{{ 'OFF' if value_json.${e.val} in [None, ''] else 'ON' }}`,
+                    payload_on: 'ON',
+                    payload_off: 'OFF',
+                    device_class: 'problem',
+                    entity_category: 'diagnostic',
+                    device: device,
+                };
+                node.broker.client.publish(`${mqttPrefix}/binary_sensor/${uniqueIdPrefix}_${e.id}/config`, JSON.stringify(payload), { retain: true });
             });
 
             // I. Timezone Select Entity
@@ -487,6 +561,20 @@ module.exports = function (RED) {
                     icon: "mdi:lightning-bolt",
                     entity_category: "config",
                     device: device
+                }),
+                { retain: true }
+            );
+
+            // K. v1.5 — Update entity (notify-only; Palette Manager is the install path)
+            node.broker.client.publish(
+                `${mqttPrefix}/update/${uniqueIdPrefix}_node_update/config`,
+                JSON.stringify({
+                    name: 'Octopus Intelligent Node',
+                    unique_id: `${uniqueIdPrefix}_node_update`,
+                    state_topic: `${stateTopic}/node_update`,
+                    title: 'node-red-contrib-octopus-intelligent',
+                    release_url: 'https://github.com/ASomerN/node-red-contrib-octopus-intelligent/releases',
+                    device: device,
                 }),
                 { retain: true }
             );
@@ -544,6 +632,7 @@ module.exports = function (RED) {
 
         // Last known full state - prevents sensors going unknown when controls change
         let lastKnownState = buildDefaultPayload({ confirmedLimit, confirmedTime, pendingLimit, pendingTime, chargingNow, smartChargingSuspended });
+        lastKnownState.installed_version = require('./package.json').version;
 
         // V2 category registry — populated after discovery
         let categories = [];
@@ -553,6 +642,9 @@ module.exports = function (RED) {
         // otherwise a redeploy during the 2s warmup leaves an orphan V2 scheduler.
         let initTimeoutHandles = [];
         let nodeClosed = false;
+        let lastWarnedVersion = null;
+        let prevPublishedInstalled = null;
+        let prevPublishedLatest = null;
 
         async function initCategories(discovered) {
             categories = [];
@@ -767,6 +859,14 @@ module.exports = function (RED) {
                     graphqlPost
                 ),
             });
+
+            categories.push({
+                id: 'update_check',
+                enabled: true,
+                intervalMs: 24 * 60 * 60 * 1000, // 24h — once daily npm registry check
+                lastPolled: 0,                   // fires on first scheduler tick
+                poll: intelligentUpdateCheck,    // token ignored
+            });
         }
 
         async function pollDueCategories() {
@@ -779,8 +879,25 @@ module.exports = function (RED) {
             lastKnownState = result.state;
             if (enableMqtt && node.broker && node.broker.client) {
                 node.broker.client.publish(stateTopic, JSON.stringify(lastKnownState), { retain: true });
+                // v1.5 — publish update entity state only when version values change
+                if (prevPublishedInstalled !== lastKnownState.installed_version
+                    || prevPublishedLatest !== lastKnownState.latest_version) {
+                    const updateState = {
+                        installed_version: lastKnownState.installed_version,
+                        latest_version: lastKnownState.latest_version || lastKnownState.installed_version,
+                    };
+                    node.broker.client.publish(`${stateTopic}/node_update`, JSON.stringify(updateState), { retain: true });
+                    prevPublishedInstalled = lastKnownState.installed_version;
+                    prevPublishedLatest = lastKnownState.latest_version;
+                }
             }
             node.send({ payload: lastKnownState });
+            if (lastKnownState.update_available === true
+                && lastKnownState.latest_version
+                && lastKnownState.latest_version !== lastWarnedVersion) {
+                node.warn(`Update available: v${lastKnownState.latest_version} (running v${lastKnownState.installed_version}). Install via Node-RED → Manage Palette → Upgrade.`);
+                lastWarnedVersion = lastKnownState.latest_version;
+            }
             if (!validationMode) {
                 if (lastKnownState.intelligent_error) {
                     node.status({ fill: "red", shape: "ring", text: `Error: ${String(lastKnownState.intelligent_error).slice(0, 40)}` });
@@ -1086,6 +1203,11 @@ module.exports = function (RED) {
                 }
             }, intervals[index]);
             smartChargingRetryTimeouts.push(timeout);
+        }
+
+        // 6. Logic: Update Check (bespoke poll that ignores token)
+        async function intelligentUpdateCheck(/* token ignored */) {
+            return checkUpdate(httpGetJson, require('./package.json').version);
         }
 
         // 6. Logic: Intelligent Poll (single-scheduler bespoke poll)

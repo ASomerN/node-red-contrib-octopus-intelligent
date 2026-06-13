@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] — 2026-06-13
+
+Schedule visibility, tariff rate bands, proactive update notification, and a Node-RED Dashboard 2.0 example.
+
+### Added — Schedule visibility (import & export)
+- 24h schedule stats: `applicable_rates_{min,max,median,avg}_pence` and `electricity_export_rate_*` equivalents — min/max/median/avg over the next 24h of half-hourly rates.
+- The full `applicable_rates` / `electricity_export_rate` slot arrays are now exposed as MQTT entity attributes on the existing `*_count` sensors, accessible via `state_attr(...)` in HA templates.
+
+### Added — Tariff rate bands
+- `electricity_day_rate`, `electricity_night_rate`, `electricity_ev_peak_rate`, `electricity_ev_off_peak_rate` — raw tariff-defined bands from the Kraken `DayNightTariff` / `FourRateEvTariff` types. Null on tariffs without banding (half-hourly/Agile users see nulls; Economy 7 / FourRateEv users see values).
+
+### Added — Update notification
+- HA MQTT Update entity (`update.octopus_intelligent_node_update`) surfacing newer-version availability in HA's Settings → Updates panel. Requires HA ≥ 2022.4.
+- Node-RED debug log emits `node.warn` once per detected new version, with install instructions.
+- New payload fields: `installed_version`, `latest_version`, `update_available`, `update_check_at`, `update_check_error`. Checked once per 24h via the unified scheduler.
+
+### Added — Promotion to MQTT entities (closing v1.3.0 gaps)
+- 8 previously payload-only fields promoted to MQTT entities: `applicable_rates_prev_pence/_gbp/_to`, `applicable_rates_next_pence/_gbp/_from`, `electricity_export_rate_prev_gbp`, `electricity_export_rate_next_gbp`.
+
+### Added — Per-category error binary sensors
+- 15 new `binary_sensor`s with `device_class: problem`, one per category. `OFF` when healthy / `ON` when the corresponding `<category>_error` payload field is set. Existing string error sensors retained — no breakage.
+
+### Added — Node-RED Dashboard 2.0 example
+- `examples/node-red-dashboard-flow.json` — importable Dashboard 2.0 flow with 32 widgets across 6 pages (Controls, Status, Tariff, Optimization, Account, Diagnostics), plus writable controls routed back into the node input.
+- Two annotated **sample function nodes** (`find-cheapest-window`, `is-cheapest-now`) demonstrating user-side derivation over `applicable_rates`. Example code only — not part of the published payload, keeping with the "expose raw data, no inference" principle.
+
+### Fixed — Example HA dashboard (`examples/ha-dashboard.yaml`)
+- Home Mini live-demand gauge now floors at `-10 kW` (was `min: 0`) so solar export displays, with the green severity band extended to cover the negative range.
+- Tariff rate-bands card is hidden on half-hourly/Agile tariffs (null bands render to `"None"`/`unknown`, not `unavailable` — the conditional now excludes all three).
+- Gas cards are hidden for electricity-only homes (gated on `gas_tariff_code`).
+
+### Backwards compatibility
+- All existing payload field names, MQTT topics, HA entity `unique_id`s, input commands, and node config fields are preserved. v1.4.0 → v1.5.0 is a zero-config upgrade.
+
 ## [1.4.0] — 2026-05-29
 
 Single poll loop. The V1 `setInterval(fetchData)` intelligent loop and the V2 `createScheduler(pollDueCategories)` category loop are merged into one clock-aligned scheduler with one auth and one emit per tick. No HA-side changes.

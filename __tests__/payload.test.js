@@ -78,3 +78,31 @@ describe('buildDefaultPayload', () => {
         expect(() => buildDefaultPayload(null)).toThrow(TypeError);
     });
 });
+
+describe('buildDefaultPayload v1.5 fields', () => {
+    const base = { confirmedLimit: 80, confirmedTime: '08:00', pendingLimit: 80, pendingTime: '08:00', chargingNow: false, smartChargingSuspended: null };
+    const p = buildDefaultPayload(base);
+
+    it('includes 4 tariff rate-band defaults', () => {
+        expect(p.electricity_day_rate).toBeNull();
+        expect(p.electricity_night_rate).toBeNull();
+        expect(p.electricity_ev_peak_rate).toBeNull();
+        expect(p.electricity_ev_off_peak_rate).toBeNull();
+    });
+
+    it('includes 8 schedule stats defaults', () => {
+        ['applicable_rates', 'electricity_export_rate'].forEach(pre => {
+            ['min', 'max', 'median', 'avg'].forEach(stat => {
+                expect(p[`${pre}_${stat}_pence`]).toBeNull();
+            });
+        });
+    });
+
+    it('includes 5 update_check defaults', () => {
+        expect(p.installed_version).toBeNull();
+        expect(p.latest_version).toBeNull();
+        expect(p.update_available).toBe(false);
+        expect(p.update_check_at).toBeNull();
+        expect(p.update_check_error).toBeNull();
+    });
+});
