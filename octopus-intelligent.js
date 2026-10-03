@@ -1,10 +1,12 @@
 'use strict';
 const { graphqlPost } = require('./lib/graphql');
+const { onlyDeviceFieldErrors } = require('./lib/graphql-errors');
 const { convertToTimezone, resolveTimezone } = require('./lib/timezone');
 const { createApiMetrics } = require('./lib/api-metrics');
 const intelligentCategory = require('./lib/categories/intelligent');
 const { buildDefaultPayload } = require('./lib/payload');
 const { createScheduler } = require('./lib/scheduler');
+const { discoveryRetryDelay } = require('./lib/discovery-retry');
 const { simplePoll, runTick } = require('./lib/poll-tick');
 const { discoverProducts } = require('./lib/discovery');
 const { mergePayload } = require('./lib/payload');
@@ -20,7 +22,10 @@ const applicableRatesCategory = require('./lib/categories/applicable-rates');
 const savingSessionsCategory = require('./lib/categories/saving-sessions');
 const freeElectricityCategory = require('./lib/categories/free-electricity');
 const httpGetJson = require('./lib/http-get-json');
+const { TIME_OPTIONS, validateTime, validateLimit } = require('./lib/preferences');
+const { planCommands } = require('./lib/commands');
 const { checkUpdate } = require('./lib/update-check');
+const { sensors, errorSensors } = require('./lib/sensor-definitions');
 
 module.exports = function (RED) {
     function OctopusIntelligentNode(config) {
@@ -47,221 +52,11 @@ module.exports = function (RED) {
         const cmdTopicRefresh = `nodered_octopus/${account}/refresh`;
         const cmdTopicTimezone = `nodered_octopus/${account}/set_timezone`;
         const cmdTopicSmartCharging = `nodered_octopus/${account}/set_smart_charging`;
+        const cmdTopicChargeCap = `nodered_octopus/${account}/set_charge_cap`;
 
-        // 2. Constants & Validation
-        const TIME_OPTIONS = [
-            "04:00", "04:30", "05:00", "05:30", 
-            "06:00", "06:30", "07:00", "07:30", 
-            "08:00", "08:30", "09:00", "09:30", 
-            "10:00", "10:30", "11:00"
-        ];
+        // 2. Constants & Validation — TIME_OPTIONS / validators live in lib/preferences.js
 
-        // 3. Sensor Definitions (Read-Only)
-        // category: undefined = main, 'config' = Configuration, 'diagnostic' = Diagnostics
-        const sensors = [
-            // --- EV Charging (main) ---
-            { id: 'next_charge',   name: 'Next Charge Time',       class: 'timestamp', icon: 'mdi:timer',              val: 'next_start' },
-            { id: 'total_energy',  name: 'Total Planned Energy',   unit: 'kWh',        class: 'energy',                val: 'total_energy' },
-            { id: 'next_kwh',      name: 'Next Slot Energy',       unit: 'kWh',        class: 'energy',                val: 'next_kwh' },
-            { id: 'source',        name: 'Charge Source',          icon: 'mdi:help-circle',                            val: 'next_source' },
-            { id: 'slot1_start',   name: 'Slot 1 Start',           class: 'timestamp', icon: 'mdi:timer-outline',      val: 'slot1_start' },
-            { id: 'slot1_end',     name: 'Slot 1 End',             class: 'timestamp', icon: 'mdi:timer-outline',      val: 'slot1_end' },
-            { id: 'slot2_start',   name: 'Slot 2 Start',           class: 'timestamp', icon: 'mdi:timer-outline',      val: 'slot2_start' },
-            { id: 'slot2_end',     name: 'Slot 2 End',             class: 'timestamp', icon: 'mdi:timer-outline',      val: 'slot2_end' },
-            { id: 'slot3_start',   name: 'Slot 3 Start',           class: 'timestamp', icon: 'mdi:timer-outline',      val: 'slot3_start' },
-            { id: 'slot3_end',     name: 'Slot 3 End',             class: 'timestamp', icon: 'mdi:timer-outline',      val: 'slot3_end' },
-            { id: 'window_start',  name: 'Overall Window Start',   class: 'timestamp', icon: 'mdi:timer-play',         val: 'window_start' },
-            { id: 'window_end',    name: 'Overall Window End',     class: 'timestamp', icon: 'mdi:timer-stop',         val: 'window_end' },
-
-            // --- EV Charging (diagnostic) ---
-            { id: 'next_poll',            name: 'Next Poll Time',          class: 'timestamp', icon: 'mdi:clock-outline', val: 'next_poll',            category: 'diagnostic' },
-            { id: 'refresh_available_at', name: 'Refresh Available At',    class: 'timestamp', icon: 'mdi:timer-sand',    val: 'refresh_available_at', category: 'diagnostic' },
-            { id: 'api_requests_hour',    name: 'API Requests (Last Hour)',                    icon: 'mdi:api',           val: 'api_requests_hour',    category: 'diagnostic' },
-            { id: 'api_complexity_hour',  name: 'API Complexity (Last Hour)',                  icon: 'mdi:chart-line',    val: 'api_complexity_hour',  category: 'diagnostic' },
-            { id: 'api_complexity_percent', name: 'API Complexity Usage',  unit: '%',          icon: 'mdi:percent',       val: 'api_complexity_percent', category: 'diagnostic' },
-
-            // --- Raw timestamps (diagnostic) ---
-            { id: 'next_charge_raw',     name: 'Next Charge Time (Raw)',        icon: 'mdi:timer',          val: 'next_start_raw',      category: 'diagnostic' },
-            { id: 'next_poll_raw',       name: 'Next Poll Time (Raw)',          icon: 'mdi:clock-outline',  val: 'next_poll_raw',       category: 'diagnostic' },
-            { id: 'slot1_start_raw',     name: 'Slot 1 Start (Raw)',            icon: 'mdi:timer-outline',  val: 'slot1_start_raw',     category: 'diagnostic' },
-            { id: 'slot1_end_raw',       name: 'Slot 1 End (Raw)',              icon: 'mdi:timer-outline',  val: 'slot1_end_raw',       category: 'diagnostic' },
-            { id: 'slot2_start_raw',     name: 'Slot 2 Start (Raw)',            icon: 'mdi:timer-outline',  val: 'slot2_start_raw',     category: 'diagnostic' },
-            { id: 'slot2_end_raw',       name: 'Slot 2 End (Raw)',              icon: 'mdi:timer-outline',  val: 'slot2_end_raw',       category: 'diagnostic' },
-            { id: 'slot3_start_raw',     name: 'Slot 3 Start (Raw)',            icon: 'mdi:timer-outline',  val: 'slot3_start_raw',     category: 'diagnostic' },
-            { id: 'slot3_end_raw',       name: 'Slot 3 End (Raw)',              icon: 'mdi:timer-outline',  val: 'slot3_end_raw',       category: 'diagnostic' },
-            { id: 'window_start_raw',    name: 'Overall Window Start (Raw)',    icon: 'mdi:timer-play',     val: 'window_start_raw',    category: 'diagnostic' },
-            { id: 'window_end_raw',      name: 'Overall Window End (Raw)',      icon: 'mdi:timer-stop',     val: 'window_end_raw',      category: 'diagnostic' },
-
-            // --- Locale timestamps (diagnostic) ---
-            { id: 'next_charge_locale',  name: 'Next Charge Time (Locale)',     icon: 'mdi:timer',          val: 'next_start_locale',   category: 'diagnostic' },
-            { id: 'slot1_start_locale',  name: 'Slot 1 Start (Locale)',         icon: 'mdi:timer-outline',  val: 'slot1_start_locale',  category: 'diagnostic' },
-            { id: 'slot1_end_locale',    name: 'Slot 1 End (Locale)',           icon: 'mdi:timer-outline',  val: 'slot1_end_locale',    category: 'diagnostic' },
-            { id: 'slot2_start_locale',  name: 'Slot 2 Start (Locale)',         icon: 'mdi:timer-outline',  val: 'slot2_start_locale',  category: 'diagnostic' },
-            { id: 'slot2_end_locale',    name: 'Slot 2 End (Locale)',           icon: 'mdi:timer-outline',  val: 'slot2_end_locale',    category: 'diagnostic' },
-            { id: 'slot3_start_locale',  name: 'Slot 3 Start (Locale)',         icon: 'mdi:timer-outline',  val: 'slot3_start_locale',  category: 'diagnostic' },
-            { id: 'slot3_end_locale',    name: 'Slot 3 End (Locale)',           icon: 'mdi:timer-outline',  val: 'slot3_end_locale',    category: 'diagnostic' },
-            { id: 'window_start_locale', name: 'Overall Window Start (Locale)', icon: 'mdi:timer-play',     val: 'window_start_locale', category: 'diagnostic' },
-            { id: 'window_end_locale',   name: 'Overall Window End (Locale)',   icon: 'mdi:timer-stop',     val: 'window_end_locale',   category: 'diagnostic' },
-            { id: 'timezone_detected',   name: 'Timezone Detected',             icon: 'mdi:earth',          val: 'timezone_detected',   category: 'diagnostic' },
-            { id: 'timezone_applied',    name: 'Timezone Applied',              icon: 'mdi:earth-plus',     val: 'timezone_applied',    category: 'diagnostic' },
-            // --- Electricity (main) ---
-            { id: 'electricity_standing_charge',   name: 'Electricity Standing Charge', unit: 'p/day', icon: 'mdi:cash',                     val: 'electricity_standing_charge' },
-            { id: 'electricity_consumption_kwh',   name: 'Electricity Consumption',     unit: 'kWh',   class: 'energy',                      val: 'electricity_consumption_kwh' },
-            // --- Electricity (config) ---
-            { id: 'electricity_unit_rate',          name: 'Electricity Unit Rate',        unit: 'p/kWh', icon: 'mdi:flash',                    val: 'electricity_unit_rate' },
-            { id: 'electricity_day_rate',         name: 'Electricity Day Rate',         unit: 'p/kWh', icon: 'mdi:weather-sunny',        val: 'electricity_day_rate',         category: 'config' },
-            { id: 'electricity_night_rate',       name: 'Electricity Night Rate',       unit: 'p/kWh', icon: 'mdi:weather-night',        val: 'electricity_night_rate',       category: 'config' },
-            { id: 'electricity_ev_peak_rate',     name: 'Electricity EV Peak Rate',     unit: 'p/kWh', icon: 'mdi:car-electric-outline', val: 'electricity_ev_peak_rate',     category: 'config' },
-            { id: 'electricity_ev_off_peak_rate', name: 'Electricity EV Off-Peak Rate', unit: 'p/kWh', icon: 'mdi:car-electric',         val: 'electricity_ev_off_peak_rate', category: 'config' },
-            { id: 'electricity_tariff_code',        name: 'Electricity Tariff Code',                     icon: 'mdi:tag',                      val: 'electricity_tariff_code' },
-            { id: 'electricity_valid_from',         name: 'Electricity Tariff Valid From', class: 'timestamp', icon: 'mdi:calendar-start',     val: 'electricity_valid_from' },
-            { id: 'electricity_valid_to',           name: 'Electricity Tariff Valid To',   class: 'timestamp', icon: 'mdi:calendar-end',       val: 'electricity_valid_to' },
-            // --- Electricity (diagnostic) ---
-            { id: 'electricity_consumption_from',   name: 'Electricity Consumption From', class: 'timestamp', icon: 'mdi:calendar-clock',     val: 'electricity_consumption_from',  category: 'diagnostic' },
-            { id: 'electricity_consumption_to',     name: 'Electricity Consumption To',   class: 'timestamp', icon: 'mdi:calendar-clock',     val: 'electricity_consumption_to',    category: 'diagnostic' },
-            { id: 'electricity_rates_error',        name: 'Electricity Rates Error',                     icon: 'mdi:alert-circle',             val: 'electricity_rates_error',       category: 'diagnostic' },
-            { id: 'electricity_consumption_error',  name: 'Electricity Consumption Error',               icon: 'mdi:alert-circle',             val: 'electricity_consumption_error', category: 'diagnostic' },
-
-            // --- Electricity Export (main) ---
-            { id: 'electricity_export_consumption_kwh', name: 'Electricity Export Consumption', unit: 'kWh',   class: 'energy',                       val: 'electricity_export_consumption_kwh' },
-            { id: 'electricity_export_rate_current_pence', name: 'Current Electricity Export Rate',       unit: 'p/kWh',   icon: 'mdi:cash-clock',  val: 'electricity_export_rate_current_pence' },
-            { id: 'electricity_export_rate_current_gbp',   name: 'Electricity Export Rate',               unit: 'GBP/kWh', icon: 'mdi:cash-clock', stateClass: 'measurement', val: 'electricity_export_rate_current_gbp' },
-            // --- Electricity Export (config) ---
-            // Solar/export users have a second agreement with productCode containing "OUTGOING".
-            // unit_rate is null for half-hourly export tariffs (e.g. Agile Outgoing) — current
-            // half-hourly export rate comes from electricity_export_rate_current_pence.
-            { id: 'electricity_export_unit_rate',      name: 'Electricity Export Unit Rate',      unit: 'p/kWh', icon: 'mdi:transmission-tower-export', val: 'electricity_export_unit_rate' },
-            { id: 'electricity_export_standing_charge',name: 'Electricity Export Standing Charge',unit: 'p/day', icon: 'mdi:cash',                      val: 'electricity_export_standing_charge' },
-            { id: 'electricity_export_tariff_code',    name: 'Electricity Export Tariff Code',                   icon: 'mdi:tag',                       val: 'electricity_export_tariff_code' },
-            { id: 'electricity_export_valid_from',     name: 'Electricity Export Tariff Valid From', class: 'timestamp', icon: 'mdi:calendar-start',   val: 'electricity_export_valid_from' },
-            { id: 'electricity_export_valid_to',       name: 'Electricity Export Tariff Valid To',   class: 'timestamp', icon: 'mdi:calendar-end',     val: 'electricity_export_valid_to' },
-            // --- Electricity Export (diagnostic) ---
-            { id: 'electricity_export_consumption_from', name: 'Electricity Export Consumption From', class: 'timestamp', icon: 'mdi:calendar-clock', val: 'electricity_export_consumption_from', category: 'diagnostic' },
-            { id: 'electricity_export_consumption_to',   name: 'Electricity Export Consumption To',   class: 'timestamp', icon: 'mdi:calendar-clock', val: 'electricity_export_consumption_to',   category: 'diagnostic' },
-            { id: 'electricity_export_rate_count',       name: 'Electricity Export Rate Slots',       icon: 'mdi:format-list-numbered', val: 'electricity_export_rate_count', category: 'diagnostic' },
-            { id: 'electricity_export_rate_prev_pence',  name: 'Electricity Export Rate Prev',        unit: 'p/kWh', icon: 'mdi:cash-clock',          val: 'electricity_export_rate_prev_pence',  category: 'diagnostic' },
-            { id: 'electricity_export_rate_prev_to',     name: 'Electricity Export Rate Prev Ends',   class: 'timestamp', icon: 'mdi:calendar-clock', val: 'electricity_export_rate_prev_to',    category: 'diagnostic' },
-            { id: 'electricity_export_rate_next_pence',  name: 'Electricity Export Rate Next',        unit: 'p/kWh', icon: 'mdi:cash-clock',          val: 'electricity_export_rate_next_pence',  category: 'diagnostic' },
-            { id: 'electricity_export_rate_next_from',   name: 'Electricity Export Rate Next From',   class: 'timestamp', icon: 'mdi:calendar-clock', val: 'electricity_export_rate_next_from',  category: 'diagnostic' },
-            { id: 'electricity_export_rate_prev_gbp',    name: 'Electricity Export Rate Prev (GBP)', unit: 'GBP/kWh', icon: 'mdi:cash-clock', val: 'electricity_export_rate_prev_gbp', stateClass: 'measurement', category: 'diagnostic' },
-            { id: 'electricity_export_rate_next_gbp',    name: 'Electricity Export Rate Next (GBP)', unit: 'GBP/kWh', icon: 'mdi:cash-clock', val: 'electricity_export_rate_next_gbp', stateClass: 'measurement', category: 'diagnostic' },
-            { id: 'electricity_export_rate_error',       name: 'Electricity Export Rate Error',       icon: 'mdi:alert-circle', val: 'electricity_export_rate_error', category: 'diagnostic' },
-
-            // --- Gas (main) ---
-            { id: 'gas_standing_charge',    name: 'Gas Standing Charge',  unit: 'p/day', icon: 'mdi:cash',              val: 'gas_standing_charge' },
-            { id: 'gas_consumption_kwh',    name: 'Gas Consumption',      unit: 'kWh',   class: 'energy',               val: 'gas_consumption_kwh' },
-            // --- Gas (config) ---
-            { id: 'gas_unit_rate',          name: 'Gas Unit Rate',         unit: 'p/kWh', icon: 'mdi:fire',              val: 'gas_unit_rate' },
-            { id: 'gas_tariff_code',        name: 'Gas Tariff Code',                      icon: 'mdi:tag',               val: 'gas_tariff_code' },
-            { id: 'gas_valid_from',         name: 'Gas Tariff Valid From', class: 'timestamp', icon: 'mdi:calendar-start', val: 'gas_valid_from' },
-            { id: 'gas_valid_to',           name: 'Gas Tariff Valid To',   class: 'timestamp', icon: 'mdi:calendar-end',   val: 'gas_valid_to' },
-            // --- Gas (diagnostic) ---
-            { id: 'gas_consumption_from',   name: 'Gas Consumption From',  class: 'timestamp', icon: 'mdi:calendar-clock', val: 'gas_consumption_from',  category: 'diagnostic' },
-            { id: 'gas_consumption_to',     name: 'Gas Consumption To',    class: 'timestamp', icon: 'mdi:calendar-clock', val: 'gas_consumption_to',    category: 'diagnostic' },
-            { id: 'gas_rates_error',        name: 'Gas Rates Error',                       icon: 'mdi:alert-circle',      val: 'gas_rates_error',        category: 'diagnostic' },
-            { id: 'gas_consumption_error',  name: 'Gas Consumption Error',                 icon: 'mdi:alert-circle',      val: 'gas_consumption_error',  category: 'diagnostic' },
-
-            // --- Applicable Rates (main) ---
-            { id: 'applicable_rates_current_pence', name: 'Current Electricity Rate',       unit: 'p/kWh',    icon: 'mdi:cash-clock', val: 'applicable_rates_current_pence' },
-            { id: 'applicable_rates_current_gbp',   name: 'Electricity Rate',               unit: 'GBP/kWh',  icon: 'mdi:cash-clock', stateClass: 'measurement', val: 'applicable_rates_current_gbp' },
-            // --- Applicable Rates (diagnostic) ---
-            { id: 'applicable_rates_count', name: 'Applicable Rates Slots', icon: 'mdi:format-list-numbered', val: 'applicable_rates_count', category: 'diagnostic' },
-            { id: 'applicable_rates_error', name: 'Applicable Rates Error', icon: 'mdi:alert-circle',          val: 'applicable_rates_error', category: 'diagnostic' },
-            { id: 'applicable_rates_prev_pence',         name: 'Applicable Rate Prev',        unit: 'p/kWh',    icon: 'mdi:cash-clock',     val: 'applicable_rates_prev_pence',         category: 'diagnostic' },
-            { id: 'applicable_rates_prev_gbp',           name: 'Applicable Rate Prev (GBP)',  unit: 'GBP/kWh',  icon: 'mdi:cash-clock',     val: 'applicable_rates_prev_gbp', stateClass: 'measurement', category: 'diagnostic' },
-            { id: 'applicable_rates_prev_to',            name: 'Applicable Rate Prev Ends',   class: 'timestamp', icon: 'mdi:calendar-clock', val: 'applicable_rates_prev_to',           category: 'diagnostic' },
-            { id: 'applicable_rates_next_pence',         name: 'Applicable Rate Next',        unit: 'p/kWh',    icon: 'mdi:cash-clock',     val: 'applicable_rates_next_pence',         category: 'diagnostic' },
-            { id: 'applicable_rates_next_gbp',           name: 'Applicable Rate Next (GBP)',  unit: 'GBP/kWh',  icon: 'mdi:cash-clock',     val: 'applicable_rates_next_gbp', stateClass: 'measurement', category: 'diagnostic' },
-            { id: 'applicable_rates_next_from',          name: 'Applicable Rate Next From',   class: 'timestamp', icon: 'mdi:calendar-clock', val: 'applicable_rates_next_from',         category: 'diagnostic' },
-            // Applicable rates — 24h schedule stats (v1.5)
-            { id: 'applicable_rates_min_pence',           name: 'Applicable Rates Min',     unit: 'p/kWh', icon: 'mdi:arrow-down',         val: 'applicable_rates_min_pence',    category: 'diagnostic' },
-            { id: 'applicable_rates_max_pence',           name: 'Applicable Rates Max',     unit: 'p/kWh', icon: 'mdi:arrow-up',           val: 'applicable_rates_max_pence',    category: 'diagnostic' },
-            { id: 'applicable_rates_median_pence',        name: 'Applicable Rates Median',  unit: 'p/kWh', icon: 'mdi:approximately-equal', val: 'applicable_rates_median_pence', category: 'diagnostic' },
-            { id: 'applicable_rates_avg_pence',           name: 'Applicable Rates Avg',     unit: 'p/kWh', icon: 'mdi:chart-line',         val: 'applicable_rates_avg_pence',    category: 'diagnostic' },
-            { id: 'electricity_export_rate_min_pence',    name: 'Electricity Export Rate Min',    unit: 'p/kWh', icon: 'mdi:arrow-down',         val: 'electricity_export_rate_min_pence',    category: 'diagnostic' },
-            { id: 'electricity_export_rate_max_pence',    name: 'Electricity Export Rate Max',    unit: 'p/kWh', icon: 'mdi:arrow-up',           val: 'electricity_export_rate_max_pence',    category: 'diagnostic' },
-            { id: 'electricity_export_rate_median_pence', name: 'Electricity Export Rate Median', unit: 'p/kWh', icon: 'mdi:approximately-equal', val: 'electricity_export_rate_median_pence', category: 'diagnostic' },
-            { id: 'electricity_export_rate_avg_pence',    name: 'Electricity Export Rate Avg',    unit: 'p/kWh', icon: 'mdi:chart-line',         val: 'electricity_export_rate_avg_pence',    category: 'diagnostic' },
-
-            // --- Account (main) ---
-            { id: 'account_balance_pounds', name: 'Account Balance',        unit: '£',  icon: 'mdi:cash-multiple', val: 'account_balance_pounds' },
-            // --- Account (diagnostic) ---
-            { id: 'account_balance_pence',  name: 'Account Balance (Pence)', unit: 'p', icon: 'mdi:cash',          val: 'account_balance_pence',  category: 'diagnostic' },
-            { id: 'account_error',          name: 'Account Error',                      icon: 'mdi:alert-circle',  val: 'account_error',          category: 'diagnostic' },
-
-            // --- Octoplus (config) ---
-            // octoplus_enrolled and octoplus_loyalty_points_user are booleans — published as
-            // binary_sensor entities further down. Leaving them out of this array.
-            { id: 'octoplus_enrollment_status',   name: 'Octoplus Status',         icon: 'mdi:star-circle-outline', val: 'octoplus_enrollment_status' },
-            // --- Octoplus (diagnostic) ---
-            { id: 'octoplus_error', name: 'Octoplus Error', icon: 'mdi:alert-circle', val: 'octoplus_error', category: 'diagnostic' },
-
-            // --- Wheel of Fortune (main) ---
-            { id: 'wheel_of_fortune_electricity_spins', name: 'WoF Electricity Spins', icon: 'mdi:star-circle', val: 'wheel_of_fortune_electricity_spins' },
-            { id: 'wheel_of_fortune_gas_spins',         name: 'WoF Gas Spins',         icon: 'mdi:star-circle', val: 'wheel_of_fortune_gas_spins' },
-            // --- Wheel of Fortune (diagnostic) ---
-            { id: 'wheel_of_fortune_electricity_max',   name: 'WoF Electricity Max',   icon: 'mdi:star-outline', val: 'wheel_of_fortune_electricity_max',  category: 'diagnostic' },
-            { id: 'wheel_of_fortune_electricity_used',  name: 'WoF Electricity Used',  icon: 'mdi:star-outline', val: 'wheel_of_fortune_electricity_used', category: 'diagnostic' },
-            { id: 'wheel_of_fortune_gas_max',           name: 'WoF Gas Max',           icon: 'mdi:star-outline', val: 'wheel_of_fortune_gas_max',          category: 'diagnostic' },
-            { id: 'wheel_of_fortune_gas_used',          name: 'WoF Gas Used',          icon: 'mdi:star-outline', val: 'wheel_of_fortune_gas_used',         category: 'diagnostic' },
-            { id: 'wheel_of_fortune_error',             name: 'WoF Error',             icon: 'mdi:alert-circle', val: 'wheel_of_fortune_error',            category: 'diagnostic' },
-
-            // --- Home Mini (main) ---
-            { id: 'mini_demand_kw',             name: 'Home Mini Demand',             unit: 'kW',  class: 'power',  icon: 'mdi:home-lightning-bolt', val: 'mini_demand_kw' },
-            { id: 'mini_consumption_delta_kwh', name: 'Home Mini Period Consumption', unit: 'kWh', class: 'energy', icon: 'mdi:home-lightning-bolt', val: 'mini_consumption_delta_kwh' },
-            // --- Home Mini (diagnostic) ---
-            { id: 'mini_read_at',    name: 'Home Mini Reading Time', class: 'timestamp', icon: 'mdi:clock-outline', val: 'mini_read_at',    category: 'diagnostic' },
-            { id: 'home_mini_error', name: 'Home Mini Error',                            icon: 'mdi:alert-circle',  val: 'home_mini_error', category: 'diagnostic' },
-
-            // --- Saving Sessions (main) ---
-            { id: 'saving_session_points', name: 'Octopus Points',        icon: 'mdi:star',                  val: 'saving_session_points' },
-            // --- Saving Sessions (config) ---
-            { id: 'saving_session_start', name: 'Saving Session Start', class: 'timestamp', icon: 'mdi:calendar-clock', val: 'saving_session_start' },
-            { id: 'saving_session_end',   name: 'Saving Session End',   class: 'timestamp', icon: 'mdi:calendar-clock', val: 'saving_session_end' },
-            // --- Saving Sessions (diagnostic) ---
-            { id: 'saving_sessions_error', name: 'Saving Sessions Error', icon: 'mdi:alert-circle', val: 'saving_sessions_error', category: 'diagnostic' },
-
-            // --- Free Electricity (config) ---
-            { id: 'free_electricity_start', name: 'Free Electricity Start', class: 'timestamp', icon: 'mdi:flash-circle', val: 'free_electricity_start' },
-            { id: 'free_electricity_end',   name: 'Free Electricity End',   class: 'timestamp', icon: 'mdi:flash-circle', val: 'free_electricity_end' },
-            // --- Free Electricity (diagnostic) ---
-            { id: 'free_electricity_error', name: 'Free Electricity Error', icon: 'mdi:alert-circle', val: 'free_electricity_error', category: 'diagnostic' },
-
-            // --- Dispatches (main) ---
-            { id: 'completed_dispatches_count',    name: 'Completed Dispatches',    icon: 'mdi:history',               val: 'completed_dispatches_count' },
-            { id: 'flex_planned_dispatches_count', name: 'Flex Planned Dispatches', icon: 'mdi:lightning-bolt-circle', val: 'flex_planned_dispatches_count' },
-            // --- Dispatches (diagnostic) ---
-            { id: 'completed_dispatches_error',    name: 'Completed Dispatches Error',    icon: 'mdi:alert-circle', val: 'completed_dispatches_error',    category: 'diagnostic' },
-            { id: 'flex_planned_dispatches_error', name: 'Flex Planned Dispatches Error', icon: 'mdi:alert-circle', val: 'flex_planned_dispatches_error', category: 'diagnostic' },
-            { id: 'intelligent_error',             name: 'Intelligent Error',             icon: 'mdi:alert-circle', val: 'intelligent_error',             category: 'diagnostic' },
-
-            // v1.5 — update check (MQTT Update entity itself lands in Task 21)
-            { id: 'installed_version',  name: 'Installed Version',  icon: 'mdi:package-variant',             val: 'installed_version',  category: 'diagnostic' },
-            { id: 'latest_version',     name: 'Latest Version',     icon: 'mdi:package-variant-closed-plus', val: 'latest_version',     category: 'diagnostic' },
-            { id: 'update_check_at',    name: 'Update Check At',    class: 'timestamp', icon: 'mdi:clock-check-outline', val: 'update_check_at',    category: 'diagnostic' },
-            { id: 'update_check_error', name: 'Update Check Error', icon: 'mdi:alert-circle',                val: 'update_check_error', category: 'diagnostic' },
-        ];
-
-        // v1.5 — derived binary_sensors for the unified <category>_error fields.
-        // OFF when the underlying field is null/empty (healthy), ON when populated.
-        // The string sensors stay; these are additional indicators.
-        const errorSensors = [
-            { id: 'intelligent_error_state',             name: 'Intelligent Error State',             val: 'intelligent_error' },
-            { id: 'electricity_rates_error_state',       name: 'Electricity Rates Error State',       val: 'electricity_rates_error' },
-            { id: 'electricity_consumption_error_state', name: 'Electricity Consumption Error State', val: 'electricity_consumption_error' },
-            { id: 'electricity_export_rate_error_state', name: 'Electricity Export Rate Error State', val: 'electricity_export_rate_error' },
-            { id: 'gas_rates_error_state',               name: 'Gas Rates Error State',               val: 'gas_rates_error' },
-            { id: 'gas_consumption_error_state',         name: 'Gas Consumption Error State',         val: 'gas_consumption_error' },
-            { id: 'applicable_rates_error_state',        name: 'Applicable Rates Error State',        val: 'applicable_rates_error' },
-            { id: 'account_error_state',                 name: 'Account Error State',                 val: 'account_error' },
-            { id: 'octoplus_error_state',                name: 'Octoplus Error State',                val: 'octoplus_error' },
-            { id: 'wheel_of_fortune_error_state',        name: 'Wheel of Fortune Error State',        val: 'wheel_of_fortune_error' },
-            { id: 'home_mini_error_state',               name: 'Home Mini Error State',               val: 'home_mini_error' },
-            { id: 'saving_sessions_error_state',         name: 'Saving Sessions Error State',         val: 'saving_sessions_error' },
-            { id: 'free_electricity_error_state',        name: 'Free Electricity Error State',        val: 'free_electricity_error' },
-            { id: 'completed_dispatches_error_state',    name: 'Completed Dispatches Error State',    val: 'completed_dispatches_error' },
-            { id: 'flex_planned_dispatches_error_state', name: 'Flex Planned Dispatches Error State', val: 'flex_planned_dispatches_error' },
-        ];
+        // 3. Sensor Definitions (Read-Only) — imported from lib/sensor-definitions.js
 
         // 4. Helper: Announce Controls (Write-Enabled)
         function announceControls() {
@@ -285,7 +80,7 @@ module.exports = function (RED) {
                 state_topic: stateTopic,
                 command_topic: cmdTopicLimit,
                 value_template: "{{ value_json.pending_limit }}",
-                min: 50, max: 100, step: 5,
+                min: 5, max: 100, step: 5,
                 unit_of_measurement: "%",
                 icon: "mdi:battery-charging-high",
                 device: device
@@ -565,6 +360,23 @@ module.exports = function (RED) {
                 { retain: true }
             );
 
+            // J2. Charge Cap Switch — limit smart charging to off-peak rates only (v1.6)
+            node.broker.client.publish(
+                `${mqttPrefix}/switch/${uniqueIdPrefix}_charge_cap/config`,
+                JSON.stringify({
+                    name: "Charge Cap",
+                    unique_id: `${uniqueIdPrefix}_charge_cap`,
+                    command_topic: cmdTopicChargeCap,
+                    state_topic: `${stateTopic}/charge_cap`,
+                    payload_on: "ON",
+                    payload_off: "OFF",
+                    icon: "mdi:cash-clock",
+                    entity_category: "config",
+                    device: device
+                }),
+                { retain: true }
+            );
+
             // K. v1.5 — Update entity (notify-only; Palette Manager is the install path)
             node.broker.client.publish(
                 `${mqttPrefix}/update/${uniqueIdPrefix}_node_update/config`,
@@ -586,6 +398,7 @@ module.exports = function (RED) {
             node.broker.client.subscribe(cmdTopicRefresh);
             node.broker.client.subscribe(cmdTopicTimezone);
             node.broker.client.subscribe(cmdTopicSmartCharging);
+            node.broker.client.subscribe(cmdTopicChargeCap);
         }
 
         // 5. Helper: Set Preferences (The Mutation)
@@ -599,6 +412,7 @@ module.exports = function (RED) {
         let pendingTime = "08:00";
         let confirmedLimit = 80;
         let confirmedTime = "08:00";
+        let chargeCapNaWarned = false; // warn once when the API says Charge Cap doesn't apply
 
         // Charging Now feature - timer-based state management
         let chargingNow = false;
@@ -923,22 +737,8 @@ module.exports = function (RED) {
             if (cat) cat.lastPolled = 0;
         }
 
-        async function setPreferences(newLimit, newTime) {
-            // Validation
-            let limit = parseInt(newLimit);
-            let time = newTime;
-
-            // Enforce Limits
-            if (isNaN(limit) || limit < 50) limit = 50;
-            if (limit > 100) limit = 100;
-            // Round to nearest 5
-            limit = Math.round(limit / 5) * 5;
-
-            // Validate Time
-            if (!TIME_OPTIONS.includes(time)) {
-                node.warn(`Invalid time '${time}' requested. Defaulting to 08:00`);
-                time = "08:00";
-            }
+        // limit/time are validated by the caller (or come from the API as confirmed values).
+        async function setPreferences(limit, time) {
 
             // Cancel any pending retry attempts from previous changes
             retryTimeouts.forEach(timeout => clearTimeout(timeout));
@@ -1148,6 +948,41 @@ module.exports = function (RED) {
             }
         }
 
+        // Helper: Toggle Charge Cap (off-peak-only smart charging). State is confirmed by the
+        // next intelligent poll, so no bespoke verification loop.
+        async function setChargeCap(enabled) {
+            if (!krakenflexDeviceId) {
+                node.warn("Device ID not available — cannot change Charge Cap");
+                return;
+            }
+            const previous = lastKnownState ? lastKnownState.charge_cap : null;
+            try {
+                node.status({ fill: "blue", shape: "dot", text: enabled ? "Enabling Charge Cap..." : "Disabling Charge Cap..." });
+                const token = await obtainTickToken();
+                const res = await graphqlPost({
+                    query: `mutation SetChargeCap($input: UpdateIsChargingDurationCappedInput!) { updateIsChargingDurationCapped(input: $input) { __typename } }`,
+                    variables: { input: { deviceId: krakenflexDeviceId, enabled } }
+                }, token);
+                if (res.data.errors) {
+                    throw new Error(`Charge Cap mutation failed: ${JSON.stringify(res.data.errors)}`);
+                }
+                metrics.recordPoll(250); // auth + mutation, same estimate as other mutations
+                lastKnownState = mergePayload(lastKnownState, { charge_cap: enabled });
+                if (enableMqtt && node.broker && node.broker.client) {
+                    node.broker.client.publish(`${stateTopic}/charge_cap`, enabled ? "ON" : "OFF", { retain: true });
+                }
+                node.status({ fill: "green", shape: "dot", text: `Charge Cap ${enabled ? "on" : "off"}` });
+                forceCategoryDue('intelligent'); // next tick confirms from the API
+            } catch (e) {
+                node.error(`Failed to change Charge Cap: ${e.message}`);
+                node.status({ fill: "red", shape: "ring", text: "Charge Cap update failed" });
+                // Republish previous state so the HA switch re-syncs
+                if (enableMqtt && node.broker && node.broker.client && typeof previous === 'boolean') {
+                    node.broker.client.publish(`${stateTopic}/charge_cap`, previous ? "ON" : "OFF", { retain: true });
+                }
+            }
+        }
+
         function scheduleSmartChargingVerification(expectedSuspended, intervals, index) {
             if (index >= intervals.length) {
                 node.warn("Smart charging state could not be confirmed after all retries");
@@ -1215,7 +1050,10 @@ module.exports = function (RED) {
             // 1. devices query
             const { query: devicesQuery, variables: devicesVars } = intelligentCategory.buildDevicesQuery(account);
             const devicesResponse = await graphqlPost({ query: devicesQuery, variables: devicesVars }, token);
-            if (devicesResponse.data.errors) throw new Error(`Devices query failed: ${JSON.stringify(devicesResponse.data.errors)}`);
+            // An error on the Charge Cap field alone must not stop slot/settings updates (KT-CT-4360 pattern).
+            const devicesErrors = devicesResponse.data.errors;
+            const chargeCapFailed = onlyDeviceFieldErrors(devicesErrors, devicesResponse.data.data, 'chargeCap');
+            if (devicesErrors && !chargeCapFailed) throw new Error(`Devices query failed: ${JSON.stringify(devicesErrors)}`);
             if (!devicesResponse.data.data) throw new Error('Devices response missing data');
             const devicesData = devicesResponse.data.data;
             const evDevice = intelligentCategory.extractEvDevice(devicesData.devices);
@@ -1234,6 +1072,7 @@ module.exports = function (RED) {
             const serverTz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; } })();
             const catResult = intelligentCategory.parseResponse(data, { tz: appliedTz, serverTz });
             const { _activeSlots, ...catPublic } = catResult;
+            if (chargeCapFailed) delete catPublic.charge_cap; // unknown this poll: keep the last value
             const flexResult = flexPlannedDispatchesCategory.parseResponse(dispatchResponse.data.data);
 
             // 4. metrics + side effects
@@ -1243,6 +1082,16 @@ module.exports = function (RED) {
             if (!validationMode) {
                 pendingLimit = confirmedLimit;
                 pendingTime = confirmedTime;
+            }
+            if (chargeCapFailed) {
+                node.warn("Charge Cap state unavailable this poll — keeping the last known value");
+            } else if (typeof catResult.charge_cap === 'boolean') {
+                if (enableMqtt && node.broker && node.broker.client) {
+                    node.broker.client.publish(`${stateTopic}/charge_cap`, catResult.charge_cap ? "ON" : "OFF", { retain: true });
+                }
+            } else if (!chargeCapNaWarned) {
+                chargeCapNaWarned = true;
+                node.warn("Charge Cap not applicable for this device — switch will show unknown");
             }
             setupChargingTimers(_activeSlots);
             if (!stateCheckInterval) startStateReconciliation();
@@ -1472,7 +1321,14 @@ module.exports = function (RED) {
                         const dataResponse = await graphqlPost({ query: dq, variables: dv }, token);
 
                         if (dataResponse.data.data && dataResponse.data.data.flexPlannedDispatches) {
-                            cachedSlots = dataResponse.data.data.flexPlannedDispatches;
+                            const freshSlots = dataResponse.data.data.flexPlannedDispatches;
+                            // Octopus re-planned since the last poll: poll now so the slot/window
+                            // sensors match what charging_now is about to do.
+                            if (intelligentCategory.slotsChanged(cachedSlots, freshSlots)) {
+                                node.warn("Charging plan changed since last poll - refreshing");
+                                forceCategoryDue('intelligent');
+                            }
+                            cachedSlots = freshSlots;
 
                             // Record pre-validation API usage (auth + simple query = ~200 complexity)
                             const ESTIMATED_PREVALIDATION_COMPLEXITY = 200;
@@ -1499,11 +1355,17 @@ module.exports = function (RED) {
 
                 const minutesUntil = Math.round(msUntilPreValidation / 60000);
                 node.log(`Pre-validation timer set for ${minutesUntil} min before slot start`);
+            } else if (msUntilPreValidation <= 0 && slotStart.getTime() > now.getTime()) {
+                // Polled inside the last 30s (e.g. the refresh after a re-plan): the data is
+                // already fresh, so set the start timer directly instead of losing it.
+                setupSlotStartTimer(nextSlot);
             }
         }
 
         // Setup slot start timer (exact start time)
         function setupSlotStartTimer(slot) {
+            // A poll and an in-flight pre-validation can both set this; never leave an orphan.
+            if (slotStartTimer) { clearTimeout(slotStartTimer); slotStartTimer = null; }
             const now = new Date();
             const slotStart = new Date(slot.start);
             const msUntilStart = slotStart.getTime() - now.getTime();
@@ -1529,6 +1391,7 @@ module.exports = function (RED) {
 
         // Setup slot end timer (exact end time)
         function setupSlotEndTimer(slot) {
+            if (slotEndTimer) { clearTimeout(slotEndTimer); slotEndTimer = null; }
             const now = new Date();
             const slotEnd = new Date(slot.end);
             const msUntilEnd = slotEnd.getTime() - now.getTime();
@@ -1623,29 +1486,21 @@ module.exports = function (RED) {
         node.on('input', function (msg) {
             // Check for control commands (preference updates)
             if (msg.payload && typeof msg.payload === 'object') {
-                if (msg.payload.set_limit || msg.payload.set_time) {
-                    // Use new values if present, otherwise keep existing
-                    const targetLimit = msg.payload.set_limit || confirmedLimit;
-                    const targetTime = msg.payload.set_time || confirmedTime;
-                    setPreferences(targetLimit, targetTime);
-                    return; // Don't run standard fetch if setting
+                const plan = planCommands(msg.payload, { confirmedLimit, confirmedTime });
+                plan.errors.forEach((e) => node.error(e, msg));
+                if (plan.errors.length && !plan.actions.length) {
+                    node.status({ fill: "red", shape: "ring", text: plan.errors[0].split(' —')[0] });
                 }
-                if (msg.payload.set_timezone !== undefined) {
-                    const tz = msg.payload.set_timezone;
-                    if (typeof tz === 'string' && tz.trim().length > 0) {
-                        node.context().set('timezone', tz.trim());
-                        node.log(`Timezone set to: ${tz.trim()}`);
+                for (const a of plan.actions) {
+                    if (a.type === 'preferences') setPreferences(a.limit, a.time);
+                    else if (a.type === 'timezone') {
+                        node.context().set('timezone', a.timezone);
+                        node.log(`Timezone set to: ${a.timezone}`);
                     }
-                    return;
+                    else if (a.type === 'smart_charging') setSmartCharging(a.enabled);
+                    else if (a.type === 'charge_cap') setChargeCap(a.enabled);
                 }
-                if (msg.payload.set_smart_charging !== undefined) {
-                    const val = msg.payload.set_smart_charging;
-                    if (typeof val === 'boolean') {
-                        setSmartCharging(val);
-                    }
-                    // silently ignore non-boolean (consistent with other handlers)
-                    return;
-                }
+                if (plan.hasCommand) return; // commands never trigger a manual refresh
             }
 
             // Manual refresh request from Node-RED - NO rate limiting
@@ -1662,16 +1517,26 @@ module.exports = function (RED) {
 
             // Slider changed - update pending value only
             node.broker.subscribe(cmdTopicLimit, 0, (topic, payload) => {
-                const val = parseInt(payload.toString());
-                pendingLimit = val;
+                const r = validateLimit(payload.toString());
+                if (!r.ok) {
+                    node.warn(r.error);
+                    publishCurrentState(); // snap slider back
+                    return;
+                }
+                pendingLimit = r.limit;
                 publishCurrentState(); // Update display immediately
                 node.status({ fill: "yellow", shape: "dot", text: `Pending: ${pendingLimit}% @ ${pendingTime}` });
             });
 
             // Dropdown changed - update pending value only
             node.broker.subscribe(cmdTopicTime, 0, (topic, payload) => {
-                const val = payload.toString();
-                pendingTime = val;
+                const r = validateTime(payload.toString());
+                if (!r.ok) {
+                    node.warn(r.error);
+                    publishCurrentState(); // snap dropdown back
+                    return;
+                }
+                pendingTime = r.time;
                 publishCurrentState(); // Update display immediately
                 node.status({ fill: "yellow", shape: "dot", text: `Pending: ${pendingLimit}% @ ${pendingTime}` });
             });
@@ -1731,6 +1596,13 @@ module.exports = function (RED) {
                 else if (val === "OFF") setSmartCharging(false);
             });
 
+            // Charge Cap switch toggled in HA
+            node.broker.subscribe(cmdTopicChargeCap, 0, (topic, payload) => {
+                const val = payload.toString().trim();
+                if (val === "ON") setChargeCap(true);
+                else if (val === "OFF") setChargeCap(false);
+            });
+
             initTimeoutHandles.push(setTimeout(announceControls, 2000));
 
             // Republish persisted timezone to HA select on startup
@@ -1757,10 +1629,12 @@ module.exports = function (RED) {
         // Init
         initTimeoutHandles.push(setTimeout(fetchDeviceId, 1500));
 
-        // V2 category discovery and scheduler. Tracked + nodeClosed-guarded so that a
-        // node redeploy during the 2s warmup (or during the async discovery/init) can
-        // never leave an orphan scheduler running.
-        initTimeoutHandles.push(setTimeout(async () => {
+        // V2 category discovery and scheduler. Retries with backoff until discovery succeeds
+        // (a transient Kraken error at startup used to leave the node with no scheduler until
+        // restart). Tracked + nodeClosed-guarded so a redeploy can never leave an orphan
+        // scheduler or retry timer.
+        async function startV2(attempt) {
+            if (nodeClosed) return;
             try {
                 const discovered = await discoverProducts(apiKey, account);
                 if (nodeClosed) return;
@@ -1775,9 +1649,15 @@ module.exports = function (RED) {
                 v2Scheduler.start();
                 node._v2Scheduler = v2Scheduler;
             } catch (e) {
-                node.warn(`V2 discovery failed: ${e.message}. New categories unavailable.`);
+                if (nodeClosed) return;
+                const delay = discoveryRetryDelay(attempt);
+                const secs = Math.round(delay / 1000);
+                node.warn(`V2 discovery failed: ${e.message}. Retrying in ${secs}s.`);
+                node.status({ fill: "yellow", shape: "ring", text: `Discovery failed — retrying in ${secs}s` });
+                initTimeoutHandles.push(setTimeout(() => startV2(attempt + 1), delay));
             }
-        }, 2000));
+        }
+        initTimeoutHandles.push(setTimeout(() => startV2(0), 2000));
 
         node.on('close', () => {
             nodeClosed = true;
@@ -1798,7 +1678,7 @@ module.exports = function (RED) {
                 cooldownExpiryTimer = null;
             }
             if (node._v2Scheduler) node._v2Scheduler.stop();
-            if (node.broker) node.broker.unsubscribe(cmdTopicLimit, cmdTopicTime, cmdTopicSubmit, cmdTopicRefresh, cmdTopicTimezone, cmdTopicSmartCharging);
+            if (node.broker) node.broker.unsubscribe(cmdTopicLimit, cmdTopicTime, cmdTopicSubmit, cmdTopicRefresh, cmdTopicTimezone, cmdTopicSmartCharging, cmdTopicChargeCap);
         });
     }
 

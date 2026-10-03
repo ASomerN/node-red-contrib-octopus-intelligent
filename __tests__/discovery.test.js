@@ -133,6 +133,40 @@ describe('discoverProducts', () => {
         graphqlPost.mockResolvedValue(mockDiscoveryResponse);
     });
 
+    // Live shape observed 2026-09-29 (KT-CT-4360 on devices[0].status)
+    const partialStatusError = (devices) => ({
+        data: {
+            data: { ...mockDiscoveryResponse.data.data, devices },
+            errors: [{
+                message: 'Device status could not be fetched.',
+                path: ['devices', 0, 'status'],
+                extensions: { errorType: 'APPLICATION', errorCode: 'KT-CT-4360' },
+            }],
+        },
+    });
+
+    test('tolerates a partial error on devices[n].status (suspended unknown)', async () => {
+        graphqlPost.mockResolvedValue(partialStatusError([{ id: 'dev-1', deviceType: 'ELECTRIC_VEHICLES', status: null }]));
+        const r = await discoverProducts('key', 'acc');
+        expect(r.hasIntelligent).toBe(true);
+        expect(r.deviceId).toBe('dev-1');
+        expect(r.deviceSuspended).toBeNull();
+    });
+
+    test('still throws when any error is outside devices[n].status', async () => {
+        const resp = partialStatusError([{ id: 'dev-1', deviceType: 'ELECTRIC_VEHICLES', status: null }]);
+        resp.data.errors.push({ message: 'boom', path: ['account'] });
+        graphqlPost.mockResolvedValue(resp);
+        await expect(discoverProducts('key', 'acc')).rejects.toThrow('Discovery failed');
+    });
+
+    test('still throws on a status error when devices data is missing', async () => {
+        const resp = partialStatusError(undefined);
+        delete resp.data.data.devices;
+        graphqlPost.mockResolvedValue(resp);
+        await expect(discoverProducts('key', 'acc')).rejects.toThrow('Discovery failed');
+    });
+
     test('calls obtainToken then graphqlPost', async () => {
         await discoverProducts('api-key', 'A-AAA-1234');
         expect(obtainToken).toHaveBeenCalledWith('api-key');

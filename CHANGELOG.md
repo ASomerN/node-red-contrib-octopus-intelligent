@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] — 2026-10-03
+
+First public 1.6 release. 1.6.0 was only distributed as a preview build; everything in it is included here.
+
+### Added
+- **Charge Cap** — new Home Assistant switch, `set_charge_cap` input and `charge_cap` payload field (limit smart charging to off-peak rates only, as in the Octopus app).
+- One input message can now carry several commands; each is applied independently.
+
+### Changed
+- Ready-by time accepts any half-hour slot from 00:00 to 23:30, matching the Octopus app (was 04:00–11:00).
+- Target charge accepts 5–100%, matching the Octopus app (was 50–100). Values still round to the nearest 5. The Home Assistant slider and the Dashboard 2.0 example go down to 5%.
+- Invalid values are now rejected with an error and nothing is sent to Octopus, including `set_limit: 0` and empty strings. Previously an invalid time was silently replaced with 08:00 and sent. `null` values are ignored as before.
+- Dashboard 2.0 example flow (`examples/node-red-dashboard-flow.json`) updated for 1.6: 34 widgets, including the Charge Cap switch and all 48 ready-by times; the target charge input goes down to 5%.
+- HA dashboard example (`examples/ha-dashboard.yaml`) updated for 1.6: all 48 ready-by times and the Charge Cap switch.
+
+### Fixed
+- Ready-by times after 11:00 were rejected (#3).
+- Target charge values below 50% were silently raised to 50% (#3).
+- **Day/Night and EV Peak/Off-Peak rate sensors stuck at "unavailable"** —
+  `electricity_day_rate`, `electricity_night_rate`, `electricity_ev_peak_rate`,
+  `electricity_ev_off_peak_rate` were published with `entity_category: config`, which
+  is invalid for read-only sensors (same issue fixed for tariff codes in v1.3.0; missed
+  on these four when added in v1.5.0). On some HA Core versions this now causes outright
+  entity-registration failure rather than just a stuck state. Removed the category — no
+  entity ID changes, not a breaking change. On upgrade these four sensors move from the
+  Configuration section to the Sensors section of the Home Assistant device page. Sensor definitions also extracted to
+  `lib/sensor-definitions.js` with regression coverage asserting no read-only sensor
+  carries `entity_category: config`.
+- **Node stopped polling after a transient Octopus error at startup** — if Octopus's API returned a
+  temporary error while the node was starting (seen live as `KT-CT-4360` on device status), the node
+  gave up on product discovery and never started polling; a manual refresh then stayed on
+  "Manual refresh..." until Node-RED restarted. Discovery now retries (30 s, 1 min, 2 min, then every
+  5 min) and shows "Discovery failed — retrying in …" while it does, and a failure on the device
+  status field alone no longer blocks discovery.
+- **Slot sensors could show an out-of-date charging plan** — the check made 30 s before each slot
+  picks up a re-planned schedule and `charging_now` follows it, but the slot and window sensors kept
+  the old plan until the next scheduled poll. The node now polls immediately when that check finds
+  the plan has changed.
+- **One failing field could stop all charging updates** — if Octopus returned an error for the Charge Cap
+  setting alone, the whole charging poll failed and slot sensors stopped updating. Charge Cap is now read
+  separately, so slots, limit and ready-by time keep updating and the switch keeps its last known state.
+
+### Backwards compatibility
+- No MQTT topic, `unique_id` or entity ID changes from npm 1.5.0 or the 1.6.0 preview. New since 1.5.0: the Charge Cap switch, its `set_charge_cap` command topic, and 48 options on the Ready Time select. Pinned by `__tests__/discovery-snapshot.test.js`.
+
 ## [1.5.0] — 2026-06-13
 
 Schedule visibility, tariff rate bands, proactive update notification, and a Node-RED Dashboard 2.0 example.

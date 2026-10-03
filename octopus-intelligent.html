@@ -147,6 +147,18 @@
     <p>Control charge limit and ready time programmatically:</p>
     <pre>[{"id":"1","type":"inject","name":"Set 85% by 07:30","props":[{"p":"payload"}],"repeat":"","crontab":"","once":false,"topic":"","payload":"{\"set_limit\":85,\"set_time\":\"07:30\"}","payloadType":"json","x":150,"y":140,"wires":[["2"]]},{"id":"2","type":"octopus-intelligent","name":"Octopus Intelligent","account":"A-XXXXXXXX","apiKey":"sk_live_...","refreshInterval":"5","enableMqtt":true,"mqttBroker":"mqtt-broker","x":380,"y":140,"wires":[["3"]]},{"id":"3","type":"debug","name":"Confirmation","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"payload","targetType":"msg","x":610,"y":140,"wires":[]}]</pre>
 
+    <p>Ready-by time: any half-hour slot from 00:00 to 23:30 (matches the Octopus app). Other values are rejected with an error and nothing is sent to Octopus. Charge limit values clamp to 5&ndash;100 and round to 5; non-numeric values and <code>set_limit: 0</code> are rejected.</p>
+
+    <h4>Charge Cap</h4>
+    <p>Limit smart charging to off-peak rates only (as in the Octopus app). Non-boolean values are ignored. Also available as the <strong>Charge Cap</strong> switch in Home Assistant:</p>
+    <pre>msg.payload = { set_charge_cap: true };</pre>
+    <p>The <code>charge_cap</code> payload field is <code>true</code>/<code>false</code> when Charge Cap is on/off, and <code>null</code> when not applicable to the device.</p>
+
+    <h4>Combining commands</h4>
+    <p>One message can carry several commands, and each is applied independently:</p>
+    <pre>msg.payload = { set_limit: 90, set_time: "06:30", set_charge_cap: true };</pre>
+    <p><code>set_limit</code> and <code>set_time</code> are sent to Octopus together, so an invalid value in either rejects both; other commands in the same message still apply.</p>
+
     <h4>3. Home Assistant MQTT Integration</h4>
     <p>Automatically create Home Assistant entities via MQTT discovery:</p>
     <pre>[{"id":"1","type":"inject","name":"Every 5 min","props":[{"p":"payload"}],"repeat":"300","crontab":"","once":true,"topic":"","payload":"","payloadType":"date","x":130,"y":200,"wires":[["2"]]},{"id":"2","type":"octopus-intelligent","name":"Octopus Intelligent","account":"A-XXXXXXXX","apiKey":"sk_live_...","refreshInterval":"5","enableMqtt":true,"mqttBroker":"mqtt-broker","x":340,"y":200,"wires":[["3"]]},{"id":"3","type":"debug","name":"Debug Output","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"true","targetType":"full","x":570,"y":200,"wires":[]},{"id":"mqtt-broker","type":"mqtt-broker","name":"Home Assistant MQTT","broker":"localhost","port":"1883","clientid":"","autoConnect":true,"usetls":false,"protocolVersion":"4","keepalive":"60","cleansession":true,"autoUnsubscribe":true,"birthTopic":"","birthQos":"0","birthPayload":"","birthMsg":{},"closeTopic":"","closeQos":"0","closePayload":"","closeMsg":{},"willTopic":"","willQos":"0","willPayload":"","willMsg":{},"userProps":"","sessionExpiry":""}]</pre>
@@ -175,6 +187,7 @@
     "confirmed_limit": 80,
     "confirmed_time": "07:00",
     "charging_now": false,
+    "charge_cap": false,
     "slot1_start": "2025-11-29T01:30:00Z",
     "slot1_end": "2025-11-29T05:30:00Z"
   },
@@ -188,7 +201,7 @@
     <h3>Home Assistant Integration</h3>
     <p>When MQTT is enabled, the node automatically creates:</p>
     <ul>
-        <li><strong>Controls:</strong> Target charge slider, ready time selector, apply changes button</li>
+        <li><strong>Controls:</strong> Target charge slider, ready time selector, apply changes button, Charge Cap switch</li>
         <li><strong>Sensors:</strong> Next charge time, total energy, charging status, individual slots</li>
         <li><strong>Binary Sensor:</strong> Charging now indicator (ON/OFF)</li>
     </ul>

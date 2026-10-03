@@ -4,14 +4,15 @@ path: octopus-intelligent
 icon: mdi:lightning-bolt
 max_columns: 4
 # ────────────────────────────────────────────────────────────────────────────────
-# Octopus Intelligent — comprehensive v1.5.0 dashboard
+# Octopus Intelligent — comprehensive v1.6.1 dashboard
 #
 # Each section is a single focused card so the sections view packs them into a
 # uniform grid without big empty gaps. On wide screens HA renders up to 4
 # columns; narrower viewports collapse to fewer columns automatically.
 #
 # Covers every MQTT entity published by node-red-contrib-octopus-intelligent
-# v1.5.0 (adds tariff rate bands, 24h schedule stats, the Update entity, and
+# v1.6.1 (adds the Charge Cap switch and 48 ready-by times over v1.5.0, which
+# added tariff rate bands, 24h schedule stats, the Update entity, and
 # per-category error binary_sensors over the v1.3.0 baseline).
 # Fresh install entity-id prefix: octopus_intelligent_octopus_*.
 # Upgraders from pre-v1.0 may have node_red_octopus_intelligent_octopus_*
@@ -35,6 +36,8 @@ sections:
             name: Apply Changes
           - entity: switch.octopus_intelligent_smart_charging
             name: Smart Charging
+          - entity: switch.octopus_intelligent_charge_cap
+            name: Charge Cap
           - entity: button.octopus_intelligent_octopus_refresh_api
             name: Refresh API
 

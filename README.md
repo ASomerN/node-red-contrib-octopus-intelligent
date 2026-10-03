@@ -49,8 +49,8 @@ If this project has helped you!
 ## ✨ Features
 
 ### 🎮 EV Smart Controls
-- **Target Charge Slider** (50–100%) — Set your desired battery level
-- **Ready Time Dropdown** (04:00–11:00) — When your car needs to be ready
+- **Target Charge Slider** (5–100%) — Set your desired battery level
+- **Ready Time Dropdown** (any half-hour slot, 00:00–23:30) — When your car needs to be ready. Matches the Octopus app; other values are rejected with an error and nothing is sent to Octopus.
 - **Apply Changes Button** — Prevents API spam while adjusting settings
 - **Confirmed Values** — See your current API-validated settings
 - **Smart Charging Toggle** — Suspend or resume Octopus intelligent charging from Node-RED or Home Assistant
@@ -105,7 +105,8 @@ If this project has helped you!
 - **Zero Configuration** — MQTT auto-discovery sets everything up
 - **Two-Tier Entity Organisation** — Main entities (controls, live rates, consumption, tariff metadata, rewards) and Diagnostics (errors, raw timestamps, API metrics, locale timestamps)
 - **Suggested Area** — Auto-suggests "Energy" area
-- **Reference dashboard YAML** — `examples/ha-dashboard.yaml` covers every entity in a packed sections layout, ready to paste into HA's Raw Configuration Editor
+- **Reference dashboard YAML** — `examples/ha-dashboard.yaml` covers every entity (including the Smart Charging and Charge Cap switches) in a packed sections layout, ready to paste into HA's Raw Configuration Editor
+- **Node-RED Dashboard 2.0 example** — `examples/node-red-dashboard-flow.json` is an importable [@flowfuse/node-red-dashboard](https://github.com/FlowFuse/node-red-dashboard) flow whose Controls page has the target limit, all 48 ready-by times, the Smart Charging and Charge Cap switches, refresh and timezone override
 
 ### 🌍 Timezone Support
 - **Locale Timestamps** (`*_locale` fields) — always in server auto-detected timezone
@@ -130,7 +131,7 @@ Configure your account credentials, polling intervals, and MQTT broker in the no
 
 ### Home Assistant — Dashboard
 
-`examples/ha-dashboard.yaml` is a comprehensive Lovelace dashboard that exposes every entity the plugin publishes. Paste it into HA's Raw Configuration Editor to get the layout below. The layout uses HA's sections view and packs cards uniformly across up to 4 columns on wide screens.
+`examples/ha-dashboard.yaml` is a comprehensive Lovelace dashboard that exposes every entity the plugin publishes. Paste it into HA's Raw Configuration Editor to get the layout below. The layout uses HA's sections view and packs cards uniformly across up to 4 columns on wide screens. The EV controls card includes the Smart Charging and Charge Cap switches (the screenshots below predate the Charge Cap switch).
 
 #### EV controls, electricity import & export
 
@@ -242,13 +243,13 @@ If you installed an early dev build of v1.3 and have stale entities in Home Assi
 
 ## 📊 Home Assistant Entities
 
-**121 MQTT entities** are published under a single **Octopus Intelligent** device on a fresh install — verified against a live install. All entities are organised into two tiers: **Main** (controls, live data, tariff metadata, rewards) and **Diagnostics** (errors, raw timestamps, locale timestamps, API metrics).
+**164 MQTT entities** are published under a single **Octopus Intelligent** device on a fresh install. All entities are organised into two tiers: **Main** (controls, live data, tariff metadata, rewards) and **Diagnostics** (errors, raw timestamps, locale timestamps, API metrics).
 
-If your device card shows more than 121 entities, the extras are likely leftovers from earlier installed versions or interrupted discovery. They can be deleted via Settings → Devices & Services → MQTT → Octopus Intelligent → entity → cog → "Delete from registry" without affecting current operation.
+If your device card shows more than 164 entities, the extras are likely leftovers from earlier installed versions or interrupted discovery. They can be deleted via Settings → Devices & Services → MQTT → Octopus Intelligent → entity → cog → "Delete from registry" without affecting current operation.
 
 ### Node-RED payload vs MQTT entities
 
-`msg.payload` from the Node-RED node contains **~132 fields** — 11 more than the MQTT entities count. The "extra" payload fields are intentionally **not** exposed as individual HA entities; they exist for template/automation use inside Node-RED or HA Jinja:
+`msg.payload` from the Node-RED node contains **~133 fields**. Some payload fields are intentionally **not** exposed as individual HA entities; they exist for template/automation use inside Node-RED or HA Jinja:
 
 | Category | Fields (count) | Why no MQTT entity |
 |---|---|---|
@@ -264,16 +265,17 @@ If your device card shows more than 121 entities, the extras are likely leftover
 
 ### Controls
 
-Interactive entities that accept commands. **Timezone** and **Smart Charging** still carry the HA `entity_category: config` flag (they ARE user-configurable, so the category is semantically correct).
+Interactive entities that accept commands. **Timezone**, **Smart Charging** and **Charge Cap** still carry the HA `entity_category: config` flag (they ARE user-configurable, so the category is semantically correct).
 
 | Name | Description |
 |---|---|
-| Octopus Target Charge | Slider (50–100%) — set desired battery charge level; shows the pending value until applied |
-| Octopus Ready Time | Dropdown (04:00–11:00) — time by which the car must be ready |
+| Octopus Target Charge | Slider (5–100%) — set desired battery charge level; shows the pending value until applied |
+| Octopus Ready Time | Dropdown (00:00–23:30, half-hour slots) — time by which the car must be ready. Other values are rejected with an error and nothing is sent to Octopus |
 | Octopus Apply Changes | Submit pending limit/time changes to the Octopus API |
 | Octopus Refresh API | Force an immediate API refresh (30-second cooldown enforced) |
 | Timezone | Display timezone for all slot and window times — 15 IANA options; persists across Node-RED restarts |
 | Smart Charging | Enable (unsuspend) or disable (suspend) Octopus intelligent charging |
+| Charge Cap | Limit smart charging to off-peak rates only (as in the Octopus app) |
 
 ### Binary Sensors
 
@@ -563,6 +565,8 @@ msg.payload = {
 return msg;
 ```
 
+Ready-by time: any half-hour slot from 00:00 to 23:30 (matches the Octopus app). Other values are rejected with an error and nothing is sent to Octopus. Charge limit values clamp to 5–100 and round to 5; non-numeric values and `set_limit: 0` are rejected.
+
 ### Set Timezone from Flow
 
 ```javascript
@@ -584,6 +588,25 @@ return msg;
 [Inject: resume]  → [Function: set_smart_charging=true]  → [Octopus Intelligent]
 ```
 
+### `set_charge_cap`
+
+```js
+msg.payload = { set_charge_cap: true };   // limit smart charging to off-peak rates only
+msg.payload = { set_charge_cap: false };
+```
+
+Non-boolean values are ignored. Also available as the **Charge Cap** switch in Home Assistant.
+
+### Combining commands
+
+One message can carry several commands, and each is applied independently:
+
+```js
+msg.payload = { set_limit: 90, set_time: "06:30", set_charge_cap: true };
+```
+
+`set_limit` and `set_time` are sent to Octopus together, so an invalid value in either rejects both; other commands in the same message still apply.
+
 ### Output Format
 
 ```json
@@ -599,6 +622,7 @@ return msg;
     "pending_time": "07:00",
     "charging_now": false,
     "smart_charging": true,
+    "charge_cap": false,
     "next_poll": "2026-05-03T10:35:00Z",
     "refresh_available_at": null,
     "api_requests_hour": 12,

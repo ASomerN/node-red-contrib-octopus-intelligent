@@ -1,0 +1,1457 @@
+{
+  "configs": {
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_account_error_state/config": {
+      "unique_id": "nodered_A-SNAP0001_account_error_state",
+      "name": "Octopus Account Error State",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_applicable_rates_error_state/config": {
+      "unique_id": "nodered_A-SNAP0001_applicable_rates_error_state",
+      "name": "Octopus Applicable Rates Error State",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_charging_now/config": {
+      "unique_id": "nodered_A-SNAP0001_charging_now",
+      "name": "Octopus Charging Now",
+      "state_topic": "nodered_octopus/A-SNAP0001/status/charging_now",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_completed_dispatches_error_state/config": {
+      "unique_id": "nodered_A-SNAP0001_completed_dispatches_error_state",
+      "name": "Octopus Completed Dispatches Error State",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_electricity_consumption_error_state/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_consumption_error_state",
+      "name": "Octopus Electricity Consumption Error State",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_electricity_export_rate_error_state/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_rate_error_state",
+      "name": "Octopus Electricity Export Rate Error State",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_electricity_rates_error_state/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_rates_error_state",
+      "name": "Octopus Electricity Rates Error State",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_flex_planned_dispatches_error_state/config": {
+      "unique_id": "nodered_A-SNAP0001_flex_planned_dispatches_error_state",
+      "name": "Octopus Flex Planned Dispatches Error State",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_free_electricity_active/config": {
+      "unique_id": "nodered_A-SNAP0001_free_electricity_active",
+      "name": "Octopus Free Electricity Active",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_free_electricity_available/config": {
+      "unique_id": "nodered_A-SNAP0001_free_electricity_available",
+      "name": "Octopus Free Electricity Available",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_free_electricity_error_state/config": {
+      "unique_id": "nodered_A-SNAP0001_free_electricity_error_state",
+      "name": "Octopus Free Electricity Error State",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_gas_consumption_error_state/config": {
+      "unique_id": "nodered_A-SNAP0001_gas_consumption_error_state",
+      "name": "Octopus Gas Consumption Error State",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_gas_rates_error_state/config": {
+      "unique_id": "nodered_A-SNAP0001_gas_rates_error_state",
+      "name": "Octopus Gas Rates Error State",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_home_mini_error_state/config": {
+      "unique_id": "nodered_A-SNAP0001_home_mini_error_state",
+      "name": "Octopus Home Mini Error State",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_intelligent_error_state/config": {
+      "unique_id": "nodered_A-SNAP0001_intelligent_error_state",
+      "name": "Octopus Intelligent Error State",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_octoplus_enrolled/config": {
+      "unique_id": "nodered_A-SNAP0001_octoplus_enrolled",
+      "name": "Octopus Octoplus Enrolled",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_octoplus_error_state/config": {
+      "unique_id": "nodered_A-SNAP0001_octoplus_error_state",
+      "name": "Octopus Octoplus Error State",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_octoplus_loyalty_points_user/config": {
+      "unique_id": "nodered_A-SNAP0001_octoplus_loyalty_points_user",
+      "name": "Octopus Octoplus Loyalty Points",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_saving_session_active/config": {
+      "unique_id": "nodered_A-SNAP0001_saving_session_active",
+      "name": "Octopus Saving Session Active",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_saving_session_available/config": {
+      "unique_id": "nodered_A-SNAP0001_saving_session_available",
+      "name": "Octopus Saving Session Available",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_saving_session_joined/config": {
+      "unique_id": "nodered_A-SNAP0001_saving_session_joined",
+      "name": "Octopus Saving Session Joined",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_saving_session_window_active/config": {
+      "unique_id": "nodered_A-SNAP0001_saving_session_window_active",
+      "name": "Octopus Saving Session Window Active",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_saving_sessions_error_state/config": {
+      "unique_id": "nodered_A-SNAP0001_saving_sessions_error_state",
+      "name": "Octopus Saving Sessions Error State",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/binary_sensor/nodered_A-SNAP0001_wheel_of_fortune_error_state/config": {
+      "unique_id": "nodered_A-SNAP0001_wheel_of_fortune_error_state",
+      "name": "Octopus Wheel of Fortune Error State",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/button/nodered_A-SNAP0001_refresh/config": {
+      "unique_id": "nodered_A-SNAP0001_refresh_button",
+      "name": "Octopus Refresh API",
+      "command_topic": "nodered_octopus/A-SNAP0001/refresh",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/button/nodered_A-SNAP0001_submit/config": {
+      "unique_id": "nodered_A-SNAP0001_submit_button",
+      "name": "Octopus Apply Changes",
+      "command_topic": "nodered_octopus/A-SNAP0001/submit_changes",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/number/nodered_A-SNAP0001_limit/config": {
+      "unique_id": "nodered_A-SNAP0001_target_limit",
+      "name": "Octopus Target Charge",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "command_topic": "nodered_octopus/A-SNAP0001/set_limit",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/select/nodered_A-SNAP0001_time/config": {
+      "unique_id": "nodered_A-SNAP0001_target_time",
+      "name": "Octopus Ready Time",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "command_topic": "nodered_octopus/A-SNAP0001/set_time",
+      "options": [
+        "04:00",
+        "04:30",
+        "05:00",
+        "05:30",
+        "06:00",
+        "06:30",
+        "07:00",
+        "07:30",
+        "08:00",
+        "08:30",
+        "09:00",
+        "09:30",
+        "10:00",
+        "10:30",
+        "11:00"
+      ],
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/select/nodered_A-SNAP0001_timezone/config": {
+      "unique_id": "nodered_A-SNAP0001_timezone",
+      "name": "Timezone",
+      "state_topic": "nodered_octopus/A-SNAP0001/status/timezone",
+      "command_topic": "nodered_octopus/A-SNAP0001/set_timezone",
+      "entity_category": "config",
+      "options": [
+        "Europe/London",
+        "Europe/Berlin",
+        "Europe/Madrid",
+        "Australia/Sydney",
+        "Australia/Melbourne",
+        "Australia/Brisbane",
+        "Australia/Perth",
+        "Australia/Adelaide",
+        "Pacific/Auckland",
+        "America/New_York",
+        "America/Chicago",
+        "America/Denver",
+        "America/Los_Angeles",
+        "Asia/Tokyo",
+        "UTC"
+      ],
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_account_balance_pence/config": {
+      "unique_id": "nodered_A-SNAP0001_account_balance_pence",
+      "name": "Octopus Account Balance (Pence)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_account_balance_pounds/config": {
+      "unique_id": "nodered_A-SNAP0001_account_balance_pounds",
+      "name": "Octopus Account Balance",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_account_error/config": {
+      "unique_id": "nodered_A-SNAP0001_account_error",
+      "name": "Octopus Account Error",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_api_complexity_hour/config": {
+      "unique_id": "nodered_A-SNAP0001_api_complexity_hour",
+      "name": "Octopus API Complexity (Last Hour)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_api_complexity_percent/config": {
+      "unique_id": "nodered_A-SNAP0001_api_complexity_percent",
+      "name": "Octopus API Complexity Usage",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_api_requests_hour/config": {
+      "unique_id": "nodered_A-SNAP0001_api_requests_hour",
+      "name": "Octopus API Requests (Last Hour)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_applicable_rates_avg_pence/config": {
+      "unique_id": "nodered_A-SNAP0001_applicable_rates_avg_pence",
+      "name": "Octopus Applicable Rates Avg",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_applicable_rates_count/config": {
+      "unique_id": "nodered_A-SNAP0001_applicable_rates_count",
+      "name": "Octopus Applicable Rates Slots",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_applicable_rates_current_gbp/config": {
+      "unique_id": "nodered_A-SNAP0001_applicable_rates_current_gbp",
+      "name": "Octopus Electricity Rate",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_applicable_rates_current_pence/config": {
+      "unique_id": "nodered_A-SNAP0001_applicable_rates_current_pence",
+      "name": "Octopus Current Electricity Rate",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_applicable_rates_error/config": {
+      "unique_id": "nodered_A-SNAP0001_applicable_rates_error",
+      "name": "Octopus Applicable Rates Error",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_applicable_rates_max_pence/config": {
+      "unique_id": "nodered_A-SNAP0001_applicable_rates_max_pence",
+      "name": "Octopus Applicable Rates Max",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_applicable_rates_median_pence/config": {
+      "unique_id": "nodered_A-SNAP0001_applicable_rates_median_pence",
+      "name": "Octopus Applicable Rates Median",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_applicable_rates_min_pence/config": {
+      "unique_id": "nodered_A-SNAP0001_applicable_rates_min_pence",
+      "name": "Octopus Applicable Rates Min",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_applicable_rates_next_from/config": {
+      "unique_id": "nodered_A-SNAP0001_applicable_rates_next_from",
+      "name": "Octopus Applicable Rate Next From",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_applicable_rates_next_gbp/config": {
+      "unique_id": "nodered_A-SNAP0001_applicable_rates_next_gbp",
+      "name": "Octopus Applicable Rate Next (GBP)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_applicable_rates_next_pence/config": {
+      "unique_id": "nodered_A-SNAP0001_applicable_rates_next_pence",
+      "name": "Octopus Applicable Rate Next",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_applicable_rates_prev_gbp/config": {
+      "unique_id": "nodered_A-SNAP0001_applicable_rates_prev_gbp",
+      "name": "Octopus Applicable Rate Prev (GBP)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_applicable_rates_prev_pence/config": {
+      "unique_id": "nodered_A-SNAP0001_applicable_rates_prev_pence",
+      "name": "Octopus Applicable Rate Prev",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_applicable_rates_prev_to/config": {
+      "unique_id": "nodered_A-SNAP0001_applicable_rates_prev_to",
+      "name": "Octopus Applicable Rate Prev Ends",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_completed_dispatches_count/config": {
+      "unique_id": "nodered_A-SNAP0001_completed_dispatches_count",
+      "name": "Octopus Completed Dispatches",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_completed_dispatches_error/config": {
+      "unique_id": "nodered_A-SNAP0001_completed_dispatches_error",
+      "name": "Octopus Completed Dispatches Error",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_confirmed_limit/config": {
+      "unique_id": "nodered_A-SNAP0001_confirmed_limit",
+      "name": "Octopus Confirmed Charge Limit",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_confirmed_time/config": {
+      "unique_id": "nodered_A-SNAP0001_confirmed_time",
+      "name": "Octopus Confirmed Ready Time",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_consumption_error/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_consumption_error",
+      "name": "Octopus Electricity Consumption Error",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_consumption_from/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_consumption_from",
+      "name": "Octopus Electricity Consumption From",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_consumption_kwh/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_consumption_kwh",
+      "name": "Octopus Electricity Consumption",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_consumption_to/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_consumption_to",
+      "name": "Octopus Electricity Consumption To",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_day_rate/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_day_rate",
+      "name": "Octopus Electricity Day Rate",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "config",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_ev_off_peak_rate/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_ev_off_peak_rate",
+      "name": "Octopus Electricity EV Off-Peak Rate",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "config",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_ev_peak_rate/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_ev_peak_rate",
+      "name": "Octopus Electricity EV Peak Rate",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "config",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_consumption_from/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_consumption_from",
+      "name": "Octopus Electricity Export Consumption From",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_consumption_kwh/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_consumption_kwh",
+      "name": "Octopus Electricity Export Consumption",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_consumption_to/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_consumption_to",
+      "name": "Octopus Electricity Export Consumption To",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_rate_avg_pence/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_rate_avg_pence",
+      "name": "Octopus Electricity Export Rate Avg",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_rate_count/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_rate_count",
+      "name": "Octopus Electricity Export Rate Slots",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_rate_current_gbp/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_rate_current_gbp",
+      "name": "Octopus Electricity Export Rate",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_rate_current_pence/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_rate_current_pence",
+      "name": "Octopus Current Electricity Export Rate",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_rate_error/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_rate_error",
+      "name": "Octopus Electricity Export Rate Error",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_rate_max_pence/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_rate_max_pence",
+      "name": "Octopus Electricity Export Rate Max",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_rate_median_pence/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_rate_median_pence",
+      "name": "Octopus Electricity Export Rate Median",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_rate_min_pence/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_rate_min_pence",
+      "name": "Octopus Electricity Export Rate Min",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_rate_next_from/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_rate_next_from",
+      "name": "Octopus Electricity Export Rate Next From",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_rate_next_gbp/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_rate_next_gbp",
+      "name": "Octopus Electricity Export Rate Next (GBP)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_rate_next_pence/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_rate_next_pence",
+      "name": "Octopus Electricity Export Rate Next",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_rate_prev_gbp/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_rate_prev_gbp",
+      "name": "Octopus Electricity Export Rate Prev (GBP)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_rate_prev_pence/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_rate_prev_pence",
+      "name": "Octopus Electricity Export Rate Prev",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_rate_prev_to/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_rate_prev_to",
+      "name": "Octopus Electricity Export Rate Prev Ends",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_standing_charge/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_standing_charge",
+      "name": "Octopus Electricity Export Standing Charge",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_tariff_code/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_tariff_code",
+      "name": "Octopus Electricity Export Tariff Code",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_unit_rate/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_unit_rate",
+      "name": "Octopus Electricity Export Unit Rate",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_valid_from/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_valid_from",
+      "name": "Octopus Electricity Export Tariff Valid From",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_export_valid_to/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_export_valid_to",
+      "name": "Octopus Electricity Export Tariff Valid To",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_night_rate/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_night_rate",
+      "name": "Octopus Electricity Night Rate",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "config",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_rates_error/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_rates_error",
+      "name": "Octopus Electricity Rates Error",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_standing_charge/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_standing_charge",
+      "name": "Octopus Electricity Standing Charge",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_tariff_code/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_tariff_code",
+      "name": "Octopus Electricity Tariff Code",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_unit_rate/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_unit_rate",
+      "name": "Octopus Electricity Unit Rate",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_valid_from/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_valid_from",
+      "name": "Octopus Electricity Tariff Valid From",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_electricity_valid_to/config": {
+      "unique_id": "nodered_A-SNAP0001_electricity_valid_to",
+      "name": "Octopus Electricity Tariff Valid To",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_flex_planned_dispatches_count/config": {
+      "unique_id": "nodered_A-SNAP0001_flex_planned_dispatches_count",
+      "name": "Octopus Flex Planned Dispatches",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_flex_planned_dispatches_error/config": {
+      "unique_id": "nodered_A-SNAP0001_flex_planned_dispatches_error",
+      "name": "Octopus Flex Planned Dispatches Error",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_free_electricity_end/config": {
+      "unique_id": "nodered_A-SNAP0001_free_electricity_end",
+      "name": "Octopus Free Electricity End",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_free_electricity_error/config": {
+      "unique_id": "nodered_A-SNAP0001_free_electricity_error",
+      "name": "Octopus Free Electricity Error",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_free_electricity_start/config": {
+      "unique_id": "nodered_A-SNAP0001_free_electricity_start",
+      "name": "Octopus Free Electricity Start",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_gas_consumption_error/config": {
+      "unique_id": "nodered_A-SNAP0001_gas_consumption_error",
+      "name": "Octopus Gas Consumption Error",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_gas_consumption_from/config": {
+      "unique_id": "nodered_A-SNAP0001_gas_consumption_from",
+      "name": "Octopus Gas Consumption From",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_gas_consumption_kwh/config": {
+      "unique_id": "nodered_A-SNAP0001_gas_consumption_kwh",
+      "name": "Octopus Gas Consumption",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_gas_consumption_to/config": {
+      "unique_id": "nodered_A-SNAP0001_gas_consumption_to",
+      "name": "Octopus Gas Consumption To",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_gas_rates_error/config": {
+      "unique_id": "nodered_A-SNAP0001_gas_rates_error",
+      "name": "Octopus Gas Rates Error",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_gas_standing_charge/config": {
+      "unique_id": "nodered_A-SNAP0001_gas_standing_charge",
+      "name": "Octopus Gas Standing Charge",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_gas_tariff_code/config": {
+      "unique_id": "nodered_A-SNAP0001_gas_tariff_code",
+      "name": "Octopus Gas Tariff Code",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_gas_unit_rate/config": {
+      "unique_id": "nodered_A-SNAP0001_gas_unit_rate",
+      "name": "Octopus Gas Unit Rate",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_gas_valid_from/config": {
+      "unique_id": "nodered_A-SNAP0001_gas_valid_from",
+      "name": "Octopus Gas Tariff Valid From",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_gas_valid_to/config": {
+      "unique_id": "nodered_A-SNAP0001_gas_valid_to",
+      "name": "Octopus Gas Tariff Valid To",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_home_mini_error/config": {
+      "unique_id": "nodered_A-SNAP0001_home_mini_error",
+      "name": "Octopus Home Mini Error",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_installed_version/config": {
+      "unique_id": "nodered_A-SNAP0001_installed_version",
+      "name": "Octopus Installed Version",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_intelligent_error/config": {
+      "unique_id": "nodered_A-SNAP0001_intelligent_error",
+      "name": "Octopus Intelligent Error",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_latest_version/config": {
+      "unique_id": "nodered_A-SNAP0001_latest_version",
+      "name": "Octopus Latest Version",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_mini_consumption_delta_kwh/config": {
+      "unique_id": "nodered_A-SNAP0001_mini_consumption_delta_kwh",
+      "name": "Octopus Home Mini Period Consumption",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_mini_demand_kw/config": {
+      "unique_id": "nodered_A-SNAP0001_mini_demand_kw",
+      "name": "Octopus Home Mini Demand",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_mini_read_at/config": {
+      "unique_id": "nodered_A-SNAP0001_mini_read_at",
+      "name": "Octopus Home Mini Reading Time",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_next_charge/config": {
+      "unique_id": "nodered_A-SNAP0001_next_charge",
+      "name": "Octopus Next Charge Time",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_next_charge_locale/config": {
+      "unique_id": "nodered_A-SNAP0001_next_charge_locale",
+      "name": "Octopus Next Charge Time (Locale)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_next_charge_raw/config": {
+      "unique_id": "nodered_A-SNAP0001_next_charge_raw",
+      "name": "Octopus Next Charge Time (Raw)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_next_kwh/config": {
+      "unique_id": "nodered_A-SNAP0001_next_kwh",
+      "name": "Octopus Next Slot Energy",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_next_poll/config": {
+      "unique_id": "nodered_A-SNAP0001_next_poll",
+      "name": "Octopus Next Poll Time",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_next_poll_raw/config": {
+      "unique_id": "nodered_A-SNAP0001_next_poll_raw",
+      "name": "Octopus Next Poll Time (Raw)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_octoplus_enrollment_status/config": {
+      "unique_id": "nodered_A-SNAP0001_octoplus_enrollment_status",
+      "name": "Octopus Octoplus Status",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_octoplus_error/config": {
+      "unique_id": "nodered_A-SNAP0001_octoplus_error",
+      "name": "Octopus Octoplus Error",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_refresh_available_at/config": {
+      "unique_id": "nodered_A-SNAP0001_refresh_available_at",
+      "name": "Octopus Refresh Available At",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_saving_session_end/config": {
+      "unique_id": "nodered_A-SNAP0001_saving_session_end",
+      "name": "Octopus Saving Session End",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_saving_session_joined/config": {
+      "removed": true
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_saving_session_points/config": {
+      "unique_id": "nodered_A-SNAP0001_saving_session_points",
+      "name": "Octopus Octopus Points",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_saving_session_start/config": {
+      "unique_id": "nodered_A-SNAP0001_saving_session_start",
+      "name": "Octopus Saving Session Start",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_saving_sessions_error/config": {
+      "unique_id": "nodered_A-SNAP0001_saving_sessions_error",
+      "name": "Octopus Saving Sessions Error",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot1_end/config": {
+      "unique_id": "nodered_A-SNAP0001_slot1_end",
+      "name": "Octopus Slot 1 End",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot1_end_locale/config": {
+      "unique_id": "nodered_A-SNAP0001_slot1_end_locale",
+      "name": "Octopus Slot 1 End (Locale)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot1_end_raw/config": {
+      "unique_id": "nodered_A-SNAP0001_slot1_end_raw",
+      "name": "Octopus Slot 1 End (Raw)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot1_start/config": {
+      "unique_id": "nodered_A-SNAP0001_slot1_start",
+      "name": "Octopus Slot 1 Start",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot1_start_locale/config": {
+      "unique_id": "nodered_A-SNAP0001_slot1_start_locale",
+      "name": "Octopus Slot 1 Start (Locale)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot1_start_raw/config": {
+      "unique_id": "nodered_A-SNAP0001_slot1_start_raw",
+      "name": "Octopus Slot 1 Start (Raw)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot2_end/config": {
+      "unique_id": "nodered_A-SNAP0001_slot2_end",
+      "name": "Octopus Slot 2 End",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot2_end_locale/config": {
+      "unique_id": "nodered_A-SNAP0001_slot2_end_locale",
+      "name": "Octopus Slot 2 End (Locale)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot2_end_raw/config": {
+      "unique_id": "nodered_A-SNAP0001_slot2_end_raw",
+      "name": "Octopus Slot 2 End (Raw)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot2_start/config": {
+      "unique_id": "nodered_A-SNAP0001_slot2_start",
+      "name": "Octopus Slot 2 Start",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot2_start_locale/config": {
+      "unique_id": "nodered_A-SNAP0001_slot2_start_locale",
+      "name": "Octopus Slot 2 Start (Locale)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot2_start_raw/config": {
+      "unique_id": "nodered_A-SNAP0001_slot2_start_raw",
+      "name": "Octopus Slot 2 Start (Raw)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot3_end/config": {
+      "unique_id": "nodered_A-SNAP0001_slot3_end",
+      "name": "Octopus Slot 3 End",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot3_end_locale/config": {
+      "unique_id": "nodered_A-SNAP0001_slot3_end_locale",
+      "name": "Octopus Slot 3 End (Locale)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot3_end_raw/config": {
+      "unique_id": "nodered_A-SNAP0001_slot3_end_raw",
+      "name": "Octopus Slot 3 End (Raw)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot3_start/config": {
+      "unique_id": "nodered_A-SNAP0001_slot3_start",
+      "name": "Octopus Slot 3 Start",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot3_start_locale/config": {
+      "unique_id": "nodered_A-SNAP0001_slot3_start_locale",
+      "name": "Octopus Slot 3 Start (Locale)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_slot3_start_raw/config": {
+      "unique_id": "nodered_A-SNAP0001_slot3_start_raw",
+      "name": "Octopus Slot 3 Start (Raw)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_source/config": {
+      "unique_id": "nodered_A-SNAP0001_source",
+      "name": "Octopus Charge Source",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_timezone_applied/config": {
+      "unique_id": "nodered_A-SNAP0001_timezone_applied",
+      "name": "Octopus Timezone Applied",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_timezone_detected/config": {
+      "unique_id": "nodered_A-SNAP0001_timezone_detected",
+      "name": "Octopus Timezone Detected",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_total_energy/config": {
+      "unique_id": "nodered_A-SNAP0001_total_energy",
+      "name": "Octopus Total Planned Energy",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_update_check_at/config": {
+      "unique_id": "nodered_A-SNAP0001_update_check_at",
+      "name": "Octopus Update Check At",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_update_check_error/config": {
+      "unique_id": "nodered_A-SNAP0001_update_check_error",
+      "name": "Octopus Update Check Error",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_wheel_of_fortune_electricity_max/config": {
+      "unique_id": "nodered_A-SNAP0001_wheel_of_fortune_electricity_max",
+      "name": "Octopus WoF Electricity Max",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_wheel_of_fortune_electricity_spins/config": {
+      "unique_id": "nodered_A-SNAP0001_wheel_of_fortune_electricity_spins",
+      "name": "Octopus WoF Electricity Spins",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_wheel_of_fortune_electricity_used/config": {
+      "unique_id": "nodered_A-SNAP0001_wheel_of_fortune_electricity_used",
+      "name": "Octopus WoF Electricity Used",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_wheel_of_fortune_error/config": {
+      "unique_id": "nodered_A-SNAP0001_wheel_of_fortune_error",
+      "name": "Octopus WoF Error",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_wheel_of_fortune_gas_max/config": {
+      "unique_id": "nodered_A-SNAP0001_wheel_of_fortune_gas_max",
+      "name": "Octopus WoF Gas Max",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_wheel_of_fortune_gas_spins/config": {
+      "unique_id": "nodered_A-SNAP0001_wheel_of_fortune_gas_spins",
+      "name": "Octopus WoF Gas Spins",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_wheel_of_fortune_gas_used/config": {
+      "unique_id": "nodered_A-SNAP0001_wheel_of_fortune_gas_used",
+      "name": "Octopus WoF Gas Used",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_window_end/config": {
+      "unique_id": "nodered_A-SNAP0001_window_end",
+      "name": "Octopus Overall Window End",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_window_end_locale/config": {
+      "unique_id": "nodered_A-SNAP0001_window_end_locale",
+      "name": "Octopus Overall Window End (Locale)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_window_end_raw/config": {
+      "unique_id": "nodered_A-SNAP0001_window_end_raw",
+      "name": "Octopus Overall Window End (Raw)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_window_start/config": {
+      "unique_id": "nodered_A-SNAP0001_window_start",
+      "name": "Octopus Overall Window Start",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_window_start_locale/config": {
+      "unique_id": "nodered_A-SNAP0001_window_start_locale",
+      "name": "Octopus Overall Window Start (Locale)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/sensor/nodered_A-SNAP0001_window_start_raw/config": {
+      "unique_id": "nodered_A-SNAP0001_window_start_raw",
+      "name": "Octopus Overall Window Start (Raw)",
+      "state_topic": "nodered_octopus/A-SNAP0001/status",
+      "entity_category": "diagnostic",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/switch/nodered_A-SNAP0001_smart_charging/config": {
+      "unique_id": "nodered_A-SNAP0001_smart_charging",
+      "name": "Smart Charging",
+      "state_topic": "nodered_octopus/A-SNAP0001/status/smart_charging",
+      "command_topic": "nodered_octopus/A-SNAP0001/set_smart_charging",
+      "entity_category": "config",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    },
+    "homeassistant/update/nodered_A-SNAP0001_node_update/config": {
+      "unique_id": "nodered_A-SNAP0001_node_update",
+      "name": "Octopus Intelligent Node",
+      "state_topic": "nodered_octopus/A-SNAP0001/status/node_update",
+      "device_identifiers": [
+        "nodered_octopus_A-SNAP0001"
+      ]
+    }
+  },
+  "command_subscriptions": [
+    "nodered_octopus/A-SNAP0001/refresh",
+    "nodered_octopus/A-SNAP0001/set_limit",
+    "nodered_octopus/A-SNAP0001/set_smart_charging",
+    "nodered_octopus/A-SNAP0001/set_time",
+    "nodered_octopus/A-SNAP0001/set_timezone",
+    "nodered_octopus/A-SNAP0001/submit_changes"
+  ]
+}

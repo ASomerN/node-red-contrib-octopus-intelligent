@@ -77,6 +77,11 @@ describe('buildDefaultPayload', () => {
         expect(() => buildDefaultPayload(undefined)).toThrow(TypeError);
         expect(() => buildDefaultPayload(null)).toThrow(TypeError);
     });
+
+    test('charge_cap defaults to null', () => {
+        const state = { confirmedLimit: 80, confirmedTime: '07:30', pendingLimit: 80, pendingTime: '07:30', chargingNow: false, smartChargingSuspended: null };
+        expect(buildDefaultPayload(state).charge_cap).toBeNull();
+    });
 });
 
 describe('buildDefaultPayload v1.5 fields', () => {
