@@ -4,16 +4,20 @@ path: octopus-intelligent
 icon: mdi:lightning-bolt
 max_columns: 4
 # ────────────────────────────────────────────────────────────────────────────────
-# Octopus Intelligent — comprehensive v1.6.1 dashboard
+# Octopus Intelligent — comprehensive v1.7.0 dashboard
 #
 # Each section is a single focused card so the sections view packs them into a
 # uniform grid without big empty gaps. On wide screens HA renders up to 4
 # columns; narrower viewports collapse to fewer columns automatically.
 #
-# Covers every MQTT entity published by node-red-contrib-octopus-intelligent
+# Covers all controls, live values, and error state binary sensors published by node-red-contrib-octopus-intelligent
 # v1.6.1 (adds the Charge Cap switch and 48 ready-by times over v1.5.0, which
 # added tariff rate bands, 24h schedule stats, the Update entity, and
 # per-category error binary_sensors over the v1.3.0 baseline).
+# v1.7.0 adds the Boost Charge switch and SmartFlex vehicle cards. The vehicle
+# cards hide on accounts where Octopus does not control a car or charge point.
+# The experimental inverter entities are not shown here.
+# A few diagnostic sensors are left out. See the README for the full entity list.
 # Fresh install entity-id prefix: octopus_intelligent_octopus_*.
 # Upgraders from pre-v1.0 may have node_red_octopus_intelligent_octopus_*
 # on carry-over entities (see Dev Tools → States to look up the actual ID).
@@ -38,6 +42,8 @@ sections:
             name: Smart Charging
           - entity: switch.octopus_intelligent_charge_cap
             name: Charge Cap
+          - entity: switch.octopus_intelligent_boost_charge
+            name: Boost Charge
           - entity: button.octopus_intelligent_octopus_refresh_api
             name: Refresh API
 
@@ -101,6 +107,63 @@ sections:
             name: Planned dispatches
           - entity: sensor.octopus_intelligent_octopus_completed_dispatches
             name: Completed (12h)
+
+  # SmartFlex vehicle cards (v1.7.0). Hidden until the node has read a vehicle
+  # make, so accounts without a SmartFlex car or charge point do not see them.
+  - type: grid
+    cards:
+      - type: conditional
+        conditions:
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_vehicle_make
+            state_not: unavailable
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_vehicle_make
+            state_not: unknown
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_vehicle_make
+            state_not: "None"
+        card:
+          type: entities
+          title: EV vehicle
+          icon: mdi:car-info
+          entities:
+            - entity: sensor.octopus_intelligent_octopus_vehicle_make
+              name: Make
+            - entity: sensor.octopus_intelligent_octopus_vehicle_model
+              name: Model
+            - entity: sensor.octopus_intelligent_octopus_vehicle_battery_size
+              name: Battery size
+            - entity: sensor.octopus_intelligent_octopus_charger_power
+              name: Charger power
+            - entity: sensor.octopus_intelligent_octopus_vehicle_device_state
+              name: Device state
+
+  - type: grid
+    cards:
+      # The session list and device alerts are attributes of Last Charge Session Energy.
+      - type: conditional
+        conditions:
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_vehicle_make
+            state_not: unavailable
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_vehicle_make
+            state_not: unknown
+          - condition: state
+            entity: sensor.octopus_intelligent_octopus_vehicle_make
+            state_not: "None"
+        card:
+          type: entities
+          title: EV last session
+          icon: mdi:ev-station
+          entities:
+            - entity: sensor.octopus_intelligent_octopus_last_charge_session_energy
+              name: Energy added
+            - entity: sensor.octopus_intelligent_octopus_last_charge_session_final_charge
+              name: Final charge
+            - entity: binary_sensor.octopus_intelligent_octopus_last_charge_session_problem
+              name: Problem
 
   # ════════════════════════════════════════════════════════════════════════════
   # Electricity — import
@@ -586,6 +649,8 @@ sections:
             name: Completed dispatches
           - entity: binary_sensor.octopus_intelligent_octopus_flex_planned_dispatches_error_state
             name: Flex planned dispatches
+          - entity: binary_sensor.octopus_intelligent_octopus_smartflex_vehicle_error_state
+            name: SmartFlex vehicle
 
   - type: grid
     cards:

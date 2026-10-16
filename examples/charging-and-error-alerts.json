@@ -1,0 +1,95 @@
+[
+    {
+        "id": "ex17-alerts-tab",
+        "type": "tab",
+        "label": "Charging and error alerts",
+        "disabled": false,
+        "info": "## Charging and error alerts\n\nSends a short alert when charging starts or stops, when a boost starts or ends, when any `*_error` field gets a value, changes or clears, and when Octopus posts a new alert for your car or charge point.\n\n**Inputs it reads:** `charging_now`, `boosting`, every field ending in `_error` (for example `intelligent_error`, `applicable_rates_error`, `boost_error`, `smartflex_vehicle_error`), `device_alerts`, `confirmed_limit`, `confirmed_time`, `next_start_locale`.\n\n**Output:** one message per change, with a title in `msg.topic` and the text in `msg.payload`.\n\n**Setup**\n\n1. Choose which alerts you want with the switches at the top of **Spot changes**.\n2. Replace the debug node with your notifier, for example email, Pushover, Telegram or ntfy.\n3. The rate limit node lets one alert through every 10 seconds, so a burst after an outage arrives as a short queue rather than all at once.\n4. The first message after a deploy or restart only sets the baseline, so you are not sent alerts for things that were already true.\n\n**Wiring to your Octopus Intelligent node**\n\nThis flow has no Octopus node of its own. Use the one you already have: each node polls Octopus by itself, so several nodes on one account multiply your API use and can hit Octopus's rate limits.\n\n1. Add a **link out** node after your Octopus Intelligent node and wire the node's output to it.\n2. Open that link out and tick **From Octopus node** on this tab.\n\nIf your node is on the same tab, you can delete the link nodes and wire it directly instead."
+    },
+    {
+        "id": "ex17-alerts-comment",
+        "type": "comment",
+        "z": "ex17-alerts-tab",
+        "name": "Read me: alerts for charging, boosts, errors and device alerts",
+        "info": "## Charging and error alerts\n\nSends a short alert when charging starts or stops, when a boost starts or ends, when any `*_error` field gets a value, changes or clears, and when Octopus posts a new alert for your car or charge point.\n\n**Inputs it reads:** `charging_now`, `boosting`, every field ending in `_error` (for example `intelligent_error`, `applicable_rates_error`, `boost_error`, `smartflex_vehicle_error`), `device_alerts`, `confirmed_limit`, `confirmed_time`, `next_start_locale`.\n\n**Output:** one message per change, with a title in `msg.topic` and the text in `msg.payload`.\n\n**Setup**\n\n1. Choose which alerts you want with the switches at the top of **Spot changes**.\n2. Replace the debug node with your notifier, for example email, Pushover, Telegram or ntfy.\n3. The rate limit node lets one alert through every 10 seconds, so a burst after an outage arrives as a short queue rather than all at once.\n4. The first message after a deploy or restart only sets the baseline, so you are not sent alerts for things that were already true.\n\n**Wiring to your Octopus Intelligent node**\n\nThis flow has no Octopus node of its own. Use the one you already have: each node polls Octopus by itself, so several nodes on one account multiply your API use and can hit Octopus's rate limits.\n\n1. Add a **link out** node after your Octopus Intelligent node and wire the node's output to it.\n2. Open that link out and tick **From Octopus node** on this tab.\n\nIf your node is on the same tab, you can delete the link nodes and wire it directly instead.",
+        "x": 290,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "ex17-alerts-from-octopus",
+        "type": "link in",
+        "z": "ex17-alerts-tab",
+        "name": "From Octopus node",
+        "links": [],
+        "x": 165,
+        "y": 140,
+        "wires": [
+            [
+                "ex17-alerts-spot"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-alerts-spot",
+        "type": "function",
+        "z": "ex17-alerts-tab",
+        "name": "Spot changes [edit switches]",
+        "func": "// Turns the node's output into short alerts. It compares each message with the last\n// one and sends one msg per change: msg.topic is a short title, msg.payload the text.\n//\n// ===== EDIT THESE =====\nconst ALERT_CHARGING = true;        // charging_now started / stopped\nconst ALERT_BOOST = true;           // boosting started / ended\nconst ALERT_ERRORS = true;          // any *_error field becoming set or changing\nconst ALERT_RECOVERY = true;        // also say when an error clears\nconst ALERT_DEVICE_ALERTS = true;   // new Octopus alerts for the car or charge point (device_alerts)\nconst DEVICE_ALERT_MAX_AGE_HOURS = 24; // skip device alerts older than this\nconst IGNORE_ERRORS = ['update_check_error']; // *_error fields you do not want alerts for\n// ======================\n\nconst p = msg.payload;\nif (!p || typeof p !== 'object') return null;\n\nconst prev = context.get('prev');\nconst keepBool = (v, old) => (typeof v === 'boolean' ? v : old);\n\n// Keep only what is compared, not the whole payload. charging_now and boosting can\n// be null for a while (for example during an Octopus outage): the last known value is kept.\nconst snap = {\n    charging_now: keepBool(p.charging_now, prev ? prev.charging_now : null),\n    boosting: keepBool(p.boosting, prev ? prev.boosting : null),\n    errors: {},\n    alerts: (Array.isArray(p.device_alerts) ? p.device_alerts : [])\n        .map((a) => `${a.published_at}|${a.message}`),\n};\nfor (const [k, v] of Object.entries(p)) {\n    if (k.endsWith('_error') && !IGNORE_ERRORS.includes(k)) snap.errors[k] = v || null;\n}\ncontext.set('prev', snap);\n\n// The first message after a deploy or restart only sets the baseline.\nif (!prev) return null;\n\nconst out = [];\nconst say = (topic, text) => out.push({ topic, payload: text });\n\nif (ALERT_CHARGING && typeof prev.charging_now === 'boolean' && prev.charging_now !== snap.charging_now) {\n    if (snap.charging_now) {\n        const why = snap.boosting ? 'boost' : 'planned slot';\n        say('Charging started', `Charging started (${why}). Target ${p.confirmed_limit}% by ${p.confirmed_time}.`);\n    } else {\n        const next = p.next_start_locale ? ` Next slot starts ${p.next_start_locale}.` : '';\n        say('Charging stopped', `Charging stopped.${next}`);\n    }\n}\n\nif (ALERT_BOOST && typeof prev.boosting === 'boolean' && prev.boosting !== snap.boosting) {\n    say(snap.boosting ? 'Boost started' : 'Boost ended',\n        snap.boosting ? 'A boost charge has started.' : 'The boost charge has ended.');\n}\n\nif (ALERT_ERRORS) {\n    const label = (k) => k.replace(/_error$/, '').replace(/_/g, ' ');\n    const keys = new Set([...Object.keys(prev.errors), ...Object.keys(snap.errors)]);\n    for (const k of keys) {\n        const was = prev.errors[k] || null;\n        const is = snap.errors[k] || null;\n        if (!was && is) say(`Error: ${label(k)}`, `${label(k)}: ${is}`);\n        else if (was && is && was !== is) say(`Error: ${label(k)}`, `${label(k)} (changed): ${is}`);\n        else if (was && !is && ALERT_RECOVERY) say(`Recovered: ${label(k)}`, `${label(k)}: error cleared.`);\n    }\n}\n\nif (ALERT_DEVICE_ALERTS) {\n    const seen = new Set(prev.alerts);\n    const cutoff = Date.now() - DEVICE_ALERT_MAX_AGE_HOURS * 3600000;\n    for (const a of p.device_alerts || []) {\n        const key = `${a.published_at}|${a.message}`;\n        const at = Date.parse(a.published_at);\n        if (seen.has(key) || !a.message || (Number.isFinite(at) && at < cutoff)) continue;\n        say('Octopus device alert', a.message);\n    }\n}\n\nreturn out.length ? [out] : null;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 440,
+        "y": 140,
+        "wires": [
+            [
+                "ex17-alerts-rate"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-alerts-rate",
+        "type": "delay",
+        "z": "ex17-alerts-tab",
+        "name": "1 alert per 10 s",
+        "pauseType": "rate",
+        "timeout": "5",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "10",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 660,
+        "y": 140,
+        "wires": [
+            [
+                "ex17-alerts-debug"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-alerts-debug",
+        "type": "debug",
+        "z": "ex17-alerts-tab",
+        "name": "Alert (swap for your notifier)",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 900,
+        "y": 140,
+        "wires": []
+    }
+]

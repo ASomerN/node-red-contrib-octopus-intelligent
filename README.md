@@ -2,7 +2,7 @@
 
 > Node-RED integration for **Octopus Energy** with automatic Home Assistant MQTT discovery
 
-Monitor electricity and gas rates (import + export), EV charging schedules, real-time home energy usage, account balance, saving sessions, and Wheel of Fortune spins — all automatically configured as Home Assistant entities via MQTT discovery.
+Monitor electricity and gas rates (import + export), EV charging schedules, real-time home energy usage, account balance, saving sessions, and Wheel of Fortune spins. MQTT discovery sets them all up as Home Assistant entities.
 
 [![npm version](https://badge.fury.io/js/node-red-contrib-octopus-intelligent.svg)](https://www.npmjs.com/package/node-red-contrib-octopus-intelligent)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -51,9 +51,9 @@ If this project has helped you!
 ### 🎮 EV Smart Controls
 - **Target Charge Slider** (5–100%) — Set your desired battery level
 - **Ready Time Dropdown** (any half-hour slot, 00:00–23:30) — When your car needs to be ready. Matches the Octopus app; other values are rejected with an error and nothing is sent to Octopus.
-- **Apply Changes Button** — Prevents API spam while adjusting settings
+- **Apply Changes Button** — In Home Assistant, press Apply Changes to send the new target and ready time. A command from a flow is sent at once.
 - **Confirmed Values** — See your current API-validated settings
-- **Smart Charging Toggle** — Suspend or resume Octopus intelligent charging from Node-RED or Home Assistant
+- **Smart Charging Toggle** — Suspend or resume Octopus intelligent charging from Node-RED or Home Assistant. Each charging poll reads the current state, so a change made in the Octopus app shows up too.
 
 ### ⚡ Real-Time Charging Data
 - **Next Charge Time** — When your next slot starts
@@ -92,21 +92,27 @@ If this project has helped you!
 - **Wheel of Fortune** — Remaining electricity and gas spins (opt-in)
 - **Octoplus** — Enrollment status and loyalty points
 
+### 🚗 SmartFlex Vehicle and Inverter
+- **Vehicle Details**: Make, model, battery size, charger power, and what Octopus says the device is doing
+- **Charging Sessions**: Your last 5 sessions, with energy added, final charge, cost, and any problems
+- **Boost Charge**: Start or cancel a boost with `set_boost`
+- **Inverter Data (experimental)**: Solar, home battery, grid, and site power. Off by default.
+
 ### 🔧 Advanced Features
 - **Account Discovery** — Automatic product detection at startup; categories auto-enable based on registered products
-- **Per-Category Polling** — Each data category polls on its own configurable interval
+- **Per-Category Polling** — Each data group polls on its own schedule. You set some intervals in the editor, and the rest are fixed.
 - **Manual Refresh Button** — Force API refresh from Home Assistant (30s cooldown)
-- **Next Poll Timer** — See when the next automatic refresh will occur
+- **Next Poll Timer** — An estimate of the next automatic refresh
 - **API Usage Tracking** — Monitor requests and complexity in diagnostics
 - **Exponential Backoff** — Smart retry prevents sensor unavailability
-- **Comprehensive Debugging** — Full API call tracking in msg.debug
+- **Error Fields and Status** — Each data group has its own `*_error` field in `msg.payload`. The node status and the Node-RED log show the rest.
 
 ### 🏡 Home Assistant Integration
 - **Zero Configuration** — MQTT auto-discovery sets everything up
 - **Two-Tier Entity Organisation** — Main entities (controls, live rates, consumption, tariff metadata, rewards) and Diagnostics (errors, raw timestamps, API metrics, locale timestamps)
 - **Suggested Area** — Auto-suggests "Energy" area
-- **Reference dashboard YAML** — `examples/ha-dashboard.yaml` covers every entity (including the Smart Charging and Charge Cap switches) in a packed sections layout, ready to paste into HA's Raw Configuration Editor
-- **Node-RED Dashboard 2.0 example** — `examples/node-red-dashboard-flow.json` is an importable [@flowfuse/node-red-dashboard](https://github.com/FlowFuse/node-red-dashboard) flow whose Controls page has the target limit, all 48 ready-by times, the Smart Charging and Charge Cap switches, refresh and timezone override
+- **Reference dashboard YAML** — `examples/ha-dashboard.yaml` covers all controls (including the Smart Charging, Charge Cap, and Boost Charge switches), live values, SmartFlex vehicle cards, and the error state binary sensors in a packed sections layout, ready to paste into HA's Raw Configuration Editor. A few diagnostic sensors and the experimental inverter entities are left out.
+- **Node-RED Dashboard 2.0 example** — `examples/node-red-dashboard-flow.json` is an importable [@flowfuse/node-red-dashboard](https://github.com/FlowFuse/node-red-dashboard) flow whose Controls page has the target limit, all 48 ready-by times, the Smart Charging, Charge Cap, and Boost Charge switches, refresh, and the timezone override. Its Status page shows the SmartFlex vehicle and recent charging sessions.
 
 ### 🌍 Timezone Support
 - **Locale Timestamps** (`*_locale` fields) — always in server auto-detected timezone
@@ -123,7 +129,7 @@ If this project has helped you!
 
 ![Node Configuration](images/examples/Octopus%20Intelligent%20Node.png)
 
-Configure your account credentials, polling intervals, and MQTT broker in the node editor. The MQTT Broker dropdown connects directly to your Home Assistant Mosquitto instance. Per-category intervals let you tune how often each data source is polled — electricity and gas rates update hourly by default, while Home Mini polls every minute for live demand.
+Configure your account credentials, polling intervals, and MQTT broker in the node editor. The MQTT Broker dropdown connects directly to your Home Assistant Mosquitto instance. Per-category intervals set how often the node polls each data source. Electricity and gas rates update hourly by default, while Home Mini polls every minute for live demand.
 
 ### Node-RED Flow Example
 
@@ -131,7 +137,7 @@ Configure your account credentials, polling intervals, and MQTT broker in the no
 
 ### Home Assistant — Dashboard
 
-`examples/ha-dashboard.yaml` is a comprehensive Lovelace dashboard that exposes every entity the plugin publishes. Paste it into HA's Raw Configuration Editor to get the layout below. The layout uses HA's sections view and packs cards uniformly across up to 4 columns on wide screens. The EV controls card includes the Smart Charging and Charge Cap switches (the screenshots below predate the Charge Cap switch).
+`examples/ha-dashboard.yaml` is a Lovelace dashboard with all controls, live values, and error state binary sensors. A few diagnostic sensors and the experimental inverter entities are left out. Paste it into HA's Raw Configuration Editor to get the layout below. The layout uses HA's sections view and packs cards uniformly across up to 4 columns on wide screens. The EV controls card includes the Smart Charging, Charge Cap, and Boost Charge switches. The SmartFlex vehicle cards hide on accounts without a SmartFlex car or charge point. The screenshots below predate the Charge Cap and Boost Charge switches.
 
 #### EV controls, electricity import & export
 
@@ -155,7 +161,7 @@ UTC-class slot/window timestamps (HA renders them as relative "n hours ago"), ra
 
 ![Dashboard — gas live data](images/examples/home_assistant_dashboard_working_gas_1-3-0.png)
 
-For accounts with a gas meter point, the gas card populates with live tariff code, unit rate (p/kWh), standing charge, daily consumption (kWh), and tariff validity dates. Above shows v1.3.0 reading correctly from a real account on Octopus standard variable gas tariff.
+For accounts with a gas meter point, the gas card shows the live tariff code, unit rate (p/kWh), standing charge, daily consumption (kWh), and tariff validity dates. The screenshot shows v1.3.0 reading a real account on the Octopus standard variable gas tariff.
 
 #### Seasonal / conditional entities — when they show "Unavailable"
 
@@ -165,11 +171,11 @@ For accounts with a gas meter point, the gas card populates with live tariff cod
 | Free Electricity Start / End | typically June–October | `null` — no sessions scheduled |
 | Electricity / Gas Tariff Valid To | When tariff has an end date | `null` — open-ended tariff |
 | Gas entities | Only if account has a gas meter point | `null` — electricity-only accounts |
-| Home Mini | Only if a Home Mini device is registered | Entity skipped if not registered |
+| Home Mini | Only if a Home Mini device is registered | Entities are still created and stay empty |
 | Electricity Export entities | Only if account has an OUTGOING agreement | Entity values null without an export tariff |
 | EV planned slots / dispatches | Only when a charge is scheduled | `null` between plug-in cycles |
 
-These are normal MQTT behaviours, not bugs. The plugin publishes the entity definitions so HA registers them; their values populate when the API returns data for that period.
+This is normal. The node publishes the entity definitions so HA registers them, and the values fill in when the API returns data for that period.
 
 ---
 
@@ -209,11 +215,13 @@ These are normal MQTT behaviours, not bugs. The plugin publishes the entity defi
 2. Double-click to configure:
    - Account Number (format: `A-XXXXXXXX`)
    - API Key (stored securely)
-   - Refresh Interval (default: 5 min — controls EV charging data polling)
-   - Per-category polling intervals (electricity, gas, etc.)
-   - ☑ Enable Home Mini — tick if you have an Octopus Home Mini device
-   - ☑ Enable Wheel of Fortune — tick to track remaining spins
-   - Enable MQTT if using Home Assistant and select your MQTT broker
+   - Intelligent (Min) sets the charging data poll interval. The default is 5 minutes.
+   - Intervals for electricity, gas, Wheel of Fortune, and Home Mini (all optional)
+   - Untick Electricity to stop the electricity rates and consumption polls. The node still polls applicable rates and free electricity while your account has an electricity meter.
+   - ☑ Enable Home Mini: tick if you have an Octopus Home Mini device
+   - ☑ Enable Wheel of Fortune: tick to track remaining spins
+   - ☐ Inverter (experimental): tick only if Octopus controls your solar inverter. Off by default.
+   - Tick Enable Home Assistant MQTT and choose a broker to publish to Home Assistant
 3. **Deploy** — account discovery runs automatically and enables categories based on your registered products
 
 ### 4. Home Assistant (Optional)
@@ -222,20 +230,29 @@ If MQTT enabled:
 1. Wait ~5 seconds after deploy
 2. **Settings** → **Devices & Services** → **MQTT**
 3. Find "Octopus Intelligent" device
-4. All entities created automatically — no YAML required
+4. The entities are already there. No YAML is needed.
 
 ---
 
+## ⬆️ Upgrading to v1.7.0
+
+v1.7.0 adds features. Existing flows, automations, and dashboards keep working, with one change for MQTT commands.
+
+- The node now ignores retained messages on `submit_changes`, `refresh`, `set_smart_charging`, `set_charge_cap`, and `set_boost`, and logs one warning per topic. Home Assistant does not retain these commands, so its buttons and switches work as before. If your own flow publishes one of these commands with retain set, turn retain off. To clear an old retained message, publish an empty retained message to that topic.
+- With a SmartFlex car or charge point, 11 new entities appear in Home Assistant: the Boost Charge switch and 10 vehicle entities. Octopus lists a charge point as an electric vehicle, so it gets the same entities. See Home Assistant Entities below for the counts.
+- The experimental Inverter option is off, so nothing changes for inverters until you tick it.
+- If you go back to an older version, the new entities stay in Home Assistant. The vehicle entities show Unavailable, and the Boost Charge switch keeps its last state and does nothing. The broker still holds their retained discovery config, so Home Assistant will not delete them one by one. To remove them, clear their retained discovery topics on the broker (`homeassistant/.../nodered_<account>_<id>/config`), for example with MQTT Explorer. Or delete the Octopus Intelligent device in Home Assistant: that clears the topics, but you lose the names and areas you set and any entity ids you changed. If you ticked Inverter, untick it and deploy before you go back, and the node removes the inverter entities for you.
+
 ## ⬆️ Upgrading from v1.2.x
 
-v1.3.0 is additive — no breaking changes. Existing flows, automations, and dashboards continue working unchanged.
+v1.3.0 only adds features and has no breaking changes. Existing flows, automations, and dashboards keep working.
 
 **What happens on upgrade:**
 - All existing entity IDs are preserved (HA's MQTT integration matches by `unique_id`, which is stable)
 - All v1.2.x payload fields remain in the same positions
-- ~70 new sensors appear in Home Assistant automatically after first poll — electricity import/export tariff and rates, gas tariff and consumption, Home Mini, Octoplus, saving sessions, free electricity, Wheel of Fortune, account balance, applicable rates
+- About 70 new sensors appear in Home Assistant after the first poll. They cover electricity import and export tariffs and rates, gas tariff and consumption, Home Mini, Octoplus, saving sessions, free electricity, Wheel of Fortune, account balance, and applicable rates.
 - New node config options (Home Mini, Wheel of Fortune) default to off
-- Two existing Octoplus booleans (`octoplus_enrolled`, `octoplus_loyalty_points_user`) move from `sensor.` to `binary_sensor.` domain — a fresh install picks the right domain automatically; a clean upgrade may register both. Delete the old `sensor.` entries via Dev Tools if you want a tidy device card.
+- Two existing Octoplus booleans (`octoplus_enrolled`, `octoplus_loyalty_points_user`) move from the `sensor.` to the `binary_sensor.` domain. A fresh install picks the right domain, but an upgrade may register both. Delete the old `sensor.` entries in Dev Tools if you want a tidy device card.
 
 If you installed an early dev build of v1.3 and have stale entities in Home Assistant, see [Stale Entities After Early v1.3 Dev Build](#stale-entities-after-early-v13-dev-build) in the Troubleshooting section.
 
@@ -243,29 +260,26 @@ If you installed an early dev build of v1.3 and have stale entities in Home Assi
 
 ## 📊 Home Assistant Entities
 
-**164 MQTT entities** are published under a single **Octopus Intelligent** device on a fresh install. All entities are organised into two tiers: **Main** (controls, live data, tariff metadata, rewards) and **Diagnostics** (errors, raw timestamps, locale timestamps, API metrics).
+**175 MQTT entities** are published under a single **Octopus Intelligent** device on a fresh install with a car or charge point Octopus smart-charges. Without one, the 10 vehicle entities and the Boost Charge switch are left out and the count is **164**. If you tick the experimental **Inverter** option and Octopus lists an inverter on your account, 14 more are added (**189** with a car). All entities are organised into two tiers: **Main** (controls, live data, tariff metadata, rewards) and **Diagnostics** (errors, raw timestamps, locale timestamps, API metrics).
 
-If your device card shows more than 164 entities, the extras are likely leftovers from earlier installed versions or interrupted discovery. They can be deleted via Settings → Devices & Services → MQTT → Octopus Intelligent → entity → cog → "Delete from registry" without affecting current operation.
+If your device card shows more entities than these counts, the extras are likely leftovers from earlier installed versions or interrupted discovery. They can be deleted via Settings → Devices & Services → MQTT → Octopus Intelligent → entity → cog → "Delete from registry" without affecting current operation.
 
 ### Node-RED payload vs MQTT entities
 
-`msg.payload` from the Node-RED node contains **~133 fields**. Some payload fields are intentionally **not** exposed as individual HA entities; they exist for template/automation use inside Node-RED or HA Jinja:
+`msg.payload` from the Node-RED node contains more than 150 fields. Some payload fields are intentionally **not** exposed as individual HA entities; they exist for template/automation use inside Node-RED or HA Jinja:
 
 | Category | Fields (count) | Why no MQTT entity |
 |---|---|---|
 | Bulk array data | `applicable_rates`, `electricity_export_rate`, `completed_dispatches`, `flex_planned_dispatches` (4) | Each is an array of 48 half-hour slots or N dispatches. Exposing each row as an MQTT entity would clutter the registry. The `_count` summary entity exists; consume the full array via templates / `apexcharts-card` for visualisation. |
 | Pending controls | `pending_limit`, `pending_time` (2) | The number/select control entities (`Target Charge`, `Ready By`) render the pending value through their own `value_template`. No separate sensor entity needed. |
-| Import rate adjacency | `applicable_rates_prev_pence`, `_prev_gbp`, `_prev_to`, `_next_pence`, `_next_gbp`, `_next_from` (6) | Available in `msg.payload` for templates / dashboards. Export equivalents (`electricity_export_rate_prev_*` / `_next_*`) ARE exposed as MQTT entities — the inconsistency is intentional pending v1.4 promotion. |
-| Cost placeholders | `electricity_consumption_cost`, `gas_consumption_cost` (2) | Reserved for future cost-calculation feature (consumption × rate). Always `null` in v1.3. |
-| Vestigial | `saving_session_points` (1) | Octopus moved loyalty points out of saving sessions into the Octoplus query. The payload field remains for backward compatibility but is always `null`; use `binary_sensor.octopus_intelligent_octopus_octoplus_loyalty_points` instead. |
+| Cost placeholders | `electricity_consumption_cost`, `gas_consumption_cost` (2) | Reserved for a future cost calculation (consumption × rate). Always `null`. |
+| Vestigial | `saving_session_points` (1) | Octopus moved points to the Octoplus query. The field is always `null`. A sensor named Octopus Octopus Points still exists and is always empty. Use `octoplus_loyalty_points_user` for Octoplus. |
 
-**Implication for HA users:** every value you might want to display is reachable. Direct values use the MQTT entity. Adjacent-slot import rates require an MQTT template sensor reading from `applicable_rates_prev_pence` etc. (or use the Node-RED debug node to inspect the full payload).
-
-**Why the import / export asymmetry?** Phase 2 of v1.3.0 added the full export rate ecosystem as new MQTT entities. The pre-existing import prev/next fields were added in v1.0 as payload-only and weren't promoted at the time. Promoting them is straightforward but was descoped from v1.3 to keep release scope tight; tracked for v1.4.
+**Implication for HA users.** Every value you might want to show is reachable. Direct values use the MQTT entity. Previous and next import rates are available as diagnostic sensors.
 
 ### Controls
 
-Interactive entities that accept commands. **Timezone**, **Smart Charging** and **Charge Cap** still carry the HA `entity_category: config` flag (they ARE user-configurable, so the category is semantically correct).
+These entities take commands. **Timezone**, **Smart Charging**, and **Charge Cap** carry the HA `entity_category: config` flag, because they are settings you change.
 
 | Name | Description |
 |---|---|
@@ -273,20 +287,25 @@ Interactive entities that accept commands. **Timezone**, **Smart Charging** and 
 | Octopus Ready Time | Dropdown (00:00–23:30, half-hour slots) — time by which the car must be ready. Other values are rejected with an error and nothing is sent to Octopus |
 | Octopus Apply Changes | Submit pending limit/time changes to the Octopus API |
 | Octopus Refresh API | Force an immediate API refresh (30-second cooldown enforced) |
-| Timezone | Display timezone for all slot and window times — 15 IANA options; persists across Node-RED restarts |
+| Timezone | Display timezone for all slot and window times, with 15 IANA options |
 | Smart Charging | Enable (unsuspend) or disable (suspend) Octopus intelligent charging |
 | Charge Cap | Limit smart charging to off-peak rates only (as in the Octopus app) |
+| Boost Charge | Start charging now, outside the Octopus plan. Turn off to cancel the boost. Only published when Octopus lists a car or charger it controls |
 
 ### Binary Sensors
 
 | Name | Description |
 |---|---|
-| Octopus Charging Now | `ON` while the EV is actively inside a dispatch charging slot |
+| Octopus Charging Now | `ON` while the EV is inside a dispatch charging slot or a boost is running |
 | Octopus Saving Session Available | `ON` if a saving session is upcoming or joinable |
 | Octopus Free Electricity Active | `ON` while a free electricity window is in progress right now |
 | Octopus Free Electricity Available | `ON` if a free electricity window is scheduled in the future |
 | Octopus Octoplus Enrolled | `ON` if the account is enrolled in Octoplus |
 | Octopus Octoplus Loyalty Points | `ON` if the account participates in Octoplus loyalty points (boolean flag from the API) |
+| Octopus Saving Session Joined | On when you have joined the current saving session campaign |
+| Octopus Saving Session Window Active | On while a saving session window is open, joined or not |
+| Octopus Saving Session Active | On while a saving session window is open and you have joined |
+| Octopus Last Charge Session Problem | `ON` if the latest finished charging session had a problem. Only with a SmartFlex car or charge point |
 
 ### Main Sensors — EV Charging
 
@@ -309,6 +328,15 @@ Interactive entities that accept commands. **Timezone**, **Smart Charging** and 
 | Octopus Completed Dispatches | Count of completed intelligent dispatch sessions on record |
 | Octopus Flex Planned Dispatches | Count of upcoming flex dispatch slots |
 
+### Main Sensors, SmartFlex Vehicle
+
+Only published when Octopus lists a SmartFlex car or charge point on your account.
+
+| Name | Description |
+|---|---|
+| Octopus Last Charge Session Energy | kWh added in the latest finished charging session. The last 5 sessions and the device alerts are attributes. Each new session starts a new total, so Home Assistant keeps statistics and you can add it to the Energy dashboard as an individual device |
+| Octopus Last Charge Session Final Charge | Battery percentage at the end of the latest finished session |
+
 ### Main Sensors — Electricity (Import)
 
 | Name | Description |
@@ -320,6 +348,10 @@ Interactive entities that accept commands. **Timezone**, **Smart Charging** and 
 | Octopus Electricity Unit Rate | Fixed unit rate (p/kWh) — `null` on half-hourly tariffs |
 | Octopus Electricity Tariff Code | Current import tariff product code |
 | Octopus Electricity Tariff Valid From / Valid To | Validity window of the current import tariff (`Valid To` is `null` for open-ended tariffs) |
+| Octopus Electricity Day Rate | Day rate in p/kWh on tariffs with rate bands |
+| Octopus Electricity Night Rate | Night rate in p/kWh on tariffs with rate bands |
+| Octopus Electricity EV Peak Rate | EV peak rate in p/kWh on four-rate EV tariffs |
+| Octopus Electricity EV Off-Peak Rate | EV off-peak rate in p/kWh on four-rate EV tariffs |
 
 ### Main Sensors — Electricity (Export)
 
@@ -348,7 +380,6 @@ Interactive entities that accept commands. **Timezone**, **Smart Charging** and 
 | Name | Description |
 |---|---|
 | Octopus Account Balance | Current account credit or debit balance (£) |
-| Octopus Saving Session Joined | Whether you have joined the current saving session campaign |
 | Octopus WoF Electricity Spins | Wheel of Fortune electricity spins remaining (opt-in) |
 | Octopus WoF Gas Spins | Wheel of Fortune gas spins remaining (opt-in) |
 
@@ -377,7 +408,7 @@ Appears under the **Diagnostics** tab of the HA device card.
 
 | Name | Description |
 |---|---|
-| Octopus Next Poll Time | Timestamp of the next scheduled automatic API refresh |
+| Octopus Next Poll Time | Estimate of the next automatic API refresh |
 | Octopus Refresh Available At | Timestamp when the manual refresh cooldown expires (`null` = available now) |
 
 #### API Usage
@@ -444,6 +475,12 @@ Times in the Node-RED server's auto-detected timezone. Unlike display fields, th
 | Octopus Electricity Export Rate Prev Ends | Timestamp when the previous export slot ended |
 | Octopus Electricity Export Rate Next | Next half-hour export rate (p/kWh) |
 | Octopus Electricity Export Rate Next From | Timestamp when the next export slot begins |
+| Octopus Applicable Rates Min / Max / Median / Avg | Lowest, highest, median, and average import rate in the next 24 hours (p/kWh) |
+| Octopus Electricity Export Rate Min / Max / Median / Avg | The same four values for export (p/kWh) |
+| Octopus Applicable Rate Prev / Next | Previous and next import rate (p/kWh) |
+| Octopus Applicable Rate Prev (GBP) / Next (GBP) | Previous and next import rate in pounds per kWh |
+| Octopus Applicable Rate Prev Ends / Next From | When the previous slot ends and the next slot starts |
+| Octopus Electricity Export Rate Prev (GBP) / Next (GBP) | Previous and next export rate in pounds per kWh |
 
 #### Error & Detail Sensors
 
@@ -456,22 +493,173 @@ Times in the Node-RED server's auto-detected timezone. Unlike display fields, th
 | Octopus Gas Rates Error | Last error fetching gas rates |
 | Octopus Gas Consumption Error | Last error fetching gas consumption |
 | Octopus Applicable Rates Error | Last error fetching the import applicable rates schedule |
-| Octopus Electricity Export Rate Error | Last error fetching the export applicable rates schedule |
+| Octopus Electricity Export Rate Error | Last error fetching the export applicable rates schedule. The same text is in `applicable_rates_export_error` in `msg.payload`. |
 | Octopus Account Balance (Pence) | Account balance in pence (raw integer) |
 | Octopus Account Error | Last error fetching account data |
 | Octopus Octoplus Error | Last error fetching Octoplus data |
-| Octopus WoF Electricity Max | Maximum Wheel of Fortune electricity spins allowed per period |
-| Octopus WoF Electricity Used | Wheel of Fortune electricity spins used this period |
-| Octopus WoF Gas Max | Maximum Wheel of Fortune gas spins allowed per period |
-| Octopus WoF Gas Used | Wheel of Fortune gas spins used this period |
+| Octopus WoF Electricity Max | Always empty. Octopus no longer provides it. Use the Spins sensor. |
+| Octopus WoF Electricity Used | Always empty. Octopus no longer provides it. Use the Spins sensor. |
+| Octopus WoF Gas Max | Always empty. Octopus no longer provides it. Use the Spins sensor. |
+| Octopus WoF Gas Used | Always empty. Octopus no longer provides it. Use the Spins sensor. |
 | Octopus WoF Error | Last error fetching Wheel of Fortune data |
 | Octopus Home Mini Reading Time | Timestamp of the most recent Home Mini telemetry reading |
 | Octopus Home Mini Error | Last error fetching Home Mini data |
 | Octopus Saving Sessions Error | Last error fetching saving sessions data |
 | Octopus Free Electricity Error | Last error fetching free electricity data |
 | Octopus Completed Dispatches Error | Last error fetching completed dispatch history |
-| Octopus Flex Planned Dispatches Error | Last error fetching flex planned dispatch schedule |
-| Octopus Intelligent Error | Last error from the intelligent charging (EV slots) query |
+| Octopus Flex Planned Dispatches Error | Always empty today. Flex dispatch errors appear in Intelligent Error. |
+| Octopus Intelligent Error | Last error from the intelligent charging (EV slots) query. A short text with the Octopus code, for example `KT-CT-4340: Unable to fetch planned dispatches`. |
+
+The `... Error State` binary sensors (15, plus SmartFlex Vehicle Error State with a car or charge point and SmartFlex Inverter Error State with the Inverter option) turn on when the matching error field has a value. They turn off when it is empty.
+
+#### SmartFlex Vehicle
+
+Only published when Octopus lists a SmartFlex car or charge point on your account.
+
+| Name | Description |
+|---|---|
+| Octopus Vehicle Make | Make of the car Octopus controls. For a charge point, this is the charger's make |
+| Octopus Vehicle Model | Model of the car. For a charge point, this is the charger's model |
+| Octopus Vehicle Battery Size | Battery size in kWh |
+| Octopus Charger Power | Charger power output in kW |
+| Octopus Vehicle Device State | What Octopus says the device is doing, for example `SMART_CONTROL_IN_PROGRESS` |
+| Octopus SmartFlex Vehicle Error | Last error from the vehicle query. `null` means healthy |
+
+#### Update
+
+| Name | Description |
+|---|---|
+| Octopus Intelligent Node (Update entity) | Shows when a newer version of this node is on npm. It only tells you. Install from Node-RED Palette Manager. |
+| Octopus Installed Version | Version of this node that is running |
+| Octopus Latest Version | Newest version found on npm |
+| Octopus Update Check At | When the node last checked for a new version |
+| Octopus Update Check Error | Last error from the update check |
+
+#### SmartFlex Inverter (experimental)
+
+These entities exist only when the **Inverter** option is ticked and Octopus lists an inverter on your account. They are on the same device. Unticking the option removes them.
+
+| Name | Description |
+|---|---|
+| Octopus Solar Power | Solar generation in kW |
+| Octopus Home Battery Power | Home battery power in kW |
+| Octopus Home Battery Charge | Home battery charge in % |
+| Octopus Grid Power | Grid power in kW |
+| Octopus Site Consumption | Site consumption in kW |
+| Octopus Site Export | Site export in kW |
+| Octopus Inverter Power | Inverter power in kW |
+| Octopus Inverter Online | `ON` when Octopus reports the inverter as connected |
+| Octopus Inverter Make / Model | Diagnostic. Inverter make and model |
+| Octopus Solar Peak Power | Diagnostic. Peak solar power in kW |
+| Octopus Inverter Connection Status | Diagnostic. Connection status text from Octopus |
+| Octopus SmartFlex Inverter Error | Diagnostic. Last error from the inverter query |
+| Octopus SmartFlex Inverter Error State | Diagnostic. `ON` when the error field has a value |
+
+---
+
+## 🚗 SmartFlex Vehicle Data
+
+If Octopus controls your electric car or charge point, the node reads its details and recent charging sessions. This runs when the node discovers an EV or charge point on your account, and then every 30 minutes. If Octopus lists more than one, the node uses the one Octopus says is live, or the first if none is. You do not need to turn it on. If no device is found, the fields stay `null` or empty and Home Assistant gets no vehicle entities.
+
+The fields land in `msg.payload`.
+
+| Field | Type | Description |
+|---|---|---|
+| `vehicle_make` | string or null | Make of the car or charge point |
+| `vehicle_model` | string or null | Model |
+| `vehicle_battery_kwh` | number or null | Battery size in kWh |
+| `charger_power_kw` | number or null | Charger power output in kW |
+| `device_state` | string or null | What Octopus says the device is doing, for example `SMART_CONTROL_IN_PROGRESS`, `BOOSTING`, or `LOST_CONNECTION`. Read by the charging poll, so it updates every refresh interval and always agrees with `boosting` |
+| `device_alerts` | array | Octopus alerts as `[{ message, published_at }]`, the 10 newest first. Each message is cut to 250 characters |
+| `last_session` | object or null | The latest finished session |
+| `charging_sessions` | array | Your last 5 sessions, newest first |
+| `last_session_kwh` | number or null | kWh added in the latest finished session |
+| `last_session_soc_final` | number or null | Final charge % of the latest finished session |
+| `last_session_problem` | boolean or null | `true` if the latest finished session had a problem |
+| `smartflex_vehicle_error` | string or null | The last error, or `null` |
+
+Each session has `start`, `end`, `kwh_added`, `soc_change`, `soc_final`, `type`, `cost`, and `problems`. `cost` is `{ amount, currency }` or `null`. `problems` is a list of problem names.
+
+```json
+{
+  "vehicle_make": "Tesla",
+  "vehicle_model": "Model 3",
+  "vehicle_battery_kwh": 75,
+  "charger_power_kw": 7.4,
+  "device_state": "SMART_CONTROL_IN_PROGRESS",
+  "device_alerts": [],
+  "last_session": {
+    "start": "2026-10-06T00:30:00Z",
+    "end": "2026-10-06T04:30:00Z",
+    "kwh_added": 24.1,
+    "soc_change": 32,
+    "soc_final": 80,
+    "type": "SMART",
+    "cost": { "amount": 1.81, "currency": "GBP" },
+    "problems": []
+  },
+  "charging_sessions": [],
+  "last_session_kwh": 24.1,
+  "last_session_soc_final": 80,
+  "last_session_problem": false,
+  "smartflex_vehicle_error": null
+}
+```
+
+`charging_sessions` holds up to 5 objects shaped like `last_session`. The example leaves it empty to stay short. If a poll fails, `smartflex_vehicle_error` holds a short error with the Octopus code, and the other fields keep their last values. If Octopus returns only part of the data, for example the sessions fail but the rest comes back, the node uses what came back, keeps the last values for the rest, sets `smartflex_vehicle_error`, and logs a warning.
+
+Home Assistant gets these entities. If Octopus lists devices but none is a car or charge point, the node removes them. If Octopus lists no devices at all (this can happen for a moment), the node leaves them as they are. When Octopus sends no value, a number sensor shows unknown, and Vehicle Make, Vehicle Model and Vehicle Device State show Unavailable. If you go back to an older version, these entities stay in Home Assistant and show Unavailable, not a problem. To remove them, delete them in Home Assistant.
+
+- Last Charge Session Energy and Last Charge Session Final Charge (main sensors)
+- Last Charge Session Problem (binary sensor)
+- Vehicle Make, Vehicle Model, Vehicle Battery Size, Charger Power, Vehicle Device State, and SmartFlex Vehicle Error (diagnostic sensors)
+- SmartFlex Vehicle Error State (diagnostic binary sensor)
+
+The session list and the alerts are attributes of the Last Charge Session Energy sensor. That sensor has state class `total`, and its last reset is the end of the session. So Home Assistant adds each finished session's kWh to its statistics once.
+
+## ☀️ SmartFlex Inverter Data (experimental)
+
+> **Not yet verified on a real inverter.** The field names come from the Octopus schema, but no inverter was available to test with. If the values look wrong, please open an issue.
+
+This is off by default. To turn it on, tick **Inverter** in the node settings and deploy. The node then reads inverter data every 5 minutes.
+
+Octopus must list a SmartFlex inverter on your account. That means an inverter Octopus controls itself, for example through Intelligent Octopus Flux. Inverters from other brands, or inverters Octopus does not control, will not appear. If Octopus lists no inverter, the node reads nothing.
+
+| Field | Type | Description |
+|---|---|---|
+| `inverter_make` | string or null | Inverter make |
+| `inverter_model` | string or null | Inverter model |
+| `solar_peak_kw` | number or null | Peak solar power in kW |
+| `inverter_power_kw` | number or null | Inverter power in kW |
+| `inverter_connection_status` | string or null | Connection status from Octopus |
+| `inverter_online` | boolean or null | `true` when the status is `CONNECTED` or `ONLINE` |
+| `home_battery_power_kw` | number or null | Home battery power in kW |
+| `home_battery_soc` | number or null | Home battery charge in % |
+| `solar_power_kw` | number or null | Solar generation in kW |
+| `grid_power_kw` | number or null | Grid power in kW |
+| `site_consumption_kw` | number or null | Site consumption in kW |
+| `site_export_kw` | number or null | Site export in kW |
+| `smartflex_inverter_error` | string or null | The last error, or `null` |
+
+```json
+{
+  "inverter_make": "ExampleMake",
+  "inverter_model": "ExampleModel",
+  "solar_peak_kw": 4,
+  "inverter_power_kw": 2.1,
+  "inverter_connection_status": "CONNECTED",
+  "inverter_online": true,
+  "home_battery_power_kw": -1.2,
+  "home_battery_soc": 64,
+  "solar_power_kw": 3.3,
+  "grid_power_kw": 0.2,
+  "site_consumption_kw": 1.9,
+  "site_export_kw": 0,
+  "smartflex_inverter_error": null
+}
+```
+
+The values above are made up to show the shape. Home Assistant gets 14 extra entities, listed in the entity tables above. Unticking the option removes them.
 
 ---
 
@@ -480,8 +668,8 @@ Times in the Node-RED server's auto-detected timezone. Unlike display fields, th
 Octopus Energy runs free electricity sessions (typically June–October) and saving sessions (typically October–March). The node polls for both and exposes binary sensors for automation use.
 
 ### Free Electricity
-- **`binary_sensor.octopus_free_electricity_active`** — `ON` while a free window is in progress right now
-- **`binary_sensor.octopus_free_electricity_available`** — `ON` if an upcoming free window is scheduled
+- **`binary_sensor.octopus_intelligent_octopus_free_electricity_active`** — `ON` while a free window is in progress right now
+- **`binary_sensor.octopus_intelligent_octopus_free_electricity_available`** — `ON` if an upcoming free window is scheduled
 
 Use these to automatically start charging your car or battery when electricity is free:
 
@@ -490,7 +678,7 @@ automation:
   - alias: "Charge during free electricity"
     trigger:
       platform: state
-      entity_id: binary_sensor.octopus_free_electricity_active
+      entity_id: binary_sensor.octopus_intelligent_octopus_free_electricity_active
       to: "on"
     action:
       service: switch.turn_on
@@ -499,20 +687,22 @@ automation:
 ```
 
 ### Saving Sessions
-- **`binary_sensor.octopus_saving_session_available`** — `ON` if a saving session is upcoming
-- **`sensor.octopus_saving_session_start`** / **`sensor.octopus_saving_session_end`** — start and end times
+- **`binary_sensor.octopus_intelligent_octopus_saving_session_available`** — `ON` if a saving session is upcoming
+- **`sensor.octopus_intelligent_octopus_saving_session_start`** / **`sensor.octopus_intelligent_octopus_saving_session_end`** — start and end times
 
 ### Why These Sensors Are Null Outside Season
 
-The Octopus API only returns free electricity and saving session data when those programmes are active. Outside their respective seasons the API returns an empty list (or in the case of saving sessions, the query itself is unavailable). The node handles this gracefully:
+The Octopus API only returns free electricity and saving session data when those programmes are active. Outside their seasons the API returns an empty list (or for saving sessions, the query itself is unavailable). When that happens:
 
-- Binary sensors remain `OFF` (not `unavailable`)
-- Timestamp sensors (`saving_session_start`, `free_electricity_start`, etc.) return `null`
-- In Home Assistant, `null`-valued configuration sensors may show as **unavailable** — this is normal and expected
+- Binary sensors stay `OFF` (not `unavailable`)
+- Timestamp sensors (`saving_session_start`, `free_electricity_start`, etc.) are `null`
+- In Home Assistant, sensors with a `null` value may show as **unavailable**. This is normal.
 
 ---
 
 ## 🌍 Timezone Configuration
+
+The runtime timezone changes slot and window display times. Daily consumption is always grouped by the Timezone field in the node editor. If that field is blank, the node uses UTC.
 
 By default, slot and window times are converted to the **server's auto-detected timezone** (wherever Node-RED is running). Three ways to configure:
 
@@ -525,7 +715,7 @@ Set a fixed IANA timezone in the node editor:
 Use the **Timezone** select entity in Home Assistant:
 - Home Assistant → Octopus Intelligent device → Timezone
 - Change takes effect on next poll
-- Persists across Node-RED restarts
+- The node keeps the value in node context. It survives a restart only if you set a persistent context store in `settings.js`.
 
 ### Option 3: `set_timezone` Input Command
 ```javascript
@@ -543,7 +733,7 @@ msg.payload = { set_timezone: "Europe/London" };
 ### Supported Timezones (HA select)
 `Europe/London`, `Europe/Berlin`, `Europe/Madrid`, `Australia/Sydney`, `Australia/Melbourne`, `Australia/Brisbane`, `Australia/Perth`, `Australia/Adelaide`, `Pacific/Auckland`, `America/New_York`, `America/Chicago`, `America/Denver`, `America/Los_Angeles`, `Asia/Tokyo`, `UTC`
 
-Any valid IANA timezone works in the node config field or `set_timezone` command.
+Use an IANA name such as `Europe/London`, of up to 64 characters. The node checks the name. A name it does not know writes an error to the Node-RED log, and the timezone is not changed. Changing the timezone with `set_timezone` does not update the Timezone select in Home Assistant.
 
 ---
 
@@ -552,8 +742,10 @@ Any valid IANA timezone works in the node config field or `set_timezone` command
 ### Basic Monitoring
 
 ```
-[Inject: Every 5 min] → [Octopus Intelligent] → [Debug]
+[Octopus Intelligent] → [Debug]
 ```
+
+The node polls on its own after deploy. Connect a Debug node to see the output. Add an Inject node only when you want to force a refresh.
 
 ### Set Preferences from Flow
 
@@ -565,7 +757,7 @@ msg.payload = {
 return msg;
 ```
 
-Ready-by time: any half-hour slot from 00:00 to 23:30 (matches the Octopus app). Other values are rejected with an error and nothing is sent to Octopus. Charge limit values clamp to 5–100 and round to 5; non-numeric values and `set_limit: 0` are rejected.
+The ready-by time can be any half-hour slot from 00:00 to 23:30, as in the Octopus app. Any other value gives a node error and nothing is sent to Octopus. The node clamps the charge limit to between 5 and 100 and rounds it to the nearest 5. A limit that is not a number above 0, such as `set_limit: 0`, gives a node error.
 
 ### Set Timezone from Flow
 
@@ -573,6 +765,14 @@ Ready-by time: any half-hour slot from 00:00 to 23:30 (matches the Octopus app).
 msg.payload = { set_timezone: "Australia/Sydney" };
 return msg;
 ```
+
+### Refresh from a Flow
+
+Send any message without a command to refresh the charging data right away. An empty inject works. So does `{ refresh: true }`.
+
+- There is no cooldown on this input. Add your own limit in the flow if you need one.
+- A message that carries a command never starts a refresh.
+- A refresh updates the charging data only. It does not refresh rates, gas, or account data.
 
 ### Toggle Smart Charging from Flow
 
@@ -595,17 +795,61 @@ msg.payload = { set_charge_cap: true };   // limit smart charging to off-peak ra
 msg.payload = { set_charge_cap: false };
 ```
 
-Non-boolean values are ignored. Also available as the **Charge Cap** switch in Home Assistant.
+The node ignores any value other than `true` or `false`. The **Charge Cap** switch in Home Assistant does the same job.
+
+### `set_boost`
+
+```js
+msg.payload = { set_boost: true };    // charge now, outside the Octopus plan
+msg.payload = { set_boost: false };   // cancel the boost
+```
+
+Only `true` and `false` work. Any other value, such as `"true"` or `1`, gives a node error and sends nothing. The **Boost Charge** switch in Home Assistant does the same job.
+
+This is not the same as `set_smart_charging`, which pauses or resumes Octopus control. Octopus can refuse a boost, for example when the car is unplugged. The node logs the Octopus error (for example `Boost request failed: KT-CT-xxxx: message`) and does not retry. If Octopus refuses the same choice 3 times in 10 minutes, the node ignores that choice for the next 10 minutes and logs one warning. This stops a flow that asks again after each refusal from calling Octopus all day. A request Octopus accepts ends the pause.
+
+The node sends one boost request at a time, at least 5 seconds apart. If you change your mind while one is being sent, only your last choice is sent next. A repeat of a choice Octopus has just accepted is dropped. After a failure, the same choice is sent again once the 5 seconds have passed. If Octopus does not answer a boost request within 75 seconds, the node gives up on it, sets `boost_error` and polls Octopus to check. Later requests are then sent as normal.
+
+When Octopus accepts a boost or a cancel, the node polls Octopus soon after. That poll waits if 3 planned-dispatch queries have already gone out in the last minute. Octopus can take a moment to show the new state, so the switch shows what you asked for until Octopus agrees, for up to 2 minutes. After a refusal the node does not poll, because nothing changed. If the answer is not clear, for example an error on the part Octopus reads back, the node leaves the switch as it was, sets no `boost_error` and polls to check.
+
+Payload fields:
+
+- `boosting`: `true` while a boost runs, `false` when not, `null` until known. It goes back to `null` if no charging poll has confirmed it for twice the refresh interval, for example during an Octopus outage. `charging_now` then follows the plan again, and the Boost Charge switch shows unknown.
+- `boost_error`: the error from the last `set_boost` that failed. It is sent as soon as the request fails. A boost that works clears it, and so does the first charging poll that reads the device state a minute or more later.
+- `charging_now`: a boost counts as charging, so this is `true` during a boost even with no planned slot.
 
 ### Combining commands
 
-One message can carry several commands, and each is applied independently:
+One message can carry several commands, and the node applies each one separately.
 
 ```js
 msg.payload = { set_limit: 90, set_time: "06:30", set_charge_cap: true };
 ```
 
-`set_limit` and `set_time` are sent to Octopus together, so an invalid value in either rejects both; other commands in the same message still apply.
+The node sends `set_limit` and `set_time` to Octopus together, so a bad value in either one stops both. The other commands in the same message still apply. A message with only one of them sends the last confirmed value for the other. To change both values, send them in one message.
+
+`set_smart_charging` and `set_charge_cap` need `true` or `false`. Any other value is ignored with no error. The text `"true"` does not count. `set_timezone` needs a timezone name such as `Europe/London`. An empty value is ignored. A bad `set_limit`, `set_time` or `set_timezone` value writes an error to the Node-RED log.
+
+### Example Flows
+
+The `examples/` folder has flows you can import. In Node-RED, open **Menu** → **Import** → **Examples** → **node-red-contrib-octopus-intelligent**. The folder also has `basic-monitoring.json`, `set-preferences.json`, `mqtt-integration.json`, `node-red-dashboard-flow.json`, and the Home Assistant `ha-dashboard.yaml`.
+
+These four flows each open on their own tab, with a Read me comment that explains the settings:
+
+- **`boost-on-cheap-or-surplus.json`**: starts a boost when the import rate is at or below a price you set, or when you export more than a set number of kW. It cancels the boost when that ends. Set the limits in the **Decide boost** function. The price rule needs a half-hourly rate schedule. The export rule needs the experimental Inverter option or your own reading.
+- **`charging-and-error-alerts.json`**: sends a short alert when charging or a boost starts or stops, when any `*_error` field gets a value, changes, or clears, and when Octopus posts a new alert for your car or charge point. Replace the debug node with your notifier.
+- **`cheapest-window-planner.json`**: each evening, finds the cheapest run of half hours for an appliance that must finish by a set time. It sends a second message when that window starts, which you can wire to a smart plug.
+- **`daily-charging-summary.json`**: sends a morning summary of the charging sessions that ended in the last 24 hours, and a short message when a session finishes. It needs a car or charge point under Octopus SmartFlex control.
+
+#### Wiring an example to your node
+
+These four flows have no Octopus Intelligent node of their own. Use the node you already have. Each node polls Octopus by itself, so a second node on the same account doubles your API use.
+
+1. Add a **link out** node after your Octopus Intelligent node, and wire the node's output to it.
+2. Open the link out node and tick **From Octopus node** on the example's tab.
+3. Only `boost-on-cheap-or-surplus.json` sends commands back. For that flow, add a **link in** node and wire it to your node's input. Then open **To Octopus node** on the example's tab and tick that link in.
+
+If your node is on the same tab as the example, you can delete the link nodes and wire it directly.
 
 ### Output Format
 
@@ -623,6 +867,8 @@ msg.payload = { set_limit: 90, set_time: "06:30", set_charge_cap: true };
     "charging_now": false,
     "smart_charging": true,
     "charge_cap": false,
+    "boosting": false,
+    "boost_error": null,
     "next_poll": "2026-05-03T10:35:00Z",
     "refresh_available_at": null,
     "api_requests_hour": 12,
@@ -679,11 +925,11 @@ msg.payload = { set_limit: 90, set_time: "06:30", set_charge_cap: true };
     "octoplus_loyalty_points_user": true,
     "octoplus_error": null,
     "wheel_of_fortune_electricity_spins": 2,
-    "wheel_of_fortune_electricity_max": 3,
-    "wheel_of_fortune_electricity_used": 1,
+    "wheel_of_fortune_electricity_max": null,
+    "wheel_of_fortune_electricity_used": null,
     "wheel_of_fortune_gas_spins": 1,
-    "wheel_of_fortune_gas_max": 1,
-    "wheel_of_fortune_gas_used": 0,
+    "wheel_of_fortune_gas_max": null,
+    "wheel_of_fortune_gas_used": null,
     "wheel_of_fortune_error": null,
     "mini_demand_kw": 0.082,
     "mini_consumption_delta_kwh": 0.002,
@@ -699,32 +945,34 @@ msg.payload = { set_limit: 90, set_time: "06:30", set_charge_cap: true };
     "free_electricity_available": false,
     "free_electricity_start": null,
     "free_electricity_end": null,
-    "free_electricity_error": null
-  },
-  "debug": {
-    "success": true,
-    "step": "complete",
-    "apiCalls": [
-      {"name": "authentication", "tokenObtained": true},
-      {"name": "intelligent", "slotsFound": 1},
-      {"name": "electricity_rates", "success": true},
-      {"name": "electricity_consumption", "success": true},
-      {"name": "gas_rates", "success": true},
-      {"name": "gas_consumption", "success": true},
-      {"name": "home_mini", "success": true},
-      {"name": "account", "success": true}
-    ]
+    "free_electricity_error": null,
+    "vehicle_make": "Tesla",
+    "vehicle_model": "Model 3",
+    "vehicle_battery_kwh": 75,
+    "charger_power_kw": 7.4,
+    "device_state": "SMART_CONTROL_IN_PROGRESS",
+    "device_alerts": [],
+    "last_session": null,
+    "charging_sessions": [],
+    "last_session_kwh": null,
+    "last_session_soc_final": null,
+    "last_session_problem": null,
+    "smartflex_vehicle_error": null
   }
 }
 ```
 
 > **Note:** `electricity_unit_rate` is `null` for half-hourly tariffs (e.g. Intelligent Octopus Go). Use `applicable_rates_current_pence` for the live rate on HH tariffs.
 
+> **v1.7.0 additions:** The SmartFlex vehicle fields are at the end of the example. See SmartFlex Vehicle Data above. With the Inverter option ticked, the payload also carries the inverter fields. See SmartFlex Inverter Data above.
+
 > **v1.3.0 additions:** The example above shows the v1.2.x payload shape for clarity. v1.3.0 adds ~14 additional fields covering electricity export (`electricity_export_unit_rate`, `electricity_export_tariff_code`, `electricity_export_consumption_kwh`, full `electricity_export_rate[]` half-hourly array with current/prev/next slot summaries) and import rate adjacency (`applicable_rates_prev_pence`, `_prev_gbp`, `_prev_to`, `_next_pence`, `_next_gbp`, `_next_from`). For the authoritative current set, inspect `msg.payload` in a Debug node after a real poll, or read `lib/payload.js` in the source.
 
 ---
 
 ## 🏡 Home Assistant Automation Examples
+
+The entity ids below are the ones Home Assistant gives on a fresh install: the device name, then the entity name, for example `binary_sensor.octopus_intelligent_octopus_charging_now`. If you renamed the device or have two accounts, yours can differ. Check them in **Settings** → **Entities**.
 
 ### Notify When Charging Starts
 
@@ -733,7 +981,7 @@ automation:
   - alias: "EV Charging Starting"
     trigger:
       platform: state
-      entity_id: binary_sensor.octopus_charging_now
+      entity_id: binary_sensor.octopus_intelligent_octopus_charging_now
       to: "on"
     action:
       service: notify.mobile_app
@@ -748,7 +996,7 @@ automation:
   - alias: "Start battery charge on free electricity"
     trigger:
       platform: state
-      entity_id: binary_sensor.octopus_free_electricity_active
+      entity_id: binary_sensor.octopus_intelligent_octopus_free_electricity_active
       to: "on"
     action:
       service: switch.turn_on
@@ -757,7 +1005,7 @@ automation:
   - alias: "Stop battery charge after free electricity"
     trigger:
       platform: state
-      entity_id: binary_sensor.octopus_free_electricity_active
+      entity_id: binary_sensor.octopus_intelligent_octopus_free_electricity_active
       to: "off"
     action:
       service: switch.turn_off
@@ -776,8 +1024,8 @@ automation:
     condition:
       - condition: template
         value_template: >
-          {% set start = as_timestamp(states('sensor.octopus_slot_1_start')) %}
-          {% set end = as_timestamp(states('sensor.octopus_slot_1_end')) %}
+          {% set start = as_timestamp(states('sensor.octopus_intelligent_octopus_slot_1_start')) %}
+          {% set end = as_timestamp(states('sensor.octopus_intelligent_octopus_slot_1_end')) %}
           {% set now = as_timestamp(now()) %}
           {{ start <= now <= end }}
     action:
@@ -793,15 +1041,15 @@ automation:
   - alias: "Saving session alert"
     trigger:
       platform: state
-      entity_id: binary_sensor.octopus_saving_session_available
+      entity_id: binary_sensor.octopus_intelligent_octopus_saving_session_available
       to: "on"
     action:
       service: notify.mobile_app
       data:
         message: >
           Saving session available:
-          {{ states('sensor.octopus_saving_session_start') }}
-          to {{ states('sensor.octopus_saving_session_end') }}
+          {{ states('sensor.octopus_intelligent_octopus_saving_session_start') }}
+          to {{ states('sensor.octopus_intelligent_octopus_saving_session_end') }}
 ```
 
 ---
@@ -810,16 +1058,16 @@ automation:
 
 ### No Data (All Sensors Null/0)
 
-Check `msg.debug` output in a Debug node:
+Check the `*_error` fields in `msg.payload`, the node status, and the Node-RED log.
 
 - Account format must include `A-` prefix
-- Invalid API key — regenerate at Octopus dashboard
-- Not on a recognised Octopus tariff (EV sensors require Intelligent Octopus Go)
-- Car not plugged in (no slots scheduled) — EV sensors null is normal when no charging is planned
+- Invalid API key: generate a new one in the Octopus dashboard
+- Not on a recognised Octopus tariff (EV sensors need Intelligent Octopus Go)
+- Car not plugged in (no slots scheduled): null EV sensors are normal when no charging is planned
 
 ### Authentication Failing
 
-Check `msg.debug.apiCalls[0].errors` for details. Regenerate your API key and update the node configuration.
+Look at the node status and the Node-RED log for the login error. Regenerate your API key and update the node configuration.
 
 ### Sensors Unavailable in Home Assistant
 
@@ -830,27 +1078,27 @@ Check `msg.debug.apiCalls[0].errors` for details. Regenerate your API key and up
 
 ### electricity_unit_rate Always Null
 
-This is expected on half-hourly tariffs like Intelligent Octopus Go. The tariff has no single unit rate — prices vary by half-hour slot. Use `applicable_rates_current_pence` for the live rate instead.
+This is expected on half-hourly tariffs like Intelligent Octopus Go. The tariff has no single unit rate, because prices vary by half-hour slot. Use `applicable_rates_current_pence` for the live rate instead.
 
 ### Upgrading from v1.2.x — Sensors Look Different
 
-v1.3.0 adds ~70 new sensors but does not rename or remove any v1.2 sensors. Existing automations and dashboards continue working unchanged. New sensors appear automatically in Home Assistant after the first poll following upgrade.
+v1.3.0 adds about 70 new sensors but does not rename or remove any v1.2 sensors. Existing automations and dashboards keep working. The new sensors appear in Home Assistant after the first poll following the upgrade.
 
 Two existing Octoplus booleans (`octoplus_enrolled` and `octoplus_loyalty_points_user`) move from the `sensor.` domain to `binary_sensor.` in v1.3 because they are boolean values and HA's sensor domain doesn't accept booleans cleanly. If you have automations referencing the old `sensor.` entity IDs, update them to the new `binary_sensor.` IDs after upgrade.
 
 ### Stale Entities After Early v1.3 Dev Build
 
-If you installed an early v2 build before final release, some entity IDs may have changed. To clean up stale entities:
+If you installed an early v1.3 dev build before the final release, some entity IDs may have changed. To clean up stale entities:
 
 1. In HA → **Settings → Devices & Services → MQTT**
 2. Find each stale entity name in Developer Tools → MQTT
 3. Publish an **empty retained payload** to its config topic:
    ```
-   Topic:   homeassistant/sensor/nodered_A-XXXX_<entity_id>/config
+   Topic:   homeassistant/sensor/nodered_A-XXXX_<sensor_id>/config
    Payload: (empty)
    Retain:  ✓
    ```
-   This removes the entity from the broker — HA drops it automatically.
+   This removes the entity config from the broker, and HA then drops the entity.
 
 ### Home Mini Not Showing
 
@@ -860,15 +1108,15 @@ If you installed an early v2 build before final release, some entity IDs may hav
 
 ### New Category Sensors All Null After Deploy
 
-Account discovery runs once at startup. If it fails, check `msg.debug` for auth errors, verify your API key, and redeploy.
+Account discovery runs at startup. If it fails, the node tries again after 30 seconds, 1 minute, and 2 minutes, then every 5 minutes. The node status shows the retry. If it keeps failing, check the Node-RED log for login errors and verify your API key.
 
 ### Seasonal Sensors Show "Unavailable"
 
-Saving session sensors are only populated October–March. Free electricity sensors are only populated June–October. Outside season, `null` values cause these sensors to show as unavailable in HA — this is correct behaviour, not a bug.
+Saving session sensors only have values from October to March, and free electricity sensors from June to October. Outside those months their values are `null`, so HA shows them as unavailable. This is expected.
 
 ### Changes Not Applying
 
-This is by design. Use the **Apply Changes** button to submit. This prevents API spam when making multiple adjustments.
+In Home Assistant, the Target Charge slider and Ready Time dropdown only change the pending values. Press **Apply Changes** to send them to Octopus. This saves API calls when you make several changes.
 
 ---
 
@@ -878,24 +1126,49 @@ This is by design. Use the **Apply Changes** button to submit. This prevents API
 
 On first deploy, the node queries the Octopus API to detect which products are registered on your account:
 
-- **Electricity** — always enabled if an electricity agreement exists
-- **Gas** — enabled if a gas agreement exists
+- **Electricity** — enabled if an electricity agreement exists. Untick Electricity in the editor to stop the electricity rates and consumption polls.
+- **Gas** — enabled if a gas agreement exists, unless you untick Gas in the editor
 - **Intelligent EV** — enabled if an EV device is registered (Intelligent Octopus Go)
 - **Home Mini** — enabled if a smart meter device is registered AND the Home Mini checkbox is ticked
-- **Wheel of Fortune / Saving Sessions / Account** — always polled if credentials are valid
+- **Saving Sessions / Account / Octoplus** — always polled if credentials are valid
+- **Wheel of Fortune** — polled only when the Wheel of Fortune checkbox is ticked
 
-Discovery sets which categories are active. No manual configuration required.
+Discovery sets which categories are active, so there is nothing to configure by hand.
 
 ### Category Scheduler
 
-Each data category polls on its own interval (configurable per category in the node editor). A 1-second clock-aligned scheduler checks which categories are due each tick. Categories poll independently — a slow gas API response does not delay your EV slot update.
+You set the charging, electricity, gas, Wheel of Fortune, and Home Mini intervals in the editor. Import and export applicable rates use the electricity rates interval. Free electricity is checked every 30 minutes. Saving sessions, account, Octoplus, and charging history are checked every 60 minutes. SmartFlex vehicle data is checked every 30 minutes, and the experimental SmartFlex inverter every 5 minutes when its option is ticked. The update check runs once a day.
+
+A 1-second clock-aligned scheduler checks which groups are due each tick. Due groups run one after another in a single tick, with one login. The charging poll runs first. A slow call delays the groups after it.
+
+Polls run on the clock. A 5-minute interval runs at :00, :05, :10, and so on. It does not run 5 minutes after deploy. Next Poll Time is an estimate.
+
+The node sends a message whenever any group was due in a tick. It also sends one when `charging_now` changes, and when a saving session, free electricity window, or rate slot starts or ends.
+
+### MQTT Topics
+
+The node publishes state to `nodered_octopus/<account>/status` and reads commands from `nodered_octopus/<account>/<command>`. The commands are `set_limit`, `set_time`, `submit_changes`, `refresh`, `set_timezone`, `set_smart_charging`, `set_charge_cap`, and `set_boost`.
+
+The node ignores retained messages on `submit_changes`, `refresh`, `set_smart_charging`, `set_charge_cap`, and `set_boost`, and logs one warning per topic. The broker would replay a retained command on every restart, so a retained `ON` on `set_boost` would boost again each time. To clear one, publish an empty retained message to that topic. Home Assistant does not retain these commands.
 
 ### Authentication Flow
 
 1. **Exchange API key** for a short-lived token
-2. **Run category polls** in parallel — each category makes its own GraphQL query
+2. **Run category polls** one after another, charging first. Each group makes its own GraphQL query.
 3. **Merge results** into a single payload object
 4. **Publish** to Node-RED output + MQTT state topic
+
+### Charging Poll Errors and Retries
+
+Every request to Octopus gives up after 30 seconds with no answer. If a poll is still running after 10 minutes, the next poll starts anyway and the Node-RED log shows a warning.
+
+When the charging poll fails, the node keeps the known plan and the charging timers. If the error is `KT-CT-4340` (planned dispatches) or `KT-CT-4339` (charging preferences), it tries again after 30 seconds, 1 minute, and 2 minutes, then every 2 minutes, until it works or the next normal poll is due. A retry waits if 3 planned-dispatch queries have already gone out in the last minute. Other errors wait for the next normal poll. `intelligent_error` and the node status show a short error with the Octopus code.
+
+Each failed attempt writes a warning to the Node-RED log, for example `Charging poll failed: KT-CT-4340 Unable to fetch planned dispatches (retry 2 in 60s)`. One line follows when it works again, for example `Charging poll recovered after 4m 30s`.
+
+If only the charging preferences fail (`KT-CT-4339`), the poll still works. The node keeps the last confirmed target and ready-by time and logs a warning.
+
+The check 30 seconds before a slot also handles an Octopus error. It logs a warning and starts the slot on time from the known plan.
 
 ### Exponential Backoff (preference changes)
 
@@ -912,23 +1185,17 @@ Mutation sent → Wait 15s → Validate
              ↓ Then normal interval resumes
 ```
 
-This prevents sensors becoming "unavailable" during updates.
+Each step polls the charging data. The node stops early once Octopus confirms the new values, and the node status shows the progress.
 
 ### Debug Information
 
-Every message includes `msg.debug`:
+Poll messages carry only `msg.payload`. Check the `*_error` fields, the node status, and the Node-RED log.
 
-```json
-{
-  "timestamp": "2026-05-03T10:30:00Z",
-  "success": true,
-  "step": "complete",
-  "apiCalls": [
-    {"name": "authentication", "tokenObtained": true},
-    {"name": "intelligent", "slotsFound": 1}
-  ]
-}
-```
+When `charging_now` changes, the node sends an extra message. That message also carries a `msg.debug` object with `timestamp`, `trigger` (`charging_state_change`), `previous_state`, and `new_state`.
+
+When a saving session, free electricity window, or rate slot starts or ends, the node also sends an extra message. Its `msg.debug` has `timestamp`, `trigger` (`active_fields_change`), and `changed`, the list of fields that changed.
+
+When a `set_boost` request fails, the node sends an extra message with `boost_error` set. Its `msg.debug` has `timestamp`, `trigger` (`boost_failed`), `request` (`BOOST` or `CANCEL`), and `error`.
 
 ---
 
@@ -960,44 +1227,7 @@ Use at your own risk. The Octopus Energy name and logo are trademarks of Octopus
 
 ## 📜 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for detailed version history and release notes.
-
-### v1.3.0 (2026-05-12)
-
-Major additive release — full consumer read coverage. No breaking changes; all v1.2.x entity IDs, payload fields, and automations continue working unchanged.
-
-**New read categories:**
-- **Electricity import** — live unit rate, standing charge, tariff code + validity dates, daily consumption, half-hourly applicable rates (current / prev / next), GBP/kWh rate for Energy Dashboard
-- **Electricity export** — full read parity with import: live export rate, standing charge, tariff code (e.g. `AGILE-OUTGOING-19-05-13`), validity dates, daily export consumption, half-hourly export rate slots (48 entries), prev / next slot rates and transition timestamps
-- **Gas** — unit rate, standing charge, tariff code + validity, daily consumption (account-conditional)
-- **Octopus Home Mini** — real-time grid demand (kW), half-hour consumption (kWh), last reading timestamp
-- **Saving sessions** — upcoming session start/end, joined status (now read from `api.backend.octopus.energy`)
-- **Free electricity** — upcoming/active session detection, binary sensors for automation
-- **Wheel of Fortune** — electricity and gas spin counts (now using non-deprecated `wheelOfFortuneSpinsAllowed` on backend endpoint)
-- **Account balance** — credit/debit in £ and pence
-- **Octoplus** — enrollment status (string) + enrolled and loyalty-points-user booleans
-
-**Bug fixes carried in alongside the additive work:**
-- **Import / export meter point selection** — meter point selection now uses the `direction` field, not array position. Earlier dev builds on accounts with both import + export meters could surface export data as if it were import (live "current rate" showing the export Agile rate instead of the import tariff). Fixed before release; no stable v1.x build was affected.
-- **MQTT transport** — added `User-Agent` header required by `api.backend.octopus.energy`. Without it the backend returns 403 at the edge, which surfaced as "WoF returns HTML" / saving sessions silently broken.
-- **MQTT discovery for boolean sensors** — `octoplus_enrolled` and `octoplus_loyalty_points_user` were previously published to the `sensor` MQTT domain; HA's sensor handler doesn't accept raw boolean values cleanly, so the entities never registered on some installs. Now published as `binary_sensor` — registers reliably.
-- **MQTT discovery for read-only info sensors** — removed `entity_category: config` from tariff codes, validity dates, etc. That category is intended for user-configurable entities; on read-only sensors HA's state handling caused them to stick at "unavailable". Moved to the main entity list.
-
-**Backwards compatibility:** zero breaking changes. New entities appear automatically after first poll following upgrade. Existing automations continue unchanged.
-
-### v1.2.1 (2026-04-29)
-- **Deprecated API migration** — moved to current `devices` query and `setDevicePreferences` mutation
-
-### v1.2.0 (2026-04-26)
-- **Smart Charging Toggle** — suspend/resume Octopus intelligent charging from Node-RED or Home Assistant
-- **HA MQTT Switch** — auto-discovered Smart Charging switch entity
-- **`smart_charging` payload field** — live state in every message
-
-### v1.0.4 (2025-12-11)
-- **Manual Refresh Button** — Force API refresh via Home Assistant with 30s cooldown
-- **Next Poll Timer** — See when next automatic refresh occurs
-- **API Complexity Monitoring** — Track API usage against 50,000/hour limit
-- **Rate Limiting** — MQTT button (30s cooldown), Node-RED input (no limit)
+See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
 ---
 

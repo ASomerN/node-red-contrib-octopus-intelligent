@@ -123,3 +123,27 @@ test('success on the first attempt behaves as before (one discovery, one schedul
         node._handlers.close();
     }
 });
+
+// Review 2026-10-09 #3: every discovery retry kept its timer handle until the node closed, so
+// a node left with a wrong account number gathered about 288 handles a day. Fired handles are
+// now dropped. Close clears every handle still held, so count the clearTimeout calls there.
+test('the held timer handles stay bounded while discovery keeps failing', async () => {
+    discoverProducts.mockRejectedValue(new Error('Discovery failed: KT-CT-1111'));
+    const node = buildNode();
+    await jest.advanceTimersByTimeAsync(2100);
+    await jest.advanceTimersByTimeAsync(30000 + 60000 + 120000);
+    for (let i = 0; i < 100; i++) await jest.advanceTimersByTimeAsync(300000);
+    expect(discoverProducts.mock.calls.length).toBeGreaterThan(100);
+
+    const clearSpy = jest.spyOn(global, 'clearTimeout');
+    try {
+        node._handlers.close();
+        expect(clearSpy.mock.calls.length).toBeLessThan(10);
+    } finally {
+        clearSpy.mockRestore();
+    }
+    // The pending retry was among them: nothing runs after close.
+    const calls = discoverProducts.mock.calls.length;
+    await jest.advanceTimersByTimeAsync(3600000);
+    expect(discoverProducts.mock.calls.length).toBe(calls);
+});

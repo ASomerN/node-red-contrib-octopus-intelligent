@@ -1,0 +1,165 @@
+[
+    {
+        "id": "ex17-summary-tab",
+        "type": "tab",
+        "label": "Daily charging summary",
+        "disabled": false,
+        "info": "## Daily charging summary\n\nSends a morning summary of the charging sessions that ended in the last 24 hours: count, energy, cost and any problems. It also sends a short message as soon as a new session finishes.\n\n**Inputs it reads:** `charging_sessions`, `last_session` (each session has `start`, `end`, `kwh_added`, `soc_change`, `soc_final`, `type`, `cost`, `problems`), `vehicle_make`, `vehicle_model`, `smartflex_vehicle_error`.\n\n**Setup**\n\n1. Change the time on the **Every day at 08:00** inject if you like.\n2. Edit `SUMMARY_HOURS` and `TIME_ZONE` in **Build daily summary**, and `TIME_ZONE` in **Remember sessions**.\n3. Replace the debug nodes with your notifier.\n\nSession data needs a car or charge point under Octopus SmartFlex control. The node reads it every 30 minutes and keeps the last 5 sessions.\n\n**Wiring to your Octopus Intelligent node**\n\nThis flow has no Octopus node of its own. Use the one you already have: each node polls Octopus by itself, so several nodes on one account multiply your API use and can hit Octopus's rate limits.\n\n1. Add a **link out** node after your Octopus Intelligent node and wire the node's output to it.\n2. Open that link out and tick **From Octopus node** on this tab.\n\nIf your node is on the same tab, you can delete the link nodes and wire it directly instead."
+    },
+    {
+        "id": "ex17-summary-comment",
+        "type": "comment",
+        "z": "ex17-summary-tab",
+        "name": "Read me: daily charging summary and session-finished message",
+        "info": "## Daily charging summary\n\nSends a morning summary of the charging sessions that ended in the last 24 hours: count, energy, cost and any problems. It also sends a short message as soon as a new session finishes.\n\n**Inputs it reads:** `charging_sessions`, `last_session` (each session has `start`, `end`, `kwh_added`, `soc_change`, `soc_final`, `type`, `cost`, `problems`), `vehicle_make`, `vehicle_model`, `smartflex_vehicle_error`.\n\n**Setup**\n\n1. Change the time on the **Every day at 08:00** inject if you like.\n2. Edit `SUMMARY_HOURS` and `TIME_ZONE` in **Build daily summary**, and `TIME_ZONE` in **Remember sessions**.\n3. Replace the debug nodes with your notifier.\n\nSession data needs a car or charge point under Octopus SmartFlex control. The node reads it every 30 minutes and keeps the last 5 sessions.\n\n**Wiring to your Octopus Intelligent node**\n\nThis flow has no Octopus node of its own. Use the one you already have: each node polls Octopus by itself, so several nodes on one account multiply your API use and can hit Octopus's rate limits.\n\n1. Add a **link out** node after your Octopus Intelligent node and wire the node's output to it.\n2. Open that link out and tick **From Octopus node** on this tab.\n\nIf your node is on the same tab, you can delete the link nodes and wire it directly instead.",
+        "x": 300,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "ex17-summary-from-octopus",
+        "type": "link in",
+        "z": "ex17-summary-tab",
+        "name": "From Octopus node",
+        "links": [],
+        "x": 165,
+        "y": 120,
+        "wires": [
+            [
+                "ex17-summary-remember"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-summary-remember",
+        "type": "function",
+        "z": "ex17-summary-tab",
+        "name": "Remember sessions, spot new one",
+        "func": "// Keeps the latest SmartFlex session data for the daily summary, and sends a short\n// message as soon as a new charging session has finished.\n// Octopus session data is read every 30 minutes, so the message can arrive up to\n// about half an hour after the car stops.\n\nconst TIME_ZONE = 'Europe/London'; // EDIT: used for the times in the text\nconst when = (iso) => (iso ? new Date(iso).toLocaleString('en-GB', { timeZone: TIME_ZONE, weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '?');\nconst describe = (s) => {\n    const kwh = typeof s.kwh_added === 'number' ? `${s.kwh_added.toFixed(1)} kWh` : 'unknown kWh';\n    const soc = typeof s.soc_final === 'number' ? `, ended at ${s.soc_final}%` : '';\n    const cost = s.cost && typeof s.cost.amount === 'number'\n        ? (s.cost.currency === 'GBP' ? `, cost £${s.cost.amount.toFixed(2)}` : `, cost ${s.cost.amount} ${s.cost.currency || ''}`.trim())\n        : '';\n    const problems = s.problems && s.problems.length ? `. Problems: ${s.problems.join(', ')}` : '';\n    return `${when(s.start)} to ${when(s.end)}: ${kwh}${soc}${cost}${problems}`;\n};\n\nconst p = msg.payload;\nif (!p || typeof p !== 'object') return null;\n\n// Only store once the vehicle has been read (charging_sessions starts as an empty list).\nif (p.last_session || (Array.isArray(p.charging_sessions) && p.charging_sessions.length)) {\n    flow.set('vehicleSessions', {\n        vehicle: [p.vehicle_make, p.vehicle_model].filter(Boolean).join(' ') || 'Your car',\n        last_session: p.last_session,\n        charging_sessions: p.charging_sessions || [],\n        read_at: new Date().toISOString(),\n    });\n}\nflow.set('vehicleError', p.smartflex_vehicle_error || null);\n\nconst last = p.last_session;\nif (!last) return null;\nconst key = `${last.start}|${last.end}`;\nconst known = context.get('lastSessionKey');\ncontext.set('lastSessionKey', key);\n// The first session seen after a deploy is the baseline, not news.\nif (!known || known === key) return null;\nreturn { topic: 'Charging session finished', payload: `Charging session finished. ${describe(last)}.` };\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 470,
+        "y": 120,
+        "wires": [
+            [
+                "ex17-summary-new-debug"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-summary-new-debug",
+        "type": "debug",
+        "z": "ex17-summary-tab",
+        "name": "Session finished",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 750,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "ex17-summary-daily",
+        "type": "inject",
+        "z": "ex17-summary-tab",
+        "name": "Every day at 08:00",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "00 08 * * *",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 180,
+        "y": 220,
+        "wires": [
+            [
+                "ex17-summary-build"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-summary-now",
+        "type": "inject",
+        "z": "ex17-summary-tab",
+        "name": "Summary now",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 160,
+        "y": 260,
+        "wires": [
+            [
+                "ex17-summary-build"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-summary-build",
+        "type": "function",
+        "z": "ex17-summary-tab",
+        "name": "Build daily summary [edit settings]",
+        "func": "// Builds a short daily summary from the sessions the node has read (last 5 sessions).\n//\n// ===== EDIT THESE =====\nconst SUMMARY_HOURS = 24; // sessions that ended within this many hours count as \"today\"\n// TIME_ZONE is the EDIT line just below this block.\n// ======================\n\nconst TIME_ZONE = 'Europe/London'; // EDIT: used for the times in the text\nconst when = (iso) => (iso ? new Date(iso).toLocaleString('en-GB', { timeZone: TIME_ZONE, weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '?');\nconst describe = (s) => {\n    const kwh = typeof s.kwh_added === 'number' ? `${s.kwh_added.toFixed(1)} kWh` : 'unknown kWh';\n    const soc = typeof s.soc_final === 'number' ? `, ended at ${s.soc_final}%` : '';\n    const cost = s.cost && typeof s.cost.amount === 'number'\n        ? (s.cost.currency === 'GBP' ? `, cost £${s.cost.amount.toFixed(2)}` : `, cost ${s.cost.amount} ${s.cost.currency || ''}`.trim())\n        : '';\n    const problems = s.problems && s.problems.length ? `. Problems: ${s.problems.join(', ')}` : '';\n    return `${when(s.start)} to ${when(s.end)}: ${kwh}${soc}${cost}${problems}`;\n};\n\nconst data = flow.get('vehicleSessions');\nconst err = flow.get('vehicleError');\nif (!data) {\n    const why = err ? ` Last error: ${err}` : '';\n    return { topic: 'Daily charging summary', payload: `No SmartFlex session data yet. The node reads it every 30 minutes.${why}` };\n}\n\nconst cutoff = Date.now() - SUMMARY_HOURS * 3600000;\nconst recent = data.charging_sessions.filter((s) => s.end && Date.parse(s.end) >= cutoff);\nconst kwh = recent.reduce((sum, s) => sum + (typeof s.kwh_added === 'number' ? s.kwh_added : 0), 0);\nconst pounds = recent.reduce((sum, s) => sum + (s.cost && s.cost.currency === 'GBP' && typeof s.cost.amount === 'number' ? s.cost.amount : 0), 0);\n\nconst lines = [];\nif (recent.length) {\n    lines.push(`${data.vehicle}: ${recent.length} session${recent.length === 1 ? '' : 's'} in the last ${SUMMARY_HOURS} hours, ${kwh.toFixed(1)} kWh, £${pounds.toFixed(2)}.`);\n    recent.forEach((s) => lines.push(`- ${describe(s)}`));\n} else {\n    lines.push(`${data.vehicle}: no charging sessions ended in the last ${SUMMARY_HOURS} hours.`);\n    if (data.last_session) lines.push(`Last session: ${describe(data.last_session)}.`);\n}\nif (err) lines.push(`Note: the last vehicle read had an error: ${err}`);\n\nreturn { topic: 'Daily charging summary', payload: lines.join('\\n') };\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 440,
+        "y": 240,
+        "wires": [
+            [
+                "ex17-summary-debug"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-summary-debug",
+        "type": "debug",
+        "z": "ex17-summary-tab",
+        "name": "Daily summary",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 720,
+        "y": 240,
+        "wires": []
+    }
+]

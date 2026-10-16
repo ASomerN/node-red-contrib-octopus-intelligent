@@ -73,6 +73,35 @@ describe('buildDefaultPayload', () => {
         expect(payload).toHaveProperty('free_electricity_error', null);
     });
 
+    test('v1.7.0: includes every SmartFlex vehicle and inverter field with its category default', () => {
+        const state = {
+            confirmedLimit: 80, confirmedTime: '08:00',
+            pendingLimit: 80, pendingTime: '08:00',
+            chargingNow: false, smartChargingSuspended: null
+        };
+        const payload = buildDefaultPayload(state);
+        const vehicle = require('../lib/categories/smartflex-vehicle').defaultData;
+        const inverter = require('../lib/categories/smartflex-inverter').defaultData;
+        for (const [key, value] of Object.entries({ ...vehicle, ...inverter })) {
+            expect(payload).toHaveProperty(key);
+            expect(payload[key]).toEqual(value);
+        }
+        expect(payload).toHaveProperty('smartflex_vehicle_error', null);
+        expect(payload).toHaveProperty('smartflex_inverter_error', null);
+    });
+
+    test('v1.7.0: SmartFlex array defaults are not shared between payloads', () => {
+        const state = {
+            confirmedLimit: 80, confirmedTime: '08:00',
+            pendingLimit: 80, pendingTime: '08:00',
+            chargingNow: false, smartChargingSuspended: null
+        };
+        const a = buildDefaultPayload(state);
+        const b = buildDefaultPayload(state);
+        expect(a.charging_sessions).not.toBe(b.charging_sessions);
+        expect(a.device_alerts).not.toBe(b.device_alerts);
+    });
+
     test('throws TypeError when state is not an object', () => {
         expect(() => buildDefaultPayload(undefined)).toThrow(TypeError);
         expect(() => buildDefaultPayload(null)).toThrow(TypeError);

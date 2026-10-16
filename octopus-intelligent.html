@@ -22,7 +22,9 @@
             wheelOfFortuneInterval: { value: 60, validate: RED.validators.number() },
             // Home Mini
             enableHomeMini: { value: false },
-            homeMiniInterval: { value: 1, validate: RED.validators.number() }
+            homeMiniInterval: { value: 1, validate: RED.validators.number() },
+            // SmartFlex inverter (experimental, v1.7.0)
+            enableSmartflexInverter: { value: false }
         },
         credentials: {
             apiKey: { type: "password" }
@@ -130,57 +132,84 @@
         <input type="number" id="node-input-homeMiniInterval" style="width:55px;" placeholder="1">
         <span style="font-size:0.85em;color:#888;">min</span>
     </div>
+
+    <div class="form-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">
+        <label for="node-input-enableSmartflexInverter" style="width:120px;flex-shrink:0;">
+            <i class="fa fa-sun-o"></i> Inverter
+        </label>
+        <input type="checkbox" id="node-input-enableSmartflexInverter" style="width:auto;">
+        <span style="font-size:0.85em;color:#666;margin-left:4px;">experimental: not yet verified on a real inverter. Every 5 min.</span>
+    </div>
 </script>
 
 <script type="text/html" data-help-name="octopus-intelligent">
-    <p>This node integrates with the <strong>Octopus Energy Intelligent Octopus Go</strong> API to retrieve planned charging slots and preferences.</p>
-    <p>Configure your Account Number and API Key, then deploy the flow. The node will fetch data at regular intervals and output charging information.</p>
-    <p>Enable MQTT to automatically configure Home Assistant entities via auto-discovery.</p>
+    <p>This node reads Octopus Energy data into Node-RED. It covers EV charging slots, electricity and gas rates, consumption, account balance, and rewards. EV charging features need Intelligent Octopus Go.</p>
+    <p>Enter your Account Number and API Key, then deploy. The node polls on its own and sends the data in <code>msg.payload</code>.</p>
+    <p>Tick Enable Home Assistant MQTT to also publish the data to Home Assistant with auto-discovery.</p>
 
     <h3>Examples</h3>
 
     <h4>1. Basic Monitoring</h4>
-    <p>Monitor your charging slots every 5 minutes:</p>
-    <pre>[{"id":"1","type":"inject","name":"Every 5 min","props":[{"p":"payload"}],"repeat":"300","crontab":"","once":true,"topic":"","payload":"","payloadType":"date","x":130,"y":80,"wires":[["2"]]},{"id":"2","type":"octopus-intelligent","name":"Octopus Intelligent","account":"A-XXXXXXXX","apiKey":"sk_live_...","refreshInterval":"5","enableMqtt":false,"x":340,"y":80,"wires":[["3"]]},{"id":"3","type":"debug","name":"Debug Output","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"true","targetType":"full","x":570,"y":80,"wires":[]}]</pre>
+    <p>The node polls on its own after deploy. Connect a Debug node to see the output. Add an Inject node only to force a refresh.</p>
+    <pre>[{"id":"2","type":"octopus-intelligent","name":"Octopus Intelligent","accountNumber":"A-XXXXXXXX","refreshInterval":"5","enableMqtt":false,"x":340,"y":80,"wires":[["3"]]},{"id":"3","type":"debug","name":"Debug Output","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"true","targetType":"full","x":570,"y":80,"wires":[]}]</pre>
+    <p>Enter your API key in the node editor after you import the flow.</p>
 
     <h4>2. Set Preferences from Flow</h4>
-    <p>Control charge limit and ready time programmatically:</p>
-    <pre>[{"id":"1","type":"inject","name":"Set 85% by 07:30","props":[{"p":"payload"}],"repeat":"","crontab":"","once":false,"topic":"","payload":"{\"set_limit\":85,\"set_time\":\"07:30\"}","payloadType":"json","x":150,"y":140,"wires":[["2"]]},{"id":"2","type":"octopus-intelligent","name":"Octopus Intelligent","account":"A-XXXXXXXX","apiKey":"sk_live_...","refreshInterval":"5","enableMqtt":true,"mqttBroker":"mqtt-broker","x":380,"y":140,"wires":[["3"]]},{"id":"3","type":"debug","name":"Confirmation","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"payload","targetType":"msg","x":610,"y":140,"wires":[]}]</pre>
+    <p>Set the charge limit and ready-by time from a flow.</p>
+    <pre>[{"id":"1","type":"inject","name":"Set 85% by 07:30","props":[{"p":"payload"}],"repeat":"","crontab":"","once":false,"topic":"","payload":"{\"set_limit\":85,\"set_time\":\"07:30\"}","payloadType":"json","x":150,"y":140,"wires":[["2"]]},{"id":"2","type":"octopus-intelligent","name":"Octopus Intelligent","accountNumber":"A-XXXXXXXX","refreshInterval":"5","enableMqtt":false,"x":380,"y":140,"wires":[["3"]]},{"id":"3","type":"debug","name":"Confirmation","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"payload","targetType":"msg","x":610,"y":140,"wires":[]}]</pre>
+    <p>Enter your API key in the node editor after you import the flow.</p>
 
-    <p>Ready-by time: any half-hour slot from 00:00 to 23:30 (matches the Octopus app). Other values are rejected with an error and nothing is sent to Octopus. Charge limit values clamp to 5&ndash;100 and round to 5; non-numeric values and <code>set_limit: 0</code> are rejected.</p>
+    <p>The ready-by time can be any half-hour slot from 00:00 to 23:30, as in the Octopus app. Any other value gives a node error and nothing is sent to Octopus. The node clamps the charge limit to between 5 and 100 and rounds it to the nearest 5. A limit that is not a number above 0, such as <code>set_limit: 0</code>, gives a node error.</p>
+
+    <h4>Other commands</h4>
+    <p><code>set_timezone</code> takes an IANA name such as <code>Europe/London</code>. An empty value is ignored. <code>set_smart_charging</code> takes <code>true</code> or <code>false</code>, and any other value is ignored with no error. Each charging poll reads the smart charging state, so a change made in the Octopus app shows up in <code>smart_charging</code>.</p>
+    <pre>msg.payload = { set_smart_charging: false };
+msg.payload = { set_timezone: "Europe/London" };</pre>
+    <p>The node checks the <code>set_timezone</code> name. A name it does not know, or one over 64 characters, writes an error to the Node-RED log and the timezone is not changed. It does not update the Home Assistant Timezone select.</p>
+
+    <h4>Refresh</h4>
+    <p>Send any message without a command to refresh the charging data right away. There is no cooldown on this input. A message with a command never starts a refresh. A refresh updates the charging data only, not rates, gas, or account data.</p>
 
     <h4>Charge Cap</h4>
-    <p>Limit smart charging to off-peak rates only (as in the Octopus app). Non-boolean values are ignored. Also available as the <strong>Charge Cap</strong> switch in Home Assistant:</p>
+    <p>Charge Cap limits smart charging to off-peak rates only, as in the Octopus app. The node ignores any value other than <code>true</code> or <code>false</code>. The <strong>Charge Cap</strong> switch in Home Assistant does the same job.</p>
     <pre>msg.payload = { set_charge_cap: true };</pre>
-    <p>The <code>charge_cap</code> payload field is <code>true</code>/<code>false</code> when Charge Cap is on/off, and <code>null</code> when not applicable to the device.</p>
+    <p>The <code>charge_cap</code> payload field is <code>true</code> when Charge Cap is on, <code>false</code> when it is off, and <code>null</code> when the device does not support it.</p>
+
+    <h4>Boost Charge</h4>
+    <p>Start charging now, outside the Octopus plan. Send <code>false</code> to cancel the boost. Only <code>true</code> and <code>false</code> work. Any other value gives a node error and sends nothing. The <strong>Boost Charge</strong> switch in Home Assistant does the same job.</p>
+    <pre>msg.payload = { set_boost: true };</pre>
+    <p>This is not the same as <code>set_smart_charging</code>, which pauses or resumes Octopus control. Octopus can refuse a boost, for example when the car is unplugged. The node logs the Octopus error and does not retry. If Octopus refuses the same choice 3 times in 10 minutes, the node ignores that choice for 10 minutes and logs one warning.</p>
+    <p>The node sends one boost request at a time, at least 5 seconds apart, and only your last choice. When Octopus accepts it, the node polls Octopus soon after (it waits if 3 planned-dispatch queries already went out in the last minute). The switch shows what you asked for until Octopus agrees, for up to 2 minutes. After a refusal it does not poll. If the answer is not clear, the node leaves the switch as it was and polls to check. If Octopus does not answer within 75 seconds, the node gives up on that request, sets <code>boost_error</code>, and polls to check.</p>
+    <p>The <code>boosting</code> payload field is <code>true</code> while a boost runs, <code>false</code> when not, and <code>null</code> until known. <code>boosting</code> goes back to <code>null</code> if no charging poll has confirmed it for twice the refresh interval. <code>boost_error</code> holds the error from the last <code>set_boost</code> that failed. A boost that works clears it, and so does the first charging poll that reads the device state a minute or more later. A boost counts as charging, so <code>charging_now</code> is <code>true</code> during a boost.</p>
 
     <h4>Combining commands</h4>
-    <p>One message can carry several commands, and each is applied independently:</p>
+    <p>One message can carry several commands, and the node applies each one separately.</p>
     <pre>msg.payload = { set_limit: 90, set_time: "06:30", set_charge_cap: true };</pre>
-    <p><code>set_limit</code> and <code>set_time</code> are sent to Octopus together, so an invalid value in either rejects both; other commands in the same message still apply.</p>
+    <p>The node sends <code>set_limit</code> and <code>set_time</code> to Octopus together, so a bad value in either one stops both. The other commands in the same message still apply.</p>
 
     <h4>3. Home Assistant MQTT Integration</h4>
-    <p>Automatically create Home Assistant entities via MQTT discovery:</p>
-    <pre>[{"id":"1","type":"inject","name":"Every 5 min","props":[{"p":"payload"}],"repeat":"300","crontab":"","once":true,"topic":"","payload":"","payloadType":"date","x":130,"y":200,"wires":[["2"]]},{"id":"2","type":"octopus-intelligent","name":"Octopus Intelligent","account":"A-XXXXXXXX","apiKey":"sk_live_...","refreshInterval":"5","enableMqtt":true,"mqttBroker":"mqtt-broker","x":340,"y":200,"wires":[["3"]]},{"id":"3","type":"debug","name":"Debug Output","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"true","targetType":"full","x":570,"y":200,"wires":[]},{"id":"mqtt-broker","type":"mqtt-broker","name":"Home Assistant MQTT","broker":"localhost","port":"1883","clientid":"","autoConnect":true,"usetls":false,"protocolVersion":"4","keepalive":"60","cleansession":true,"autoUnsubscribe":true,"birthTopic":"","birthQos":"0","birthPayload":"","birthMsg":{},"closeTopic":"","closeQos":"0","closePayload":"","closeMsg":{},"willTopic":"","willQos":"0","willPayload":"","willMsg":{},"userProps":"","sessionExpiry":""}]</pre>
+    <p>The node creates Home Assistant entities through MQTT discovery. It ignores retained messages on the command topics that change Octopus settings or start a poll (<code>submit_changes</code>, <code>refresh</code>, <code>set_smart_charging</code>, <code>set_charge_cap</code>, and <code>set_boost</code>), because the broker would replay them on every restart. It logs one warning per topic.</p>
+    <pre>[{"id":"2","type":"octopus-intelligent","name":"Octopus Intelligent","accountNumber":"A-XXXXXXXX","refreshInterval":"5","enableMqtt":true,"broker":"mqtt-broker","x":340,"y":200,"wires":[["3"]]},{"id":"3","type":"debug","name":"Debug Output","active":true,"tosidebar":true,"console":false,"tostatus":false,"complete":"true","targetType":"full","x":570,"y":200,"wires":[]},{"id":"mqtt-broker","type":"mqtt-broker","name":"Home Assistant MQTT","broker":"localhost","port":"1883","clientid":"","autoConnect":true,"usetls":false,"protocolVersion":"4","keepalive":"60","cleansession":true,"autoUnsubscribe":true,"birthTopic":"","birthQos":"0","birthPayload":"","birthMsg":{},"closeTopic":"","closeQos":"0","closePayload":"","closeMsg":{},"willTopic":"","willQos":"0","willPayload":"","willMsg":{},"userProps":"","sessionExpiry":""}]</pre>
+    <p>Enter your API key in the node editor after you import the flow.</p>
 
     <h3>Visual Examples</h3>
     <p><strong>Node-RED Flow Examples:</strong></p>
     <img src="https://raw.githubusercontent.com/ASomerN/node-red-contrib-octopus-intelligent/master/images/examples/basic-monitoring-flow.png" alt="Node-RED Flow Examples" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;">
-    <p style="margin-top: 8px;"><em>Reads by default, manually refreshable from a button, pass in commands to change charge time and percentage</em></p>
+    <p style="margin-top: 8px;"><em>The node polls on its own, refreshes from a button, and takes commands to change the charge target and ready-by time</em></p>
 
     <p style="margin-top: 16px;"><strong>MQTT Integration:</strong></p>
     <img src="https://raw.githubusercontent.com/ASomerN/node-red-contrib-octopus-intelligent/master/images/examples/mqtt-integration-flow.png" alt="MQTT Integration Flow" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;">
-    <p style="margin-top: 8px;"><em>Complete MQTT integration with Home Assistant</em></p>
+    <p style="margin-top: 8px;"><em>MQTT integration with Home Assistant</em></p>
 
     <p style="margin-top: 16px;"><strong>Home Assistant Device:</strong></p>
     <img src="https://raw.githubusercontent.com/ASomerN/node-red-contrib-octopus-intelligent/master/images/examples/homeassistant-device.png" alt="Home Assistant Device" style="max-width: 100%; border: 1px solid #ddd; border-radius: 4px;">
-    <p style="margin-top: 8px;"><em>Octopus Intelligent device with all controls and sensors automatically configured</em></p>
+    <p style="margin-top: 8px;"><em>The Octopus Intelligent device, with its controls and sensors set up by MQTT discovery</em></p>
 
     <h3>Output Format</h3>
-    <p>The node outputs a message with the following structure:</p>
+    <p>This is a short extract of the output message. The full payload has more than 150 fields, listed in the README.</p>
     <pre>{
   "payload": {
-    "next_start": "2025-11-29T01:30:00Z",
+    "next_start": "2025-11-29 01:30:00+00:00",
     "total_energy": 42.5,
     "next_kwh": "15.20",
     "next_source": "smart-charge",
@@ -188,28 +217,39 @@
     "confirmed_time": "07:00",
     "charging_now": false,
     "charge_cap": false,
-    "slot1_start": "2025-11-29T01:30:00Z",
-    "slot1_end": "2025-11-29T05:30:00Z"
-  },
-  "debug": {
-    "success": true,
-    "step": "complete",
-    "apiCalls": [...]
+    "boosting": false,
+    "boost_error": null,
+    "slot1_start": "2025-11-29 01:30:00+00:00",
+    "slot1_end": "2025-11-29 05:30:00+00:00"
   }
 }</pre>
+    <p>Time fields use the node timezone. Fields ending in <code>_raw</code> keep the original UTC string from Octopus.</p>
+    <p>Poll messages carry only <code>msg.payload</code>. Check the <code>*_error</code> fields, the node status, and the Node-RED log if data looks wrong. When <code>charging_now</code> changes, the node also sends a <code>msg.debug</code> object with <code>timestamp</code>, <code>trigger</code>, <code>previous_state</code>, and <code>new_state</code>. When a saving session, free electricity window or rate slot starts or ends, it sends a message whose <code>msg.debug</code> has <code>trigger: "active_fields_change"</code> and the <code>changed</code> fields. When a <code>set_boost</code> request fails, it sends a message whose <code>msg.debug</code> has <code>trigger: "boost_failed"</code>, <code>request</code> and <code>error</code>.</p>
+
+    <h3>Errors and Retries</h3>
+    <p>Every request to Octopus gives up after 30 seconds with no answer.</p>
+    <p>When the charging poll fails, the node keeps the known plan. If Octopus can't return the charging plan (<code>KT-CT-4340</code>) or the charging preferences (<code>KT-CT-4339</code>), the node tries again after 30 seconds, 1 minute, and 2 minutes, then every 2 minutes, until it works or the next normal poll is due. Other errors wait for the next normal poll. <code>intelligent_error</code> and the node status show a short error with the Octopus code, for example <code>KT-CT-4340: Unable to fetch planned dispatches</code>. The Node-RED log shows a warning for each failed attempt and one line when it works again.</p>
+    <p>If only the charging preferences fail (<code>KT-CT-4339</code>), the poll still works and keeps the last confirmed target and ready-by time.</p>
+
+    <h3>SmartFlex Vehicle and Inverter</h3>
+    <p>If Octopus controls your car or charge point, the node adds its details to <code>msg.payload</code> every 30 minutes. You do not need to turn this on.</p>
+    <ul>
+        <li><code>vehicle_make</code>, <code>vehicle_model</code>, <code>vehicle_battery_kwh</code>, <code>charger_power_kw</code></li>
+        <li><code>device_state</code>: what Octopus says the device is doing, for example <code>SMART_CONTROL_IN_PROGRESS</code>, <code>BOOSTING</code>, or <code>LOST_CONNECTION</code>. The charging poll reads it for a car or a charge point, so it updates every refresh interval.</li>
+        <li><code>device_alerts</code>: Octopus alert messages for the device, as a list of <code>{ message, published_at }</code>. The node keeps the 10 newest, newest first, and cuts each message to 250 characters.</li>
+        <li><code>charging_sessions</code>: your last 5 charging sessions, newest first. Each has <code>start</code>, <code>end</code>, <code>kwh_added</code>, <code>soc_change</code>, <code>soc_final</code>, <code>type</code>, <code>cost</code>, and <code>problems</code>. <code>last_session</code> is the latest finished one.</li>
+        <li><code>last_session_kwh</code>, <code>last_session_soc_final</code>, <code>last_session_problem</code>: the latest finished session, as single values.</li>
+        <li><code>smartflex_vehicle_error</code>: the last error, or <code>null</code>.</li>
+    </ul>
+    <p><strong>Inverter (experimental).</strong> This is not yet verified on a real inverter. Tick <strong>Inverter</strong> to read solar, home battery, grid, and site power every 5 minutes. It only runs if Octopus lists a SmartFlex inverter on your account. Fields: <code>inverter_make</code>, <code>inverter_model</code>, <code>solar_peak_kw</code>, <code>inverter_power_kw</code>, <code>inverter_connection_status</code>, <code>inverter_online</code>, <code>home_battery_power_kw</code>, <code>home_battery_soc</code>, <code>solar_power_kw</code>, <code>grid_power_kw</code>, <code>site_consumption_kw</code>, <code>site_export_kw</code>, and <code>smartflex_inverter_error</code>. If the values look wrong, please open an issue.</p>
+    <p>With MQTT on, Home Assistant also gets matching sensors on the same Octopus Intelligent device. The session list and alerts are attributes of the Last Charge Session Energy sensor. The inverter entities appear only while the Inverter option is ticked. Unticking it removes them.</p>
 
     <h3>Home Assistant Integration</h3>
-    <p>When MQTT is enabled, the node automatically creates:</p>
-    <ul>
-        <li><strong>Controls:</strong> Target charge slider, ready time selector, apply changes button, Charge Cap switch</li>
-        <li><strong>Sensors:</strong> Next charge time, total energy, charging status, individual slots</li>
-        <li><strong>Binary Sensor:</strong> Charging now indicator (ON/OFF)</li>
-    </ul>
-    <p>All entities appear under a single "Octopus Intelligent" device in Home Assistant.</p>
+    <p>When MQTT is on, the node publishes the charging controls (including the Boost Charge switch when Octopus lists a car or charger it controls), sensors, rates, consumption, rewards, a Refresh button, an Update entity, and error state binary sensors. All entities appear under one "Octopus Intelligent" device. See the README for the full list.</p>
 
     <h3>Requirements</h3>
     <ul>
-        <li>Octopus Energy account with Intelligent Octopus Go tariff</li>
+        <li>Octopus Energy account. EV charging features need the Intelligent Octopus Go tariff.</li>
         <li>API key from <a href="https://octopus.energy/dashboard/new/accounts/personal-details/api-access" target="_blank">Octopus dashboard</a></li>
         <li>MQTT broker (optional, for Home Assistant integration)</li>
     </ul>

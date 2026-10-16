@@ -136,6 +136,22 @@ describe('intelligent category', () => {
         expect(result.next_kwh).toBe('-1.86');
     });
 
+    // total_energy counts a non-numeric energyAddedKwh as 0; next_kwh must not publish "NaN".
+    test.each([['abc'], [''], ['  ']])('a non-numeric energyAddedKwh %p gives next_kwh "0", never "NaN"', (raw) => {
+        const result = intelligent.parseResponse(
+            {
+                devices: mockDevices,
+                flexPlannedDispatches: [
+                    { start: '2099-12-10T02:00:00+00:00', end: '2099-12-10T03:00:00+00:00', energyAddedKwh: raw, type: 'SMART' },
+                    { start: '2099-12-10T05:00:00+00:00', end: '2099-12-10T06:00:00+00:00', energyAddedKwh: '4.5', type: 'SMART' }
+                ]
+            },
+            { tz: 'UTC', serverTz: 'UTC' }
+        );
+        expect(result.next_kwh).toBe('0');
+        expect(result.total_energy).toBe(4.5);
+    });
+
     test('parseResponse handles no EV device gracefully (defaults)', () => {
         const result = intelligent.parseResponse(
             { devices: [], flexPlannedDispatches: mockDispatches },
@@ -179,6 +195,44 @@ describe('intelligent category', () => {
         expect(q.match(/isChargingDurationCapped/g)).toHaveLength(1);
     });
 
+    test('buildDevicesQuery(account, false) leaves out the device status and keeps the rest', () => {
+        const withStatus = intelligent.buildDevicesQuery('A-1').query;
+        const { query, variables } = intelligent.buildDevicesQuery('A-1', false);
+        expect(withStatus).toMatch(/smartStatus:\s*status\s*\{\s*isSuspended\s+currentState\s*\}/);
+        expect(query).not.toMatch(/status/i);
+        expect(query).toMatch(/schedules/);
+        expect(query).toMatch(/chargeCap:\s*preferences/);
+        expect(query).toMatch(/query getDevices/);
+        expect(variables).toEqual({ account: 'A-1' });
+    });
+
+    describe('statusNulledDevices', () => {
+        // KT-CT-4360 on the non-null status: Kraken nulls the whole device list.
+        const statusError = (path) => ({ message: 'Device status could not be fetched.', path,
+            extensions: { errorType: 'APPLICATION', errorCode: 'KT-CT-4360' } });
+
+        test('true for a null list with an error on smartStatus or status', () => {
+            expect(intelligent.statusNulledDevices([statusError(['devices', 0, 'smartStatus'])], { devices: null })).toBe(true);
+            expect(intelligent.statusNulledDevices([statusError(['devices', 0, 'status', 'isSuspended'])], { devices: null })).toBe(true);
+            expect(intelligent.statusNulledDevices([statusError(['devices', 0, 'smartStatus'])], null)).toBe(true);
+        });
+
+        test('true when a preferences error comes with it', () => {
+            const errors = [statusError(['devices', 0, 'smartStatus']),
+                { message: 'Your device charging preferences could not be fetched.', path: ['devices', 0, 'preferences'], extensions: { errorCode: 'KT-CT-4339' } }];
+            expect(intelligent.statusNulledDevices(errors, { devices: null })).toBe(true);
+        });
+
+        test('false when the list is present, the error is elsewhere, or there are no errors', () => {
+            expect(intelligent.statusNulledDevices([statusError(['devices', 0, 'smartStatus', 'isSuspended'])], { devices: [] })).toBe(false);
+            expect(intelligent.statusNulledDevices([{ message: 'Unauthorized.', path: ['devices'] }], { devices: null })).toBe(false);
+            expect(intelligent.statusNulledDevices([statusError(['devices', 0, 'smartStatus']), { message: 'x', path: ['account'] }], { devices: null })).toBe(false);
+            expect(intelligent.statusNulledDevices([{ message: 'x' }], { devices: null })).toBe(false);
+            expect(intelligent.statusNulledDevices(undefined, { devices: null })).toBe(false);
+            expect(intelligent.statusNulledDevices([], { devices: null })).toBe(false);
+        });
+    });
+
     test.each([
         ['ENABLED', true],
         ['DISABLED', false],
@@ -196,6 +250,56 @@ describe('intelligent category', () => {
 
     test('defaultData.charge_cap is null', () => {
         expect(intelligent.defaultData.charge_cap).toBeNull();
+    });
+
+    function withBoostState(currentState) {
+        const smartStatus = currentState === undefined ? null : { isSuspended: false, currentState };
+        return { devices: [{ ...mockDevices[0], smartStatus }], flexPlannedDispatches: [] };
+    }
+
+    test('buildDevicesQuery reads status { isSuspended currentState } once, under the smartStatus alias', () => {
+        // Kept apart so a status resolver error (KT-CT-4360) cannot blank the schedules.
+        const q = intelligent.buildDevicesQuery('A-1').query;
+        expect(q).toMatch(/smartStatus:\s*status\s*\{\s*isSuspended\s+currentState\s*\}/);
+        expect(q.match(/status\s*\{/g)).toHaveLength(1);
+    });
+
+    test.each([
+        ['BOOSTING', true],
+        ['SMART_CONTROL_CAPABLE', false],
+        ['SMART_CONTROL_IN_PROGRESS', false],
+        ['LOST_CONNECTION', false],
+        [undefined, null],
+    ])('currentState %p -> boosting %p', (raw, expected) => {
+        const r = intelligent.parseResponse(withBoostState(raw), { tz: 'UTC', serverTz: 'UTC' });
+        expect(r.boosting).toBe(expected);
+    });
+
+    test('boosting is null when there is no EV device', () => {
+        const r = intelligent.parseResponse({ devices: [], flexPlannedDispatches: [] }, { tz: 'UTC', serverTz: 'UTC' });
+        expect(r.boosting).toBeNull();
+    });
+
+    test('defaultData.boosting is null', () => {
+        expect(intelligent.defaultData.boosting).toBeNull();
+    });
+
+    // device_state comes from the same status.currentState as boosting, so the two always agree.
+    test.each([
+        ['BOOSTING', 'BOOSTING'],
+        ['SMART_CONTROL_IN_PROGRESS', 'SMART_CONTROL_IN_PROGRESS'],
+        ['LOST_CONNECTION', 'LOST_CONNECTION'],
+        [undefined, null],
+        ['', null],
+    ])('currentState %p -> device_state %p', (raw, expected) => {
+        const r = intelligent.parseResponse(withBoostState(raw), { tz: 'UTC', serverTz: 'UTC' });
+        expect(r.device_state).toBe(expected);
+    });
+
+    test('device_state is null when there is no EV device, and in defaultData', () => {
+        const r = intelligent.parseResponse({ devices: [], flexPlannedDispatches: [] }, { tz: 'UTC', serverTz: 'UTC' });
+        expect(r.device_state).toBeNull();
+        expect(intelligent.defaultData.device_state).toBeNull();
     });
 
 });
@@ -232,5 +336,48 @@ describe('slotsChanged', () => {
     test('missing lists are treated as empty', () => {
         expect(intelligent.slotsChanged(null, undefined, NOW)).toBe(false);
         expect(intelligent.slotsChanged(null, plan, NOW)).toBe(true);
+    });
+});
+
+// Review L4: the charging poll uses the EV that discovery picked (the LIVE one), so the
+// switch, preferences, boost state and dispatches all describe the same device.
+describe('extractEvDevice with the discovered device id', () => {
+    const oldCar = {
+        id: 'old-car', deviceType: 'ELECTRIC_VEHICLES',
+        preferences: { schedules: [{ dayOfWeek: 'MONDAY', time: '06:00:00', max: 50 }] },
+        smartStatus: { isSuspended: true, currentState: 'SMART_CONTROL_CAPABLE' },
+    };
+    const newCar = {
+        id: 'new-car', deviceType: 'ELECTRIC_VEHICLES',
+        preferences: { schedules: [{ dayOfWeek: 'MONDAY', time: '08:30:00', max: 90 }] },
+        smartStatus: { isSuspended: false, currentState: 'BOOSTING' },
+    };
+
+    test('picks the device with that id', () => {
+        expect(intelligent.extractEvDevice([oldCar, newCar], 'new-car')).toBe(newCar);
+    });
+
+    test('falls back to the first EV when the id is missing or not listed', () => {
+        expect(intelligent.extractEvDevice([oldCar, newCar])).toBe(oldCar);
+        expect(intelligent.extractEvDevice([oldCar, newCar], 'gone')).toBe(oldCar);
+    });
+
+    test('never picks a device of another type, even with that id', () => {
+        const hp = { id: 'new-car', deviceType: 'HEAT_PUMPS' };
+        expect(intelligent.extractEvDevice([hp, oldCar], 'new-car')).toBe(oldCar);
+    });
+
+    test('extractSuspended reads the discovered device', () => {
+        expect(intelligent.extractSuspended([oldCar, newCar], 'new-car')).toBe(false);
+        expect(intelligent.extractSuspended([oldCar, newCar])).toBe(true);
+    });
+
+    test('parseResponse reads preferences and status of the discovered device', () => {
+        const r = intelligent.parseResponse({ devices: [oldCar, newCar], flexPlannedDispatches: [] },
+            { tz: 'UTC', serverTz: 'UTC', evId: 'new-car' });
+        expect(r.confirmed_limit).toBe(90);
+        expect(r.confirmed_time).toBe('08:30');
+        expect(r.boosting).toBe(true);
+        expect(r.device_state).toBe('BOOSTING');
     });
 });

@@ -68,3 +68,31 @@ describe('validateLimit', () => {
         expect(r.error).toMatch(/between 5 and 100/);
     });
 });
+
+// Fuzz finding: the error text embedded the whole bad value, and a Symbol or a null-prototype
+// object made the template literal throw a TypeError inside the input handler.
+describe('limit and time errors are short and never throw (1.6.2)', () => {
+    const { planCommands } = require('../lib/commands');
+    const current = { confirmedLimit: 80, confirmedTime: '07:30' };
+
+    // Ported from the fuzz FINDING "limit/time errors are short and never throw for odd values".
+    test('limit/time errors are short and never throw for odd values', () => {
+        const plan = planCommands({ set_limit: 'x'.repeat(100000), set_time: 'y'.repeat(100000) }, current);
+        expect(plan.errors).toHaveLength(2);
+        plan.errors.forEach((e) => expect(e.length).toBeLessThanOrEqual(200));
+        for (const odd of [Symbol('s'), Object.create(null)]) {
+            expect(() => planCommands({ set_limit: odd }, current)).not.toThrow();
+            expect(() => planCommands({ set_time: odd }, current)).not.toThrow();
+            expect(() => validateLimit(odd)).not.toThrow();
+            expect(() => validateTime(odd)).not.toThrow();
+        }
+    });
+
+    test('the bad value is cut to 40 characters; odd values are reported as invalid', () => {
+        expect(validateLimit('z'.repeat(500)).error).toBe(`Invalid charge limit '${'z'.repeat(40)}...' — must be a number between 5 and 100`);
+        expect(validateTime('9'.repeat(41)).error.startsWith(`Invalid ready-by time '${'9'.repeat(40)}...'`)).toBe(true);
+        expect(validateLimit(Symbol('s'))).toEqual({ ok: false, error: "Invalid charge limit 'Symbol(s)' — must be a number between 5 and 100" });
+        expect(validateTime(Object.create(null)).error).toMatch(/^Invalid ready-by time '\[object Object\]'/);
+        expect(planCommands({ set_limit: Object.create(null) }, current).actions).toEqual([]);
+    });
+});

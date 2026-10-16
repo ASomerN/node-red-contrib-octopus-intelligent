@@ -85,3 +85,70 @@ describe('wrapWithInFlightGuard', () => {
         expect(fn).toHaveBeenCalledTimes(2);
     });
 });
+
+// Sweep 2026-10-08 #10: a backward wall-clock jump must not stall polling until the clock
+// catches up with lastPolled.
+describe('isDue after the clock steps back (1.6.2)', () => {
+    afterEach(() => { jest.useRealTimers(); });
+
+    test('lastPolled in the future counts as due', () => {
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date('2026-09-30T12:00:00Z'));
+        const cat = { enabled: true, intervalMs: 60 * 60 * 1000, lastPolled: Date.parse('2026-09-30T13:30:00Z') };
+        expect(isDue(cat)).toBe(true);
+    });
+
+    test('lastPolled a moment ago in the same slot is still not due', () => {
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date('2026-09-30T12:10:00Z'));
+        const cat = { enabled: true, intervalMs: 60 * 60 * 1000, lastPolled: Date.parse('2026-09-30T12:09:59Z') };
+        expect(isDue(cat)).toBe(false);
+    });
+
+    test('a disabled category stays not due', () => {
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date('2026-09-30T12:00:00Z'));
+        const cat = { enabled: false, intervalMs: 60000, lastPolled: Date.parse('2026-09-30T13:00:00Z') };
+        expect(isDue(cat)).toBe(false);
+    });
+});
+
+// Review 5 R5: an NTP correction of a second or two used to make every category polled in
+// the last seconds due at once. Only a step of 60 s or more re-polls.
+describe('isDue after a small or a large clock step back (1.6.2)', () => {
+    afterEach(() => { jest.useRealTimers(); });
+
+    test('a 2 s step back is not due and moves lastPolled back to now', () => {
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date('2026-09-30T12:00:00Z'));
+        const cat = { enabled: true, intervalMs: 60 * 60 * 1000, lastPolled: Date.parse('2026-09-30T12:00:02Z') };
+        expect(isDue(cat)).toBe(false);
+        expect(cat.lastPolled).toBe(Date.parse('2026-09-30T12:00:00Z'));
+    });
+
+    test('a step of 60 s or more is due', () => {
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date('2026-09-30T12:00:00Z'));
+        const cat = { enabled: true, intervalMs: 60 * 60 * 1000, lastPolled: Date.parse('2026-09-30T12:01:00Z') };
+        expect(isDue(cat)).toBe(true);
+    });
+
+    test('through runTick: 2 s back polls nothing, 2 h back polls everything', async () => {
+        const { runTick } = require('../lib/poll-tick');
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date('2026-09-30T12:10:00Z'));
+        const make = (id, intervalMs) => ({ id, enabled: true, intervalMs, lastPolled: 0, poll: jest.fn(async () => ({})) });
+        const cats = [make('intelligent', 5 * 60000), make('account', 3600000), make('update_check', 86400000)];
+        const tick = () => runTick({ categories: cats, state: {}, getToken: async () => 't' });
+        await tick();
+        cats.forEach((c) => expect(c.poll).toHaveBeenCalledTimes(1));
+
+        jest.setSystemTime(new Date('2026-09-30T12:09:58Z'));     // NTP: 2 s back
+        expect((await tick()).emitted).toBe(false);
+        cats.forEach((c) => expect(c.poll).toHaveBeenCalledTimes(1));
+
+        jest.setSystemTime(new Date('2026-09-30T10:09:58Z'));     // 2 h back
+        await tick();
+        cats.forEach((c) => expect(c.poll).toHaveBeenCalledTimes(2));
+    });
+});

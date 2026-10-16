@@ -4,11 +4,11 @@ const ss = require('../../lib/categories/saving-sessions');
 const mockResponse = {
     savingSessions: {
         events: [
-            { id: 'evt-1', code: 'SS2026-001', rewardPerKwhInOctoPoints: 800, startAt: '2026-10-15T17:00:00Z', endAt: '2026-10-15T18:00:00Z' }
+            { id: 'evt-1', code: 'SS2026-001', rewardPerKwhInOctoPoints: 800, startAt: '2099-10-15T17:00:00Z', endAt: '2099-10-15T18:00:00Z' }
         ],
         account: {
             hasJoinedCampaign: true,
-            joinedEvents: [{ eventId: 'evt-1', startAt: '2026-10-15T17:00:00Z', endAt: '2026-10-15T18:00:00Z', rewardGivenInOctoPoints: 800 }]
+            joinedEvents: [{ eventId: 'evt-1', startAt: '2099-10-15T17:00:00Z', endAt: '2099-10-15T18:00:00Z', rewardGivenInOctoPoints: 800 }]
         }
     }
 };
@@ -25,8 +25,8 @@ describe('saving-sessions category', () => {
     test('parseResponse extracts next event and joined status', () => {
         const result = ss.parseResponse(mockResponse);
         expect(result.saving_session_available).toBe(true);
-        expect(result.saving_session_start).toBe('2026-10-15T17:00:00Z');
-        expect(result.saving_session_end).toBe('2026-10-15T18:00:00Z');
+        expect(result.saving_session_start).toBe('2099-10-15T17:00:00Z');
+        expect(result.saving_session_end).toBe('2099-10-15T18:00:00Z');
         expect(result.saving_session_joined).toBe(true);
         expect(result.saving_sessions_error).toBeNull();
     });

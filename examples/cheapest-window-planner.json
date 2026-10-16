@@ -1,0 +1,165 @@
+[
+    {
+        "id": "ex17-window-tab",
+        "type": "tab",
+        "label": "Cheapest window planner",
+        "disabled": false,
+        "info": "## Cheapest window planner\n\nEach evening, finds the cheapest run of back-to-back half hours for an appliance (dishwasher, washing machine, hot water) that finishes by a deadline. Then sends a second message when that window starts, which you can wire to a smart plug.\n\n**Inputs it reads:** `applicable_rates` (a list of `{ valid_from, valid_to, value_pence_per_kwh }` for the next 24 hours).\n\n**Setup**\n\n1. Edit `RUN_MINUTES`, `FINISH_BY` and `TIME_ZONE` in **Find cheapest window**.\n2. The **Plan at 18:00** inject runs every day. Agile prices for the next day are usually out by then. Use **Plan now** to test.\n3. Wire the **Window started** output to the thing you want to switch on.\n4. On a tariff with the same price all night the earliest window wins, which is still a sensible answer.\n\nThe planner needs the node to have read the rate schedule at least once. That needs an electricity meter point (MPAN) on the account.\n\n**Wiring to your Octopus Intelligent node**\n\nThis flow has no Octopus node of its own. Use the one you already have: each node polls Octopus by itself, so several nodes on one account multiply your API use and can hit Octopus's rate limits.\n\n1. Add a **link out** node after your Octopus Intelligent node and wire the node's output to it.\n2. Open that link out and tick **From Octopus node** on this tab.\n\nIf your node is on the same tab, you can delete the link nodes and wire it directly instead."
+    },
+    {
+        "id": "ex17-window-comment",
+        "type": "comment",
+        "z": "ex17-window-tab",
+        "name": "Read me: cheapest appliance window before a deadline (edit Find cheapest window)",
+        "info": "## Cheapest window planner\n\nEach evening, finds the cheapest run of back-to-back half hours for an appliance (dishwasher, washing machine, hot water) that finishes by a deadline. Then sends a second message when that window starts, which you can wire to a smart plug.\n\n**Inputs it reads:** `applicable_rates` (a list of `{ valid_from, valid_to, value_pence_per_kwh }` for the next 24 hours).\n\n**Setup**\n\n1. Edit `RUN_MINUTES`, `FINISH_BY` and `TIME_ZONE` in **Find cheapest window**.\n2. The **Plan at 18:00** inject runs every day. Agile prices for the next day are usually out by then. Use **Plan now** to test.\n3. Wire the **Window started** output to the thing you want to switch on.\n4. On a tariff with the same price all night the earliest window wins, which is still a sensible answer.\n\nThe planner needs the node to have read the rate schedule at least once. That needs an electricity meter point (MPAN) on the account.\n\n**Wiring to your Octopus Intelligent node**\n\nThis flow has no Octopus node of its own. Use the one you already have: each node polls Octopus by itself, so several nodes on one account multiply your API use and can hit Octopus's rate limits.\n\n1. Add a **link out** node after your Octopus Intelligent node and wire the node's output to it.\n2. Open that link out and tick **From Octopus node** on this tab.\n\nIf your node is on the same tab, you can delete the link nodes and wire it directly instead.",
+        "x": 330,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "ex17-window-from-octopus",
+        "type": "link in",
+        "z": "ex17-window-tab",
+        "name": "From Octopus node",
+        "links": [],
+        "x": 165,
+        "y": 120,
+        "wires": [
+            [
+                "ex17-window-remember"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-window-remember",
+        "type": "function",
+        "z": "ex17-window-tab",
+        "name": "Remember rates, spot window start",
+        "func": "// Keeps the latest import rate schedule (applicable_rates) for the planner, and says\n// when the planned window starts.\n// The node resends its output when the current half-hour rate changes, so this runs\n// at each half-hour boundary as well as after each poll.\nconst p = msg.payload;\nif (!p || typeof p !== 'object') return null;\nif (Array.isArray(p.applicable_rates) && p.applicable_rates.length > 0) {\n    flow.set('latestImportRates', p.applicable_rates);\n}\n\nconst plan = flow.get('plannedWindow');\nif (!plan || plan.announced) return null;\nconst now = Date.now();\nconst start = Date.parse(plan.start);\nconst end = Date.parse(plan.end);\nif (now < start) return null;\nplan.announced = true;\nflow.set('plannedWindow', plan);\nif (now >= end) return null; // missed it (for example Node-RED was down)\nreturn { topic: 'Cheapest window started', payload: plan };\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 480,
+        "y": 120,
+        "wires": [
+            [
+                "ex17-window-started-debug"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-window-started-debug",
+        "type": "debug",
+        "z": "ex17-window-tab",
+        "name": "Window started (wire to your plug)",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 800,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "ex17-window-daily",
+        "type": "inject",
+        "z": "ex17-window-tab",
+        "name": "Plan at 18:00",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "00 18 * * *",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 170,
+        "y": 220,
+        "wires": [
+            [
+                "ex17-window-find"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-window-now",
+        "type": "inject",
+        "z": "ex17-window-tab",
+        "name": "Plan now",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 160,
+        "y": 260,
+        "wires": [
+            [
+                "ex17-window-find"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-window-find",
+        "type": "function",
+        "z": "ex17-window-tab",
+        "name": "Find cheapest window [edit settings]",
+        "func": "// Finds the cheapest run of back-to-back half hours in the import schedule\n// (applicable_rates) that finishes by your deadline.\n//\n// ===== EDIT THESE =====\nconst RUN_MINUTES = 120;          // how long the appliance needs, in minutes\nconst FINISH_BY = '07:00';        // latest finish, HH:MM on the hour or half hour. null = any time in the schedule\nconst TIME_ZONE = 'Europe/London'; // used for FINISH_BY and for the times in the message\n// ======================\n\nconst slots = flow.get('latestImportRates') || [];\nconst now = Date.now();\nconst fmt = (ms) => new Date(ms).toLocaleTimeString('en-GB', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit' });\n\n// Future slots only, in time order, with a price.\nconst future = slots\n    .map((s) => ({ from: Date.parse(s.valid_from), to: Date.parse(s.valid_to), p: s.value_pence_per_kwh }))\n    .filter((s) => Number.isFinite(s.from) && Number.isFinite(s.to) && typeof s.p === 'number' && s.from >= now)\n    .sort((a, b) => a.from - b.from);\n\n// Stop at the first slot that ends at FINISH_BY (in TIME_ZONE).\nlet usable = future;\nif (FINISH_BY) {\n    const cut = future.findIndex((s) => fmt(s.to) === FINISH_BY);\n    if (cut !== -1) usable = future.slice(0, cut + 1);\n}\n\nconst need = Math.ceil(RUN_MINUTES / 30);\nlet best = null;\nfor (let i = 0; i + need <= usable.length; i++) {\n    const run = usable.slice(i, i + need);\n    // Back-to-back only: each slot must start where the last one ended.\n    if (run.some((s, j) => j > 0 && s.from !== run[j - 1].to)) continue;\n    const avg = run.reduce((sum, s) => sum + s.p, 0) / need;\n    if (!best || avg < best.avg) best = { start: run[0].from, end: run[need - 1].to, avg };\n}\n\nif (!best) {\n    flow.set('plannedWindow', null);\n    node.status({ fill: 'yellow', shape: 'ring', text: 'no window found' });\n    return { topic: 'No cheapest window', payload: `No ${RUN_MINUTES}-minute window found${FINISH_BY ? ` before ${FINISH_BY}` : ''}. The node may not have read the rate schedule yet.` };\n}\n\nconst plan = {\n    start: new Date(best.start).toISOString(),\n    end: new Date(best.end).toISOString(),\n    avg_pence: Math.round(best.avg * 100) / 100,\n    text: `Cheapest ${RUN_MINUTES} minutes: ${fmt(best.start)} to ${fmt(best.end)}, average ${best.avg.toFixed(2)} p/kWh.`,\n    announced: false,\n};\nflow.set('plannedWindow', plan);\nnode.status({ fill: 'green', shape: 'dot', text: `${fmt(best.start)} to ${fmt(best.end)}` });\nreturn { topic: 'Cheapest window planned', payload: plan };\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 440,
+        "y": 240,
+        "wires": [
+            [
+                "ex17-window-plan-debug"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-window-plan-debug",
+        "type": "debug",
+        "z": "ex17-window-tab",
+        "name": "Planned window",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 730,
+        "y": 240,
+        "wires": []
+    }
+]

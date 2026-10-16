@@ -5,6 +5,118 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] — 2026-10-16
+
+### Added
+- **SmartFlex vehicle data.** If Octopus controls your car or charge point, `msg.payload` now includes its details every 30 minutes. It turns on by itself when the node finds the device.
+  - `vehicle_make`, `vehicle_model`, `vehicle_battery_kwh`, `charger_power_kw`
+  - `device_state`: what Octopus says the device is doing, for example `SMART_CONTROL_IN_PROGRESS`, `BOOSTING` or `LOST_CONNECTION`. The charging poll reads it, so it updates every refresh interval and always agrees with `boosting`.
+  - `device_alerts`: Octopus alert messages, as `[{ message, published_at }]`. Only the 10 newest are kept, newest first, and each message is cut to 250 characters.
+  - `charging_sessions`: your last 5 charging sessions, newest first, with `start`, `end`, `kwh_added`, `soc_change`, `soc_final`, `type`, `cost`, and `problems`. `last_session` is the latest finished one. `kwh_added` is in kWh, even if Octopus sends watt-hours.
+  - `last_session_kwh`, `last_session_soc_final`, `last_session_problem`: the latest finished session as single values.
+  - `smartflex_vehicle_error`: the last error as a short `KT-CT-xxxx: message`, or `null`. If Octopus returns only part of the data (for example the sessions fail), the node keeps what came back and the last values for the rest, and logs a warning.
+- **SmartFlex inverter data (experimental, off by default).** Not yet verified on a real inverter. Tick **Inverter** in the node settings to read it every 5 minutes. It only runs if Octopus lists a SmartFlex inverter on your account. Fields: `inverter_make`, `inverter_model`, `solar_peak_kw`, `inverter_power_kw`, `inverter_connection_status`, `inverter_online`, `home_battery_power_kw`, `home_battery_soc`, `solar_power_kw`, `grid_power_kw`, `site_consumption_kw`, `site_export_kw` and `smartflex_inverter_error`.
+- Home Assistant (MQTT), on the same Octopus Intelligent device. The vehicle entities are only published when Octopus lists a SmartFlex car or charge point on the account, and the inverter entities only when the Inverter option is ticked and Octopus lists an inverter. Otherwise they are removed, but only when Octopus lists devices and none is of that kind. If Octopus lists no devices at all, which can happen for a moment, they are left as they are. If you go back to an older version, these entities stay in Home Assistant and show Unavailable, not a problem. The broker still holds their retained discovery config, so Home Assistant will not delete them one by one. To remove them, clear their retained discovery topics on the broker, or delete the Octopus Intelligent device in Home Assistant (you then lose the names and areas you set).
+  - Each of these entities checks that its field is in the state message. A missing field reads Unavailable. Number sensors show unknown when the value is empty. The text sensors (Vehicle Make, Vehicle Model, Vehicle Device State, Inverter Make, Inverter Model and Inverter Connection Status) show Unavailable when the value is empty, not the word "None".
+  - Last Charge Session Energy (the session list and alerts are its attributes), Last Charge Session Final Charge and a Last Charge Session Problem binary sensor. Last Charge Session Energy has state class `total`, reset at the end of each session. Home Assistant keeps its statistics, and you can add it to the Energy dashboard. Last Charge Session Final Charge is a percentage with no battery device class, so low-battery alerts do not pick it up.
+  - Diagnostic sensors: Vehicle Make, Vehicle Model, Vehicle Battery Size, Charger Power, Vehicle Device State, SmartFlex Vehicle Error and its error binary sensor.
+  - Octopus lists a charge point as an electric vehicle. So a charge point gets the Boost Charge switch and the charging poll, like a car. Vehicle Make and Vehicle Model then show the charger's make and model.
+  - With the Inverter option ticked and an inverter listed: Solar Power, Home Battery Power, Home Battery Charge, Grid Power, Site Consumption, Site Export and Inverter Power. Diagnostic entities: Inverter Make, Inverter Model, Solar Peak Power, Inverter Connection Status, an Inverter Online binary sensor, SmartFlex Inverter Error and its error binary sensor. Unticking the option removes them.
+- **Boost Charge.** New `set_boost` input (`true` starts a boost, `false` cancels it), a Boost Charge switch in Home Assistant (only when Octopus lists a car or charger it controls), and `boosting` and `boost_error` payload fields. A boost charges now, outside the Octopus plan. It is not the same as `set_smart_charging`. `charging_now` is now `true` during a boost too.
+  - Octopus can refuse a boost, for example when the car is unplugged. The node then logs the Octopus error, sends `boost_error` straight away and does not retry. That message has `msg.debug.trigger` set to `boost_failed`, with `request` (`BOOST` or `CANCEL`) and `error`, so a flow can tell it from a poll. A boost that works clears `boost_error`, and so does the first charging poll that reads the device state a minute or more later.
+  - If Octopus refuses the same choice 3 times in 10 minutes, the node ignores that choice for the next 10 minutes and logs one warning. This stops a flow that asks again after each refusal from calling Octopus all day. A request Octopus accepts ends the pause.
+  - Only `true` and `false` work. Any other `set_boost` value gives a node error and sends nothing. On MQTT, a payload other than `ON` or `OFF` logs a warning.
+  - The node sends one boost request at a time, at least 5 seconds apart, and only your last choice. A repeat of a choice Octopus has just accepted is dropped. After a failure, the same choice is sent again once the 5 seconds have passed. If Octopus does not answer a boost request within 75 seconds, the node gives up on it, sets `boost_error` and polls Octopus to check. Later requests are then sent as normal.
+  - When Octopus accepts a boost or a cancel, the node polls Octopus soon after. That poll waits if 3 planned-dispatch queries have already gone out in the last minute. After a refusal it does not poll, because nothing changed. If the answer is not clear, for example an error on the part Octopus reads back, the node leaves the switch as it was, sets no `boost_error` and polls to check.
+  - Octopus can take a moment to show the new state, so the switch shows what you asked for until Octopus agrees, for up to 2 minutes.
+  - `boosting` goes back to `null` if no charging poll has confirmed it for twice the refresh interval, for example during an Octopus outage. `charging_now` then follows the plan again, and the Boost Charge switch shows unknown.
+
+### Changed
+- The Octopus Intelligent device in Home Assistant now shows the node's version as its software version. Before, it always showed 2.0.0. No entity changes.
+- If Octopus lists more than one car or charger, the node now uses the one Octopus says is live. Before, it used the first in the list, which could be an old car you have replaced. If none is live, it still uses the first. Smart charging, boost, the charging poll and the vehicle entities all use this one device.
+- Error text in the Node-RED log, the node status and `msg.payload` now shows what Octopus sent, including an API key it echoes back, so a wrong key can be seen and fixed. API keys and tokens are still hidden in what the node publishes to Home Assistant, which keeps it in its history.
+- Retained MQTT messages on `submit_changes`, `refresh`, `set_smart_charging`, `set_charge_cap`, and `set_boost` are now ignored, with one warning per topic. The broker replays a retained message on every restart, so a retained command used to run again each time. Home Assistant does not retain these commands, so its buttons and switches work as before.
+
+### Documentation
+- The example dashboards show the Boost Charge switch. The Home Assistant example adds SmartFlex vehicle and last session cards, and the Dashboard 2.0 example adds a Vehicle panel with recent charging sessions.
+- The `set-preferences.json` example flow has Boost now and Cancel boost Inject nodes.
+- Four new example flows. Each one links to your existing node and has a Read me note.
+  - `examples/boost-on-cheap-or-surplus.json`: starts a boost when the import rate is low or you export spare power, and cancels it when that ends.
+  - `examples/charging-and-error-alerts.json`: sends an alert when charging or a boost starts or stops, when an `*_error` field changes, and when Octopus posts a device alert.
+  - `examples/cheapest-window-planner.json`: finds the cheapest run of half hours for an appliance before a deadline, and sends a message when it starts.
+  - `examples/daily-charging-summary.json`: sends a morning summary of the last day's charging sessions, and a message when a session ends.
+- The Dashboard 2.0 Category Errors panel now uses the real `*_error` field names. Before, it looked for `electricity_tariff_error` and `gas_tariff_error`, so it never showed rates errors. It also left out the dispatch errors. It now lists the dispatch, SmartFlex and boost errors too.
+- The node help now says which errors get the quick charging poll retry (`KT-CT-4340` and `KT-CT-4339`). Other errors wait for the next normal poll.
+
+## [1.6.2] — not released on its own; included in 1.7.0
+
+These fixes were prepared as 1.6.2 (and 1.6.3) and ship in 1.7.0. If you are upgrading from 1.6.1, read this section as well as 1.7.0.
+
+### Upgrading from 1.6.1
+- The `*_error` fields now hold short text, not the raw error JSON from Octopus. A Kraken error reads `CODE: message`, for example `KT-CT-1111: Unauthorized`, or just the message when there is no code. An outage page or rate limit reads `HTTP 503` or `HTTP 429`. `intelligent_error` no longer starts with `Devices query failed` or `Dispatches query failed` when Octopus sends a code. If a flow runs `JSON.parse` on an `*_error` value, or looks for `"errorCode"` in it, change it to read the code at the start of the text. Home Assistant error sensors only check whether the field is empty, so they work as before.
+- The node now sends an extra output message when a saving session, free electricity session or rate slot starts or ends (`msg.debug.trigger` is `active_fields_change`). This also happens on accounts without a car or charger. If a flow treats any message with `msg.debug` as a change to `charging_now`, check `msg.debug.trigger === 'charging_state_change'` instead.
+
+### Changed
+- **Faster recovery when Octopus can't return the charging plan.** When the charging poll fails with `KT-CT-4340` (planned dispatches) or `KT-CT-4339` (charging preferences), the node tries the charging poll again after 30 seconds, 1 minute, and 2 minutes, then every 2 minutes, until it works or the next normal poll is due. A retry waits if 3 planned-dispatch queries have already gone out in the last minute, counting normal polls and the check 30 seconds before a slot. The known plan and charging timers stay in place while it retries.
+- The Node-RED log now shows a warning for each failed charging poll or retry, for example `Charging poll failed: KT-CT-4340 Unable to fetch planned dispatches (retry 2 in 60s)`, and one line when it works again, for example `Charging poll recovered after 4m 30s`.
+- `msg.payload.intelligent_error` and the node status now show a short error with the Octopus code, for example `KT-CT-4340: Unable to fetch planned dispatches`, instead of the raw error JSON. It is always under 255 characters. The node status still starts with `Error: `, as in 1.6.1, for example `Error: KT-CT-4340: Unable to fetch planned dispatches`.
+- Every other `*_error` field now shows a short error too, for example `KT-CT-1111: Unauthorized`, or just the message when Octopus sends no code. Timeouts and auth failures are also cut to under 255 characters. Before, a long error could be rejected by Home Assistant, which does not accept a state over 255 characters.
+
+### Fixed
+- If Octopus can't return the charging preferences (`KT-CT-4339`), the node keeps the last confirmed target and ready-by time and still updates the charging slots. Before, the whole charging poll failed.
+- Home Assistant commands could run twice after a partial redeploy. The node now removes its MQTT command subscriptions and releases the MQTT broker when it is closed.
+- **Polling could stop for good after one request with no answer.** Requests to Octopus had no time limit, so a request that never answered blocked every later poll until Node-RED restarted, with no log line. Every request now gives up if Octopus sends nothing for 30 seconds. If a poll is still running after 10 minutes, the next poll starts anyway and the Node-RED log shows a warning. The old poll stops after its current request. Anything the old poll had already read is read again by the new one.
+- The npm update check also gives up after 30 seconds with no answer.
+- A poll that finished after the node was closed or redeployed could still restart charging timers. It now stops instead.
+- Redeploying the node in the first second after it started could leave an extra poll loop running. Stopping the node now cancels it.
+- A reply from Octopus that stopped part way, or arrived very slowly, could hold up every poll for 10 minutes. A request now fails as soon as the connection closes early, and gives up after 30 seconds in total.
+- An outage page or rate limit from Octopus now shows as `HTTP 503` or `HTTP 429` in the log and the `_error` fields. Before, it showed a parse error or `Response missing data`.
+- After you changed the target, the ready-by time or Charge Cap, a poll that was already running could put the old values back in Home Assistant until the next charging poll. The new values now stay.
+- Redeploying the node during a poll no longer lets the old node send the rest of that poll's requests to Octopus.
+- Pressing Submit twice quickly, or while a change was still being checked, no longer runs two sets of checks. Only the latest change is checked.
+- If a change to the target, ready-by time or Charge Cap got no answer from Octopus, for example after a time-out, the node reported it as failed, even if Octopus had made it. The node now shows the change as unconfirmed and polls straight away to read the real values. If that poll shows the change was not made, the status turns red (`Update Failed` or `Charge Cap update failed`) and the log shows a warning. Only a time-out, a connection that closed after the change was sent, or an HTTP 5xx error counts as no answer. A change that could not reach Octopus, for example after a DNS or connection error, or that got an HTTP 4xx error or a reply the node could not read, still fails straight away with an error, as in 1.6.1. The Smart Charging switch now follows the same rule: a change with no answer is checked with Octopus after 15 seconds, 30 seconds, 1 minute and 2 minutes, instead of being reported as failed.
+- An Octopus API key or login token is now hidden in what the node publishes to Home Assistant. Octopus can repeat part of a request in an error message, so a key could have been shown there. A login token that follows a dotted word is hidden in full. (1.7.0 shows the key in the Node-RED log, the node status and `msg.payload`, so a wrong key can be seen and fixed. See 1.7.0 Changed.)
+- If the node could not log in to Octopus for a poll, sensors that update hourly stayed empty or out of date for up to an hour, and the update check failed for a day. The update check now runs anyway, as it does not use Octopus. The other polls try again after 1 minute, then 2, 4 and 8 minutes, and then every 10 minutes until the login works. If Octopus says how long to wait (a rate limit with `Retry-After`), the node waits at least that long, up to 10 minutes.
+- If the system clock was set back, for example after starting with a clock that was ahead, polls stopped until the clock caught up again, and charging poll retries were held back. Polls now carry on straight away. A small correction of under a minute, for example from NTP, does not make every poll run again.
+- If Octopus briefly returned no devices when the node started, charging polls stayed off until the node was restarted. The node now checks again after 30 seconds, 1 minute, 2 minutes and then every 5 minutes, up to 6 times. When it finds the car or charger, charging polls start.
+- During an Octopus outage where requests got no answer, one round of polls could take up to 10 minutes, and refreshes and retries had to wait. After the first request that times out, loses its connection or gets an HTTP 5xx error, the node now leaves the other polls for the next round.
+- After a new target was confirmed, a charging poll that had started before the change could put the old target back, for example "Confirmed: 90%" instead of 50%, until the next charging poll. The same could happen to the ready-by time and Charge Cap. Such a poll now keeps only its charging slots, and the node reads the settings again straight away. This also covers a change confirmed after the charging poll but before the rest of that round of polls had finished, and a target or ready-by time picked in Home Assistant but not applied yet, which used to jump back at the end of that round.
+- A node that kept failing its start-up check with Octopus, for example with a wrong account number, used a little more memory every 5 minutes until it was restarted. It no longer does.
+- A very large reply from Octopus or the npm registry, such as an error page sent over and over, is now cut off at 2 MB and the request fails. Before, the node kept all of it in memory until the 30 second time limit.
+- If Octopus or the npm registry sent a reply that was not the expected JSON object, for example `null`, the `_error` fields showed a code error such as `Cannot read properties of null`. They now show `Unexpected response shape`.
+- If the node could not read the car or charger when it started, the Smart Charging and Charge Cap switches and target changes failed with `Device ID not available` until a charging poll worked. The node now uses the device found by its start-up check.
+- If the node could not log in to Octopus during normal polling, the Node-RED log showed nothing. It now shows one warning when the login starts failing and one line when it works again.
+- On an account with no car or charger, the node status stayed green while polls failed. It now shows the first error, in red when every Octopus poll failed and in yellow when only some did. Accounts with a car or charger show the charging status as before.
+- A number field could show `NaN` or `Infinity` in `msg.payload`, and `unknown` in Home Assistant, when Octopus sent a value that was not a number. Rates, standing charges, consumption, the account balance, Home Mini readings, the rate summary, dispatch energy and Wheel of Fortune spins now show no value (`null`) instead. A daily consumption reading that Octopus has not filled in yet is skipped, so consumption no longer shows `NaN`.
+- `set_timezone` accepted any text, from a flow or from Home Assistant. A wrong name was saved, and every display time then showed the raw UTC text. The node now checks the name and writes an error to the Node-RED log if it does not know it, or if it is over 64 characters. The timezone is then not changed.
+- A very long text value from Octopus, such as a tariff code or a time it could not read, could stop a Home Assistant sensor updating, because Home Assistant does not accept a state over 255 characters. Such text is now cut to 254 characters.
+- A bad `set_limit` or `set_time` value is now shown cut to 40 characters in the error and the node status. A very long value used to fill the log. A value a flow cannot turn into text, such as a Symbol, now gives the usual error instead of a code error.
+- If Octopus could not return the smart charging state (for example `KT-CT-4360`) when the node started, the start-up check failed and nothing was polled at all, not even rates or consumption, until it worked. The check now asks again without the smart charging state, finds the car or charger, and starts polling. The log shows one warning.
+- A failed poll of rates, consumption, the account and the other data, or a failed update check, showed only in its `_error` field. The Node-RED log now shows one warning when a poll starts failing, for example `account poll failed: HTTP 502`, and one line when it works again.
+- A very long error from Octopus could fill the Node-RED log with one line of about 8,000 characters, and the end of the line, such as `Retrying in 30s.`, was lost. Error text in a log line is now cut to 300 characters, and a log line to 500, keeping its end.
+
+### Fixed (prepared as 1.6.3)
+- The Electricity Export Rate Error sensors were always empty, because export rate errors were only saved in `applicable_rates_export_error`. They are now saved in `electricity_export_rate_error` too, so the sensors show them.
+- The Octoplus poll no longer asks Octopus for `isOctoplusEnrolled`, which Octopus has marked for removal. If Octopus removed it, the whole Octoplus poll would fail. `octoplus_enrolled` now comes from the enrolment status.
+- A refresh, a plan-change re-poll, or the check after a change you sent could be skipped if it was asked for while that data was already being polled. It then waited for the next normal poll, up to the refresh interval. It now runs straight after the current poll.
+- The node now publishes `charging_now` on the first poll after it starts. Before, a restart that spanned the end of a charging slot could leave Home Assistant showing Charging Now as on until the next slot.
+- The node no longer creates timers or sends messages after it is closed or redeployed, even when a request to Octopus answers late.
+- The check 30 seconds before a slot now handles an Octopus error such as `KT-CT-4340`. It logs a warning and starts the slot on time from the known plan. Before, it did nothing and the slot started up to 10 seconds late. If that check is still waiting for Octopus when the slot starts, the slot now starts on time anyway. Before, a slow answer could start it a few seconds late.
+- `msg.payload.charging_now` and the JSON state topic now match the Charging Now sensor on every message. Before, messages from other polls (such as Home Mini) could carry the old value until the next charging poll.
+- The Smart Charging switch now follows changes made in the Octopus app. The charging poll reads the smart charging state and updates the switch when it changes. After a slow start, the switch no longer stays unknown. If Octopus can't return the smart charging state, for example with `KT-CT-4360`, the switch keeps its last state and the rest of the charging poll still works. The log shows one warning until the state is back.
+- The node no longer makes a second, untracked MQTT subscription to each command topic.
+- Saving session, free electricity, and current rate sensors now change at the start and end time. Before, they could be wrong until the next poll of that data, up to an hour. The node sends an extra output message when these change (`msg.debug.trigger` is `active_fields_change`), so on a half-hourly tariff there is one more message every 30 minutes.
+- `next_kwh` no longer shows `NaN` when Octopus sends an energy value that is not a number. It shows `0`, as `total_energy` already did.
+
+### Documentation
+- Removed `msg.debug` from the poll output docs. Poll messages carry only `msg.payload`. The extra message sent when `charging_now` changes still carries `msg.debug`.
+- Documented refresh from a flow and the checks on command values, including the `set_timezone` check.
+- Corrected the polling description. Intervals, run order, clock alignment, and which groups poll are now accurate.
+- Corrected timezone notes. Persistence needs a persistent context store, and daily consumption uses the editor Timezone field.
+- Listed the rate band, rate summary, previous and next rate, saving session, and update entities. Marked the always-empty Wheel of Fortune and error sensors.
+- Fixed the property names and the Inject nodes in the example flows, and in the node help.
+- Replaced the stale field count, the old changelog copy, and the "covers every entity" wording for the dashboard.
+
 ## [1.6.1] — 2026-10-03
 
 First public 1.6 release. 1.6.0 was only distributed as a preview build; everything in it is included here.
@@ -13,12 +125,16 @@ First public 1.6 release. 1.6.0 was only distributed as a preview build; everyth
 - **Charge Cap** — new Home Assistant switch, `set_charge_cap` input and `charge_cap` payload field (limit smart charging to off-peak rates only, as in the Octopus app).
 - One input message can now carry several commands; each is applied independently.
 
+**Dashboard 2.0 example flow**
+- `examples/node-red-dashboard-flow.json` — complete importable Dashboard 2.0 flow with 34 widgets across 6 pages (Controls, Status, Tariff, Optimization, Account, Diagnostics).
+- Two annotated **sample function nodes** embedded in the flow (`find-cheapest-window`, `is-cheapest-now`) demonstrating user-side derivation patterns over the `applicable_rates` array. Marked as user-modifiable example code, not part of the node's published payload — keeping with the "expose raw data, no inference" principle.
+- Writable controls (target limit slider, ready-by dropdown, smart-charging switch, Charge Cap switch, refresh button, timezone override) routed back into the node input.
+
 ### Changed
 - Ready-by time accepts any half-hour slot from 00:00 to 23:30, matching the Octopus app (was 04:00–11:00).
 - Target charge accepts 5–100%, matching the Octopus app (was 50–100). Values still round to the nearest 5. The Home Assistant slider and the Dashboard 2.0 example go down to 5%.
-- Invalid values are now rejected with an error and nothing is sent to Octopus, including `set_limit: 0` and empty strings. Previously an invalid time was silently replaced with 08:00 and sent. `null` values are ignored as before.
-- Dashboard 2.0 example flow (`examples/node-red-dashboard-flow.json`) updated for 1.6: 34 widgets, including the Charge Cap switch and all 48 ready-by times; the target charge input goes down to 5%.
-- HA dashboard example (`examples/ha-dashboard.yaml`) updated for 1.6: all 48 ready-by times and the Charge Cap switch.
+- Invalid values are now rejected with an error and nothing is sent to Octopus, including `set_limit: 0` and empty strings. Previously an invalid time was silently replaced with 08:00 and sent. Partly numeric limits such as `"8O"` or `"85%"` are rejected rather than truncated. `null` values are ignored as before.
+- Dashboard 2.0 example flow and HA dashboard example updated for 1.6: the ready-by dropdown offers all 48 half-hour times, and both include the Charge Cap switch.
 
 ### Fixed
 - Ready-by times after 11:00 were rejected (#3).
@@ -52,37 +168,31 @@ First public 1.6 release. 1.6.0 was only distributed as a preview build; everyth
 
 ## [1.5.0] — 2026-06-13
 
-Schedule visibility, tariff rate bands, proactive update notification, and a Node-RED Dashboard 2.0 example.
+Schedule visibility, tariff rate bands, and proactive update notification.
 
 ### Added — Schedule visibility (import & export)
-- 24h schedule stats: `applicable_rates_{min,max,median,avg}_pence` and `electricity_export_rate_*` equivalents — min/max/median/avg over the next 24h of half-hourly rates.
-- The full `applicable_rates` / `electricity_export_rate` slot arrays are now exposed as MQTT entity attributes on the existing `*_count` sensors, accessible via `state_attr(...)` in HA templates.
+- 24h schedule stats: `applicable_rates_{min,max,median,avg}_pence` and `electricity_export_rate_*` equivalents. Min/max/median/avg of the next 24h's half-hourly rate schedule.
+- The full `applicable_rates` / `electricity_export_rate` slot arrays now exposed as MQTT entity attributes on the existing `*_count` sensors, accessible via `state_attr(...)` in HA templates.
 
 ### Added — Tariff rate bands
-- `electricity_day_rate`, `electricity_night_rate`, `electricity_ev_peak_rate`, `electricity_ev_off_peak_rate` — raw tariff-defined bands from the Kraken `DayNightTariff` / `FourRateEvTariff` types. Null on tariffs without banding (half-hourly/Agile users see nulls; Economy 7 / FourRateEv users see values).
+- `electricity_day_rate`, `electricity_night_rate`, `electricity_ev_peak_rate`, `electricity_ev_off_peak_rate` — raw tariff-defined rate bands from the Kraken `DayNightTariff` / `FourRateEvTariff` types. Null on tariffs that don't expose banding (e.g. `HalfHourlyTariff` users see nulls; Economy 7 / FourRateEv users see populated values).
 
 ### Added — Update notification
-- HA MQTT Update entity (`update.octopus_intelligent_node_update`) surfacing newer-version availability in HA's Settings → Updates panel. Requires HA ≥ 2022.4.
+- HA MQTT Update entity (`update.octopus_intelligent_node_update`) surfacing newer-version availability in Home Assistant's Settings → Updates panel. Requires HA ≥ 2022.4.
 - Node-RED debug log emits `node.warn` once per detected new version, with install instructions.
-- New payload fields: `installed_version`, `latest_version`, `update_available`, `update_check_at`, `update_check_error`. Checked once per 24h via the unified scheduler.
+- New payload fields: `installed_version`, `latest_version`, `update_available`, `update_check_at`, `update_check_error`. Check runs once per 24h via the unified scheduler.
 
 ### Added — Promotion to MQTT entities (closing v1.3.0 gaps)
 - 8 previously payload-only fields promoted to MQTT entities: `applicable_rates_prev_pence/_gbp/_to`, `applicable_rates_next_pence/_gbp/_from`, `electricity_export_rate_prev_gbp`, `electricity_export_rate_next_gbp`.
 
 ### Added — Per-category error binary sensors
-- 15 new `binary_sensor`s with `device_class: problem`, one per category. `OFF` when healthy / `ON` when the corresponding `<category>_error` payload field is set. Existing string error sensors retained — no breakage.
+- 15 new binary_sensors with `device_class: problem`, one per category. `OFF` when healthy / `ON` when the corresponding `<category>_error` payload field is set. Existing string error sensors retained — no breakage for users referencing them in automations.
 
-### Added — Node-RED Dashboard 2.0 example
-- `examples/node-red-dashboard-flow.json` — importable Dashboard 2.0 flow with 32 widgets across 6 pages (Controls, Status, Tariff, Optimization, Account, Diagnostics), plus writable controls routed back into the node input.
-- Two annotated **sample function nodes** (`find-cheapest-window`, `is-cheapest-now`) demonstrating user-side derivation over `applicable_rates`. Example code only — not part of the published payload, keeping with the "expose raw data, no inference" principle.
-
-### Fixed — Example HA dashboard (`examples/ha-dashboard.yaml`)
-- Home Mini live-demand gauge now floors at `-10 kW` (was `min: 0`) so solar export displays, with the green severity band extended to cover the negative range.
-- Tariff rate-bands card is hidden on half-hourly/Agile tariffs (null bands render to `"None"`/`unknown`, not `unavailable` — the conditional now excludes all three).
-- Gas cards are hidden for electricity-only homes (gated on `gas_tariff_code`).
+### Fixed
+- Example dashboard: Home Mini live demand gauge now goes down to `-10 kW` (was `min: 0`), correctly displaying solar-export demand.
 
 ### Backwards compatibility
-- All existing payload field names, MQTT topics, HA entity `unique_id`s, input commands, and node config fields are preserved. v1.4.0 → v1.5.0 is a zero-config upgrade.
+- All existing payload field names, MQTT topics, HA entity unique_ids, input commands, and node config fields are preserved. v1.4.0 → v1.5.0 is a zero-config upgrade.
 
 ## [1.4.0] — 2026-05-29
 

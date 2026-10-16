@@ -1,0 +1,171 @@
+[
+    {
+        "id": "ex17-boost-tab",
+        "type": "tab",
+        "label": "Boost on cheap or spare power",
+        "disabled": false,
+        "info": "## Boost on cheap or spare power\n\nStarts a boost charge (`set_boost: true`) when the import rate is at or below a threshold, or when you export more than a set number of kW. Cancels it (`set_boost: false`) when that ends.\n\n**Inputs it reads:** `boosting`, `applicable_rates_current_pence`, `site_export_kw`, `boost_error`.\n\n**Setup**\n\n1. Edit the thresholds at the top of the **Decide boost** function.\n2. For the price rule you need a half-hourly import schedule (`applicable_rates`). It suits Agile and other tariffs where prices can drop to zero or below.\n3. For the surplus rule, either tick the experimental SmartFlex inverter option on the node (fills `site_export_kw`, polled every 5 minutes), or send your own reading into the function with `msg.topic = \"surplus_kw\"` and `msg.payload` in kW. Set `SURPLUS_START_KW` to `null` to turn it off.\n4. Octopus can refuse a boost, for example when the car is unplugged or full. The flow then waits `RETRY_MINUTES` before it asks again.\n\n**Wiring to your Octopus Intelligent node**\n\nThis flow has no Octopus node of its own. Use the one you already have: each node polls Octopus by itself, so several nodes on one account multiply your API use and can hit Octopus's rate limits.\n\n1. Add a **link out** node after your Octopus Intelligent node and wire the node's output to it.\n2. Open that link out and tick **From Octopus node** on this tab.\n3. Add a **link in** node before your Octopus Intelligent node and wire it to the node's input.\n4. Open **To Octopus node** on this tab and tick that link in.\n\nIf your node is on the same tab, you can delete the link nodes and wire it directly instead."
+    },
+    {
+        "id": "ex17-boost-comment",
+        "type": "comment",
+        "z": "ex17-boost-tab",
+        "name": "Read me: boost when power is cheap or spare (edit thresholds in Decide boost)",
+        "info": "## Boost on cheap or spare power\n\nStarts a boost charge (`set_boost: true`) when the import rate is at or below a threshold, or when you export more than a set number of kW. Cancels it (`set_boost: false`) when that ends.\n\n**Inputs it reads:** `boosting`, `applicable_rates_current_pence`, `site_export_kw`, `boost_error`.\n\n**Setup**\n\n1. Edit the thresholds at the top of the **Decide boost** function.\n2. For the price rule you need a half-hourly import schedule (`applicable_rates`). It suits Agile and other tariffs where prices can drop to zero or below.\n3. For the surplus rule, either tick the experimental SmartFlex inverter option on the node (fills `site_export_kw`, polled every 5 minutes), or send your own reading into the function with `msg.topic = \"surplus_kw\"` and `msg.payload` in kW. Set `SURPLUS_START_KW` to `null` to turn it off.\n4. Octopus can refuse a boost, for example when the car is unplugged or full. The flow then waits `RETRY_MINUTES` before it asks again.\n\n**Wiring to your Octopus Intelligent node**\n\nThis flow has no Octopus node of its own. Use the one you already have: each node polls Octopus by itself, so several nodes on one account multiply your API use and can hit Octopus's rate limits.\n\n1. Add a **link out** node after your Octopus Intelligent node and wire the node's output to it.\n2. Open that link out and tick **From Octopus node** on this tab.\n3. Add a **link in** node before your Octopus Intelligent node and wire it to the node's input.\n4. Open **To Octopus node** on this tab and tick that link in.\n\nIf your node is on the same tab, you can delete the link nodes and wire it directly instead.",
+        "x": 310,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "ex17-boost-from-octopus",
+        "type": "link in",
+        "z": "ex17-boost-tab",
+        "name": "From Octopus node",
+        "links": [],
+        "x": 145,
+        "y": 160,
+        "wires": [
+            [
+                "ex17-boost-decide"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-boost-resume",
+        "type": "inject",
+        "z": "ex17-boost-tab",
+        "name": "Automation on",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "automation",
+        "payload": "true",
+        "payloadType": "bool",
+        "x": 170,
+        "y": 220,
+        "wires": [
+            [
+                "ex17-boost-decide"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-boost-pause",
+        "type": "inject",
+        "z": "ex17-boost-tab",
+        "name": "Automation paused",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "automation",
+        "payload": "false",
+        "payloadType": "bool",
+        "x": 180,
+        "y": 260,
+        "wires": [
+            [
+                "ex17-boost-decide"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-boost-surplus",
+        "type": "inject",
+        "z": "ex17-boost-tab",
+        "name": "Test: exporting 2 kW (surplus_kw)",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "surplus_kw",
+        "payload": "2",
+        "payloadType": "num",
+        "x": 210,
+        "y": 320,
+        "wires": [
+            [
+                "ex17-boost-decide"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-boost-decide",
+        "type": "function",
+        "z": "ex17-boost-tab",
+        "name": "Decide boost [edit thresholds]",
+        "func": "// Starts a boost charge when import power is cheap (or free, or negative) or when\n// you are exporting spare solar, and cancels it when that ends.\n// It only cancels a boost that this flow started: a boost you start yourself, from\n// the app, Home Assistant or another flow, is left alone.\n//\n// ===== EDIT THESE =====\nconst CHEAP_START_PENCE = 0;   // boost when the import rate is at or below this (p/kWh). 0 = free or negative only\nconst CHEAP_STOP_PENCE = 2;    // cancel once the rate is above this. Keep it at or above CHEAP_START_PENCE\nconst SURPLUS_START_KW = 1.5;  // boost when exporting at least this many kW. null turns the surplus rule off\nconst SURPLUS_STOP_KW = 0.5;   // cancel once export drops below this. Keep it at or below SURPLUS_START_KW\nconst RETRY_MINUTES = 30;      // ask again after this long if Octopus refused or the boost ended early\nconst OWN_READING_MAX_AGE_MINUTES = 15; // how long a \"surplus_kw\" reading of your own stays valid\n// ======================\n\nconst now = Date.now();\n\n// Pause or resume from the inject nodes: topic \"automation\", payload true or false.\n// Pausing never cancels a boost that is already running.\nif (msg.topic === 'automation') {\n    const on = msg.payload === true;\n    flow.set('boostAutomationOn', on);\n    node.status({ fill: on ? 'green' : 'grey', shape: 'dot', text: on ? 'automation on' : 'automation paused' });\n    return null;\n}\n\n// Your own export reading: topic \"surplus_kw\", payload a number in kW (for example from\n// your inverter or meter nodes). It wins over site_export_kw while it is fresh.\nif (msg.topic === 'surplus_kw') {\n    const kw = parseFloat(msg.payload);\n    flow.set('ownSurplusKw', Number.isFinite(kw) ? kw : null);\n    flow.set('ownSurplusAt', now);\n}\n\n// Everything else is the Octopus node's output. Keep the latest so a surplus_kw\n// reading can be judged against it.\nconst p = msg.topic === 'surplus_kw' ? flow.get('lastOctopusPayload') : msg.payload;\nif (!p || typeof p !== 'object') return null;\nflow.set('lastOctopusPayload', p);\n\nif (flow.get('boostAutomationOn') === false) return null; // on unless paused\n\n// boosting: true while a boost runs, false when not, null until the node knows.\nconst boosting = p.boosting;\nif (typeof boosting !== 'boolean') return null;\n\n// Import rate now, in p/kWh, from the half-hourly applicable_rates schedule.\nconst rate = typeof p.applicable_rates_current_pence === 'number' ? p.applicable_rates_current_pence : null;\n\n// Export in kW. site_export_kw needs the experimental SmartFlex inverter option.\nlet surplus = typeof p.site_export_kw === 'number' ? p.site_export_kw : null;\nconst own = flow.get('ownSurplusKw');\nconst ownAt = flow.get('ownSurplusAt') || 0;\nif (typeof own === 'number' && now - ownAt < OWN_READING_MAX_AGE_MINUTES * 60000) surplus = own;\n\nconst cheapStart = rate !== null && rate <= CHEAP_START_PENCE;\nconst cheapHold = rate !== null && rate <= CHEAP_STOP_PENCE;\nconst surplusRule = SURPLUS_START_KW !== null && surplus !== null;\nconst surplusStart = surplusRule && surplus >= SURPLUS_START_KW;\nconst surplusHold = surplusRule && surplus >= SURPLUS_STOP_KW;\n\nconst reason = cheapStart ? `import rate ${rate} p/kWh`\n    : surplusStart ? `exporting ${surplus} kW` : null;\nconst keepGoing = cheapHold || surplusHold;\n\nconst startedByFlow = flow.get('boostStartedByFlow') === true;\nconst lastAsk = flow.get('boostLastAskAt') || 0;\nconst retryDue = now - lastAsk >= RETRY_MINUTES * 60000;\n\nnode.status({\n    fill: boosting ? 'green' : 'blue', shape: startedByFlow ? 'dot' : 'ring',\n    text: `rate ${rate === null ? '--' : rate}p, export ${surplus === null ? '--' : surplus} kW, boosting ${boosting}`,\n});\n\n// Start (or ask again after a refusal or an early finish).\nif (reason && !boosting && (!startedByFlow || retryDue)) {\n    flow.set('boostStartedByFlow', true);\n    flow.set('boostLastAskAt', now);\n    const note = p.boost_error ? ` Last boost error: ${p.boost_error}` : '';\n    return [{ payload: { set_boost: true } }, { payload: `Boost requested: ${reason}.${note}` }];\n}\n\n// Stop, but only a boost this flow started.\nif (startedByFlow && !keepGoing) {\n    flow.set('boostStartedByFlow', false);\n    if (boosting) {\n        return [{ payload: { set_boost: false } }, { payload: 'Boost cancelled: no longer cheap or spare.' }];\n    }\n}\nreturn null;\n",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 480,
+        "y": 220,
+        "wires": [
+            [
+                "ex17-boost-to-octopus"
+            ],
+            [
+                "ex17-boost-debug"
+            ]
+        ]
+    },
+    {
+        "id": "ex17-boost-to-octopus",
+        "type": "link out",
+        "z": "ex17-boost-tab",
+        "name": "To Octopus node",
+        "mode": "link",
+        "links": [],
+        "x": 715,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "ex17-boost-debug",
+        "type": "debug",
+        "z": "ex17-boost-tab",
+        "name": "Boost decisions",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "auto",
+        "x": 740,
+        "y": 240,
+        "wires": []
+    }
+]

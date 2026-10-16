@@ -5,7 +5,8 @@ const httpGetJson = require('../lib/http-get-json');
 
 describe('httpGetJson', () => {
     function mockResponse(statusCode, body) {
-        return (url, cb) => {
+        return (url, opts, cb) => {
+            if (typeof opts === 'function') cb = opts;
             const res = {
                 statusCode,
                 resume: jest.fn(),
@@ -47,5 +48,54 @@ describe('httpGetJson', () => {
             return req;
         });
         await expect(httpGetJson('https://example.invalid/x')).rejects.toThrow(/ENOTFOUND/);
+    });
+});
+
+// Review 2026-10-09 #4: the body was buffered with no size limit.
+describe('httpGetJson — response size', () => {
+    afterEach(() => { jest.resetAllMocks(); });
+
+    test('a body over about 2 MB is cut off: the request is destroyed and it rejects', async () => {
+        const mb = 'x'.repeat(1024 * 1024);
+        const req = { on: jest.fn(), destroy: jest.fn() };
+        https.get = jest.fn((url, opts, cb) => {
+            const res = {
+                statusCode: 200,
+                resume: jest.fn(),
+                on: jest.fn((event, handler) => {
+                    if (event === 'data') [mb, mb, mb].forEach((c) => handler(c));
+                    if (event === 'end') handler();
+                }),
+            };
+            process.nextTick(() => cb(res));
+            return req;
+        });
+        await expect(httpGetJson('https://example.com/huge')).rejects.toThrow(/^Response too large$/);
+        expect(req.destroy).toHaveBeenCalled();
+    });
+});
+
+// Review 2026-10-09 #5: a 200 body that parses to null, a string or a list must reject.
+describe('httpGetJson — response shape', () => {
+    afterEach(() => { jest.resetAllMocks(); });
+
+    function reply(body) {
+        https.get = jest.fn((url, opts, cb) => {
+            const res = {
+                statusCode: 200,
+                resume: jest.fn(),
+                on: jest.fn((event, handler) => {
+                    if (event === 'data') handler(body);
+                    if (event === 'end') handler();
+                }),
+            };
+            cb(res);
+            return { on: jest.fn() };
+        });
+    }
+
+    test.each([['null'], ['"1.6.2"'], ['[]']])('a 200 body of %s rejects with "Unexpected response shape"', async (body) => {
+        reply(body);
+        await expect(httpGetJson('https://example.com/latest')).rejects.toThrow(/^Unexpected response shape$/);
     });
 });
